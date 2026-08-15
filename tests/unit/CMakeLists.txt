@@ -85,3 +85,12 @@ target_compile_features(dzc_metrics_registry_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_metrics_registry_tests PRIVATE dzc_diagnostics)
 
 add_test(NAME dzc_metrics_registry COMMAND dzc_metrics_registry_tests)
+
+add_executable(dzc_performance_csv_writer_tests
+    PerformanceCsvWriterTests.cpp
+)
+
+target_compile_features(dzc_performance_csv_writer_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_performance_csv_writer_tests PRIVATE dzc_diagnostics)
+
+add_test(NAME dzc_performance_csv_writer COMMAND dzc_performance_csv_writer_tests)

@@ -32,7 +32,7 @@
 - [x] **DG-004 实现异步 Logger**
 - [x] **DG-005 实现帧统计聚合器**
 - [ ] **DG-006 定义通用指标快照**
-- [ ] **DG-007 实现 CSV 性能写出**
+- [x] **DG-007 实现 CSV 性能写出**
 - [ ] **DG-008 实现 Markdown 性能摘要**
 
 ## 5. 子任务说明
@@ -140,15 +140,20 @@
 
 ### DG-007 实现 CSV 性能写出
 
-- **状态**：未开始
-- **目标**：按固定列头和 C locale 写 UTF-8 CSV。
+- **状态**：已完成
+- **目标**：按固定列头和 C locale 写线程安全 UTF-8 CSV。
 - **前置任务**：DG-006
-- **预计文件**：`src/diagnostics/PerformanceCsvWriter.h`、`src/diagnostics/PerformanceCsvWriter.cpp`、`tests/unit/PerformanceCsvWriterTests.cpp`
-- **实现要求**：缺失值留空；逗号、引号字段正确转义；失败不终止渲染。
-- **验收检查**：生成文件列头、列数和数值格式稳定。
-- **测试要求**：Golden file 测试正常、缺失值和写失败。
+- **实现文件**：`src/diagnostics/PerformanceCsvWriter.h`、`src/diagnostics/PerformanceCsvWriter.cpp`、`tests/unit/PerformanceCsvWriterTests.cpp`
+- **最终接口**：`PerformanceCsvRow` 固定包含 UTC 时间、帧号、后端、尺寸、CPU/GPU 帧耗时、FPS、几何/内存/传输/LOD 丢失和录制 worker 字段；`PerformanceCsvWriter` 提供构造、`write()`、`close()` 和 `isOpen()`，使用 Pimpl、RAII 和互斥量。
+- **固定表头**：`utcTime,frameId,backend,width,height,cpuFrameMs,gpuFrameMs,fps,visiblePoints,submittedPoints,visibleChunks,cpuResidentBytes,gpuResidentBytes,uploadBytes,lodMisses,recordingWorkers`，不扩展 DG-006 未列入的字段。
+- **格式规则**：二进制 UTF-8、无 BOM、表头和记录以单个 LF 结束；UTC 格式为 `YYYY-MM-DDTHH:MM:SS.mmmZ`；整数使用十进制；浮点使用 classic/C locale 固定 6 位小数；`std::nullopt` 输出空字段。
+- **CSV 与失败语义**：字符串字段按逗号、双引号、CR/LF 规则转义；NaN/正负无穷拒绝整行；父目录不自动创建；打开、写入和 flush 失败通过 `false` 报告，不抛异常、不写 stderr；`close()` 幂等并 flush 后关闭，析构自动关闭。
+- **并发规则**：`write()`、`close()`、`isOpen()` 由互斥量保护；并发写入不会交错，关闭后所有写入失败；不创建后台刷新线程。
+- **指标映射**：调用方组装行时使用 `lodMisses = max(lod.requests - lod.hits, 0)`；Writer 不直接依赖 `MetricsRegistry` 或 `FrameStatistics`。
+- **验收检查**：固定表头、列数、UTC/浮点格式、缺失值、CSV 转义、失败返回和关闭行为均稳定。
+- **测试**：`dzc_performance_csv_writer` 覆盖 Golden file、固定表头、无 BOM/单 LF、UTC 毫秒、classic locale、缺失值、字符串转义、非法浮点整行拒绝、打开失败、幂等关闭、析构和并发写入/关闭。
 - **追踪**：FR-STAT-002、DDD-015
-
+- **验证**：`cmake -S . -B build-dg007 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg007 --config Debug`（MSVC PDB 并发问题后以 `/m:1` 完成）；`ctest --test-dir build-dg007 -C Debug --output-on-failure`；完整 CTest **14/14 通过**。
 ### DG-008 实现 Markdown 性能摘要
 
 - **状态**：未开始
@@ -165,7 +170,7 @@
 - [x] 日志为 UTF-8 且轮转策略通过测试
 - [x] Error 在队列拥塞时仍可诊断
 - [x] FPS 和指标聚合测试通过
-- [ ] CSV 与 Markdown Golden file 测试通过
+- [x] CSV Golden file 与 CSV 格式测试通过（Markdown Golden file 仍待 DG-008）
 
 ## 7. 交接记录
 
@@ -190,6 +195,15 @@
 - 行为：所有公开操作线程安全；`beginFrame()` 清零帧级指标并保留状态指标；`reset()` 全量清零；整数累加饱和；非法 double 被拒绝；快照返回一致副本。
 - 测试命令与结果：`cmake -S . -B build-dg006 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg006 --config Debug`；`ctest --test-dir build-dg006 -C Debug --output-on-failure`；13/13 通过。
 - 未解决问题：DG-007、DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 关联提交：尚未创建 Git 提交。
+### DG-007（2026-08-15）
+
+- 完成人：Codex
+- 关键变更：新增固定字段的 `PerformanceCsvRow` 与线程安全 Pimpl `PerformanceCsvWriter`；接入 `dzc_diagnostics`；新增并注册 `PerformanceCsvWriterTests.cpp`。
+- 行为：UTF-8 无 BOM、单 LF、UTC 毫秒格式、classic locale 固定 6 位浮点、缺失值留空、CSV 字符串转义、非法浮点拒绝整行、父目录不创建、`close()` flush 且幂等。
+- 测试命令与结果：`cmake -S . -B build-dg007 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg007 --config Debug`；`ctest --test-dir build-dg007 -C Debug --output-on-failure`；完整 CTest **14/14 通过**。由于 MSVC 并行 PDB 锁冲突，最终构建以 `cmake --build build-dg007 --config Debug -- /m:1` 完成。
+- 未解决问题：DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 下一任务：DG-008 实现 Markdown 性能摘要。
 - 关联提交：尚未创建 Git 提交。
 ## 8. 变更约束
 

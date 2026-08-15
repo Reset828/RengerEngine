@@ -1392,7 +1392,28 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 所有公开操作由同一互斥量保护，`snapshot()` 不自动重置并返回调用时刻的一致副本。无符号整数累加采用饱和到最大值的规则；FPS、CPU/GPU frame ms、录制聚合耗时和 CUDA synchronization duration 只接受有限且非负值，非法输入返回 `false` 并保持旧值。录制聚合耗时合法输入执行累加，上溢时钳制到 double 最大值。
 ### 21.4 CSV 与 Markdown
 
-性能明细 CSV 使用 UTF-8、逗号分隔、首行固定列名；数值使用 C locale，小数点为点，缺失值留空。建议列：
+性能明细 CSV 由调用方组装固定的 `PerformanceCsvRow` 后交给 `PerformanceCsvWriter` 写出。Writer 不直接依赖 `MetricsRegistry` 或 `FrameStatistics`，不持有动态字符串指标注册表，也不扩展 DG-006 公共字段。
+
+`PerformanceCsvWriter` 使用 Pimpl、RAII 和互斥量，公共接口为：
+
+```cpp
+class PerformanceCsvWriter final {
+public:
+    explicit PerformanceCsvWriter(const std::filesystem::path& path);
+    ~PerformanceCsvWriter();
+
+    PerformanceCsvWriter(const PerformanceCsvWriter&) = delete;
+    PerformanceCsvWriter& operator=(const PerformanceCsvWriter&) = delete;
+    PerformanceCsvWriter(PerformanceCsvWriter&&) = delete;
+    PerformanceCsvWriter& operator=(PerformanceCsvWriter&&) = delete;
+
+    bool write(const PerformanceCsvRow& row);
+    bool close() noexcept;
+    bool isOpen() const noexcept;
+};
+```
+
+固定表头和列顺序如下，不得增加其他指标列：
 
 ```text
 utcTime,frameId,backend,width,height,cpuFrameMs,gpuFrameMs,fps,
@@ -1400,8 +1421,11 @@ visiblePoints,submittedPoints,visibleChunks,cpuResidentBytes,gpuResidentBytes,
 uploadBytes,lodMisses,recordingWorkers
 ```
 
-Markdown 摘要包含项目版本、构建类型、操作系统、CPU、GPU、驱动、内存/显存、CUDA、数据集身份、点数、分辨率、后端、参数、样本帧数、平均 FPS、CPU/GPU 平均帧时和错误计数。基准硬件、低帧率百分位及可重复相机路径尚未确定，摘要必须标为 TBD，不得给出虚构验收数据。
+文件以二进制写入模式创建或截断；不自动创建父目录；成功打开后立即写表头。文件编码为 UTF-8、无 BOM；表头和数据记录使用单个 LF 字节结尾。`utcTime` 使用调用方提供的 `system_clock::time_point`，按 UTC `YYYY-MM-DDTHH:MM:SS.mmmZ` 格式化。整数使用无前导十进制；浮点使用 classic/C locale、小数点为 `.`、固定 6 位小数；`std::nullopt` 输出空字段并保持列数不变。
 
+字符串字段遵循 CSV 转义：字段包含逗号、双引号、CR 或 LF 时用双引号包裹，字段内双引号加倍。optional 浮点为 NaN 或正负无穷时整行拒绝且不写入；打开、写入、flush 失败均以 `false` 报告，不抛异常、不写 `stderr`。`close()` 在互斥量保护下 flush 后关闭，重复调用幂等；析构自动调用 `close()`。不创建后台刷新线程，`write()`、`close()` 和 `isOpen()` 可并发调用，关闭后写入全部失败。
+
+调用方从指标快照组装行时将 LOD 计数映射为 `lodMisses = max(lod.requests - lod.hits, 0)`；Writer 只输出上述固定列。Markdown 摘要包含项目版本、构建类型、操作系统、CPU、GPU、驱动、内存/显存、CUDA、数据集身份、点数、分辨率、后端、参数、样本帧数、平均 FPS、CPU/GPU 平均帧时和错误计数。基准硬件、低帧率百分位及可重复相机路径尚未确定，摘要必须标为 TBD，不得给出虚构验收数据。
 ## 22. 错误码与恢复策略
 
 ### 22.1 稳定错误码
