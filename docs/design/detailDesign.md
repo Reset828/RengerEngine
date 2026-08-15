@@ -1372,7 +1372,9 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 
 ### 21.3 指标采集
 
-`DiagnosticsService` 维护 CPU scoped timer、GPU timestamp/query 延迟结果和原子计数器。至少记录：
+`DiagnosticsService` 维护 CPU scoped timer、GPU timestamp/query 延迟结果和原子计数器。帧统计由线程安全的 `FrameStatistics` 聚合器提供：调用方传入 `std::chrono::nanoseconds` frame delta，聚合器通过注入的 `IClock` 获取时间戳，同时维护最近最多 120 帧和最近 1 秒两个窗口。FPS 使用窗口样本数除以窗口首尾时间跨度，平均帧时使用窗口内有效样本的算术平均值并以毫秒输出；无样本时返回零值。非正 delta 和时钟回退样本被拒绝，`snapshot()` 会按当前时钟淘汰过期时间窗口样本。`addFrame()`、`snapshot()` 和 `reset()` 均受互斥量保护。
+
+至少记录：
 
 - CPU/GPU frame ms、FPS；
 - visible/submitted points、visible/drawn chunks；

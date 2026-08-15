@@ -30,7 +30,7 @@
 - [x] **DG-002 实现 UTF-8 文本文件 Sink**
 - [x] **DG-003 实现日志轮转**
 - [x] **DG-004 实现异步 Logger**
-- [ ] **DG-005 实现帧统计聚合器**
+- [x] **DG-005 实现帧统计聚合器**
 - [ ] **DG-006 定义通用指标快照**
 - [ ] **DG-007 实现 CSV 性能写出**
 - [ ] **DG-008 实现 Markdown 性能摘要**
@@ -108,17 +108,22 @@
 - 不新增 `Fatal` 日志级别；DG-004 中原有 `Error/Fatal` 统一按 `Error` 处理。
 - `dzc_logger` 覆盖 FIFO、并发写入、低级日志丢弃、Warn 等待、Error 备用回退、容量边界、主 Sink 写失败、空主 Sink和并发幂等 shutdown。
 - Debug 构建完整 CTest：**11/11 通过**。
+
 ### DG-005 实现帧统计聚合器
 
-- **状态**：未开始
-- **目标**：计算最近 120 帧或 1 秒窗口的 FPS 和平均帧时。
+- **状态**：已完成
+- **目标**：同时计算最近最多 120 个有效帧样本和最近 1 秒时间窗口的 FPS 与平均帧时。
 - **前置任务**：DG-001
-- **预计文件**：`src/diagnostics/FrameStatistics.h`、`src/diagnostics/FrameStatistics.cpp`、`tests/unit/FrameStatisticsTests.cpp`
-- **实现要求**：使用注入时钟以便确定性测试；未填满窗口按实际样本。
-- **验收检查**：固定时间序列得到预期 FPS/平均值；零样本安全。
-- **测试要求**：覆盖窗口帧数边界、时间边界和异常 delta。
+- **实现文件**：`src/diagnostics/IClock.h`、`src/diagnostics/FrameStatistics.h`、`src/diagnostics/FrameStatistics.cpp`、`tests/unit/FrameStatisticsTests.cpp`
+- **公共接口**：注入 `std::shared_ptr<IClock>`，调用方传入 `std::chrono::nanoseconds` frame delta；返回 `Snapshot`，包含 `frameWindow` 和 `timeWindow` 两组 `WindowStats`。
+- **窗口规则**：帧数窗口保留最近 `frameWindow` 个样本；时间窗口使用包含两端的 `[now - timeWindow, now]`，`snapshot()` 也会按当前时钟淘汰过期样本。
+- **统计规则**：FPS 使用窗口样本数除以窗口首尾时间跨度；平均帧时使用有效样本的算术平均值，输出单位为毫秒；零样本返回零值。
+- **异常处理**：非正 frame delta 和时钟回退样本返回 `false` 且不更新基线；相同时间点允许接收；空时钟使用系统 `steady_clock`。
+- **边界行为**：`frameWindow == 0` 或 `timeWindow <= 0` 只使对应窗口无效；两个窗口独立统计；两个窗口均无效时拒绝样本；`reset()` 清空样本和时钟基线。
+- **线程安全**：`addFrame()`、`snapshot()` 和 `reset()` 由互斥量保护，快照为一致副本。
+- **测试**：`dzc_frame_statistics` 覆盖固定时间序列、帧数/时间边界、无新帧过期、零样本、异常 delta、时钟回退、无效窗口、reset 和并发调用。
+- **验证**：Debug 配置完整 CTest **12/12 通过**。
 - **追踪**：FR-STAT-001、6.3
-
 ### DG-006 定义通用指标快照
 
 - **状态**：未开始
