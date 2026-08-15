@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-007 已完成）
+> 模块状态：进行中（TS-001 至 TS-008 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -33,7 +33,7 @@
 - [x] **TS-005 实现优先级线程池**
 - [x] **TS-006 实现任务完成队列**
 - [x] **TS-007 实现 I/O 并发闸门**
-- [ ] **TS-008 实现高低水位背压器**
+- [x] **TS-008 实现高低水位背压器**
 - [ ] **TS-009 实现 TaskSystem 安全关闭**
 
 ## 5. 子任务说明
@@ -131,15 +131,15 @@
 
 ### TS-008 实现高低水位背压器
 
-- **状态**：未开始
-- **目标**：提供 80% 高水位、60% 低水位的暂停/恢复控制。
-- **前置任务**：TS-002, TS-007
-- **预计文件**：`src/tasks/BackpressureController.h`、`src/tasks/BackpressureController.cpp`、`tests/unit/BackpressureTests.cpp`
-- **实现要求**：阈值可配置；取消和关闭优先于恢复。
-- **验收检查**：跨过高水位暂停，降到低水位恢复，无抖动。
-- **测试要求**：边界值、取消和关闭测试。
+- **状态**：已完成
+- **目标**：提供由调用方显式上报当前用量的、可取消的高低水位暂停/恢复控制，不绑定具体 Reader、队列、TaskSystem 或 I/O Gate。
+- **实现文件**：`src/tasks/BackpressureController.h`、`src/tasks/BackpressureController.cpp`、`tests/unit/BackpressureTests.cpp`；`src/tasks/Cancellation.h` 新增仅供 Controller 使用的私有通知友元；`src/tasks/CMakeLists.txt` 和 `tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 与 `dzc_backpressure` CTest。
+- **最终接口**：`BackpressureController(capacity, highWatermarkPercent = 80U, lowWatermarkPercent = 60U)`、`updateUsage(usage)`、`waitUntilResumed(CancellationToken = {})` 和幂等 `close()`；容量为 0、高水位为 0 或大于 100、低水位大于等于高水位时构造抛出 `std::invalid_argument`。
+- **水位与滞回**：高水位以 `ceil(capacity * highPercent / 100)` 计算，低水位以 `floor(capacity * lowPercent / 100)` 计算；实现通过整百部分和余数部分计算，避免乘法溢出。用量达到或超过高水位进入暂停，降至或低于低水位恢复；两水位之间保持既有状态。超过容量按过载处理并保持/进入暂停。
+- **等待、取消与关闭**：未暂停时等待立即成功；暂停时等待低水位恢复。取消和关闭在恢复前优先返回 `false`，并使用 Cancellation 的私有、失效安全弱引用通知唤醒普通与 TaskSystem 组合 Token 的等待者。`close()` 永久拒绝等待成功、唤醒全部等待者；关闭后的 `updateUsage()` 不会重新打开 Controller；析构自动关闭。
+- **范围边界**：不提供暂停/容量/水位/用量查询或手动恢复，不接入 Reader、TaskSystem、ConcurrencyGate 或完整关闭流程。
+- **测试结果**：`dzc_backpressure` 覆盖默认与自定义百分比、非法参数、向上/向下取整边界、高低水位滞回、超容量、默认/预取消/等待中取消/组合 Token 取消、关闭和 update/wait/cancel/close 并发压力。2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下 Debug 完整 CTest **23/23 通过**。
 - **追踪**：NFR-PERF-003、7.3
-
 ### TS-009 实现 TaskSystem 安全关闭
 
 - **状态**：未开始

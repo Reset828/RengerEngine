@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 的 TS-001 至 TS-007 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-008 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006、TS-007。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006、TS-007、TS-008。
 
 用户约束仍然有效：
 
@@ -162,3 +162,13 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 生命周期与取消：Gate 共享 Pimpl 状态，`close()` 幂等、拒绝新获取并唤醒全部等待者，但不撤销既有 Lease；Gate 析构自动 close，晚析构 Lease 不会访问悬空 Gate。取消注册仅保存失效安全的弱引用通知，等待结束后注册即失效；组合 Token 的所有底层状态均被登记，因此 TaskSystem 的外部或内部取消也能及时唤醒。
 - 工具链与验证：MSVC `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`、`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`、Qt `D:\qt_2\5.15.19\msvc2022_64`、`NMake Makefiles`。2026-08-15 使用 `build-ts007` 配置/Debug 构建成功；完整 CTest **22/22 通过**，包含 `dzc_concurrency_gate`。
 - 工作区状态：`build-ts007` 已在验证后清理；`git diff --check` 已通过；所有此前与本次变更均未提交。
+
+## 15. TS-008 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-008：实现高低水位背压器。下一任务：TS-009。
+
+- 实现文件：`src/tasks/BackpressureController.h`、`src/tasks/BackpressureController.cpp`、`tests/unit/BackpressureTests.cpp`；`src/tasks/Cancellation.h` 增加仅供 BackpressureController 使用的私有友元授权，复用既有失效安全取消通知；`src/tasks/CMakeLists.txt`、`tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 和 `dzc_backpressure` CTest。
+- 最终接口与规则：`BackpressureController(capacity, highWatermarkPercent = 80U, lowWatermarkPercent = 60U)`、`updateUsage()`、`waitUntilResumed()`、`close()`。容量为 0、高水位为 0 或大于 100、低水位大于等于高水位会抛 `std::invalid_argument`。高水位使用上取整、低水位使用下取整的容量百分比，整数分解避免乘法溢出；达到高水位暂停，降至低水位恢复，中间区间保持状态，超容量保持/进入暂停。
+- 取消与关闭：等待在未暂停时立即成功；暂停时可被普通 Token 或 TaskSystem 组合 Token 的外部/内部取消及时唤醒。取消和关闭均优先于恢复返回 `false`。`close()` 幂等、永久关闭且唤醒全部等待者；关闭后 `updateUsage()` 不会恢复；析构自动关闭。不绑定 Reader、队列、TaskSystem 或 I/O Gate。
+- 工具链与验证：MSVC：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`；开发环境：`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`；Qt：`D:\qt_2\5.15.19\msvc2022_64`；生成器：`NMake Makefiles`。2026-08-15 以 OpenGL 开启、Vulkan/CUDA 关闭、测试开启配置 `build-ts008`，Debug 构建成功，完整 CTest **23/23 通过**，包含 `dzc_backpressure`。
+- 清理与状态：`build-ts008` 已在验证后删除；`git diff --check` 通过；工作区所有此前与本次变更仍未提交。

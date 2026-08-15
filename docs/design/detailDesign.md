@@ -645,7 +645,7 @@ public:
 };
 ```
 
-TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 的公开接口只提供轮询查询，不向调用方提供回调、阻塞等待或唤醒机制；TS-007 仅在私有实现中增加 Gate 专用的取消通知登记。
+TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 的公开接口只提供轮询查询，不向调用方提供回调、阻塞等待或唤醒机制；TS-007/TS-008 仅在私有实现中增加 Gate 与 BackpressureController 专用的取消通知登记。
 
 TS-005/TS-006 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，并使用严格 `Critical`、`High`、`Normal`、`Low` 选择顺序；每级容量相同，默认 1024。worker 数、任务队列容量或完成队列容量为 0 时构造失败。成功提交的 `TaskId` 从 1 单调分配且不复用；空任务、非法优先级、停止接收、队列满与 ID 耗尽均以 `ErrorDomain::Task` 和 `TaskErrorCode` 返回。提交任务可返回 `Result<void>`；为兼容既有调用，返回 `void` 的任务适配为成功结果。`stopAccepting()` 只停止接收；`waitForCompletion()` 停止接收，等待已接受任务执行及其完成消息发布，再关闭完成队列、通知 worker 退出并汇合，析构函数执行同一幂等流程。该等待仅允许外部控制线程调用。
 
@@ -657,13 +657,32 @@ TS-005/TS-006 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，�
 
 TS-007 的 `ConcurrencyGate` 是独立的计数信号量等效对象：`ConcurrencyGate(capacity = 2U)` 的容量必须大于零，使用共享 Pimpl、mutex 和 condition_variable 保存可用许可及关闭状态。`acquire(CancellationToken = {})` 在 Gate 打开、Token 未取消且许可可用时返回不可复制、可移动的 RAII `Lease`；许可不足时阻塞等待。`Lease` 析构或移动赋值归还其原许可；即使 Lease 晚于 Gate 对象析构，仍通过共享内部状态安全归还。Gate 不暴露手动 release、容量或活动数查询。
 
-`acquire()` 对已取消 Token、等待期间取消以及已关闭 Gate 均返回空 optional；在唤醒后先检查取消和关闭，因此二者优先于新许可发放。`close()` 幂等，拒绝新 acquire、唤醒全部等待者，但不撤销既有 Lease；Gate 析构自动 close。Cancellation 的公开边界仍为查询式 Token；其私有实现仅为 Gate 登记失效安全的条件变量唤醒通知，并递归登记组合 Token 的底层状态，使外部或 TaskSystem 内部取消能及时唤醒等待而不运行调用方回调。
+`acquire()` 对已取消 Token、等待期间取消以及已关闭 Gate 均返回空 optional；在唤醒后先检查取消和关闭，因此二者优先于新许可发放。`close()` 幂等，拒绝新 acquire、唤醒全部等待者，但不撤销既有 Lease；Gate 析构自动 close。Cancellation 的公开边界仍为查询式 Token；其私有实现仅为 Gate 和 BackpressureController 登记失效安全的条件变量唤醒通知，并递归登记组合 Token 的底层状态，使外部或 TaskSystem 内部取消能及时唤醒等待而不运行调用方回调。
+
+TS-008 的 `BackpressureController` 独立观察调用方显式提交的当前用量，不绑定 Reader、任务队列、TaskSystem 或 Gate：
+
+```cpp
+class BackpressureController final {
+public:
+    explicit BackpressureController(
+        std::size_t capacity,
+        std::size_t highWatermarkPercent = 80U,
+        std::size_t lowWatermarkPercent = 60U);
+
+    void updateUsage(std::size_t usage) noexcept;
+    bool waitUntilResumed(CancellationToken token = {});
+    void close() noexcept;
+};
+```
+
+容量必须大于零，高水位百分比必须在 `[1, 100]`，且低水位必须严格小于高水位；违规构造抛出 `std::invalid_argument`。高水位按 `ceil(capacity * highPercent / 100)`，低水位按 `floor(capacity * lowPercent / 100)` 计算，采用不会溢出的整数分解。初始用量为 0 且未暂停；`updateUsage()` 到达或超过高水位即暂停，降至或低于低水位即恢复并唤醒全部等待者，两个水位之间保持原暂停状态形成滞回。超过容量按过载处理并维持暂停，关闭后上报不再改变关闭结果。
+
+`waitUntilResumed()` 在未暂停时返回 `true`；暂停时阻塞，直至低水位恢复。已取消 Token、等待期间取消及关闭均返回 `false`，且取消与关闭在唤醒后优先于恢复判断。`close()` 幂等、永久拒绝等待成功并唤醒所有等待者；析构自动关闭。Controller 不暴露暂停状态、容量、水位、当前用量或手动恢复接口。
 
 - 一个 Reader 任务以批次输出，不一次性复制全文件；
 - 下游待构建批次、CPU 驻留字节或上传队列达到高水位时暂停继续读取；
 - 队列降到低水位后唤醒；高水位建议为容量 80%，低水位为 60%；
 - 取消优先于继续生产，关闭时先停止接收新任务再汇合已有任务。
-
 ### 7.4 异常与任务结果
 
 任务入口捕获全部异常并转换为 `Error`。标准异常记为 `TaskErrorCode::UnhandledException`、未知异常记为 `TaskErrorCode::UnknownException`，`userMessage` 固定为可理解描述，第三方异常文本只写 `diagnosticMessage`；失败记录仍以 `TaskId + Error` 私有 FIFO 保存至 TaskSystem 析构，且不会停止后续 worker。TS-006 同时将每项成功、业务失败、异常失败或取消统一包装为 `TaskCompletion`，经有界完成队列交给 Engine 单消费者；如果回调返回成功而组合取消 Token 在完成时已取消，则结果替换为 Task 域 `TaskErrorCode::Cancelled`。worker 不允许直接修改 Scene。

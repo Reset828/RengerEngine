@@ -11,6 +11,7 @@ class CancellationComposite;
 class CancellationRegistration;
 class TaskSystem;
 class ConcurrencyGate;
+class BackpressureController;
 
 class CancellationToken final {
 public:
@@ -32,6 +33,7 @@ private:
     friend class CancellationSource;
     friend class TaskSystem;
     friend class ConcurrencyGate;
+    friend class BackpressureController;
 };
 
 class CancellationSource final {
