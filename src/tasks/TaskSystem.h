@@ -112,6 +112,7 @@ public:
     void stopAccepting() noexcept;
     void requestCancelAll() noexcept;
     void waitForCompletion() noexcept;
+    void shutdown() noexcept;
 
 private:
     Result<TaskId> submitResult(

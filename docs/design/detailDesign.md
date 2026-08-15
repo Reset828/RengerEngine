@@ -642,12 +642,15 @@ public:
     void stopAccepting() noexcept;
     void requestCancelAll() noexcept;
     void waitForCompletion() noexcept;
+    void shutdown() noexcept;
 };
 ```
 
 TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 的公开接口只提供轮询查询，不向调用方提供回调、阻塞等待或唤醒机制；TS-007/TS-008 仅在私有实现中增加 Gate 与 BackpressureController 专用的取消通知登记。
 
-TS-005/TS-006 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，并使用严格 `Critical`、`High`、`Normal`、`Low` 选择顺序；每级容量相同，默认 1024。worker 数、任务队列容量或完成队列容量为 0 时构造失败。成功提交的 `TaskId` 从 1 单调分配且不复用；空任务、非法优先级、停止接收、队列满与 ID 耗尽均以 `ErrorDomain::Task` 和 `TaskErrorCode` 返回。提交任务可返回 `Result<void>`；为兼容既有调用，返回 `void` 的任务适配为成功结果。`stopAccepting()` 只停止接收；`waitForCompletion()` 停止接收，等待已接受任务执行及其完成消息发布，再关闭完成队列、通知 worker 退出并汇合，析构函数执行同一幂等流程。该等待仅允许外部控制线程调用。
+TS-005/TS-006/TS-009 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，并使用严格 `Critical`、`High`、`Normal`、`Low` 选择顺序；每级容量相同，默认 1024。worker 数、任务队列容量或完成队列容量为 0 时构造失败。成功提交的 `TaskId` 从 1 单调分配且不复用；空任务、非法优先级、停止接收、队列满与 ID 耗尽均以 `ErrorDomain::Task` 和 `TaskErrorCode` 返回。提交任务可返回 `Result<void>`；为兼容既有调用，返回 `void` 的任务适配为成功结果。`stopAccepting()` 只停止接收。`waitForCompletion()` 是正常自然排空路径：停止接收后等待已接受任务执行及其完成消息正常发布，再关闭完成队列、通知 worker 退出并汇合；它不主动取消任务，也不提前关闭完成队列。该等待仅允许外部控制线程调用。
+
+TS-009 的 `shutdown()` 是取消式安全关闭路径：首次调用在线性化点停止接收、取消当时全部已接受任务的内部取消源，并立即关闭 `TaskCompletionQueue`，使因完成队列满而阻塞的 worker 发布操作返回；未能在关闭前投递的完成结果允许丢失。已接受的排队任务不被丢弃，仍按优先级执行并接收已取消的组合 Token。随后系统等待队列和活动任务归零、请求 worker 退出并汇合。并发或重复的 `shutdown()`、`waitForCompletion()` 等生命周期调用由同一协调状态串行化，仅一个外部调用方执行 drain/join，其余调用方等待汇合结果，避免重复 join 或相互等待。TaskSystem 不拥有 `ConcurrencyGate` 或 `BackpressureController`；任务将组合 Token 传入其等待接口时，私有取消通知负责及时唤醒。析构函数调用 `shutdown()`。
 
 `TaskCompletionQueue` 是固定容量 FIFO，包含 `TaskId`、可选 `DatasetId` 与 `Result<void>`。worker 发布完成消息时在满队列阻塞，绝不因背压静默丢弃；Engine 仅用 `tryPopCompletion()` 与 `tryPopCompletionBatch()` 非阻塞读取。因此调用方必须在等待 TaskSystem 完成前或并发期间持续消费。完成队列关闭后保留已发布消息供排空；DatasetId 的旧结果判定和过滤完全由 Engine 单消费者完成。
 
@@ -1648,7 +1651,7 @@ public:
 10. flush 性能报告和日志；
 11. 发布 Stopped 快照并关闭 Event 队列。
 
-`shutdown` 必须幂等；析构函数调用 `shutdown` 作为兜底。不得在线程仍可能访问对象时释放资源，不得先销毁图形 Buffer 再注销 CUDA。
+`Engine::shutdown` 必须幂等；析构函数调用它作为兜底。其内部 TaskSystem 局部关闭使用 `TaskSystem::shutdown()` 的取消式路径，而不是正常 `waitForCompletion()` 自然排空路径：先关闭完成队列以释放可能受背压阻塞的 worker，再排空已接受任务并汇合。TaskSystem 仅通过组合取消 Token 唤醒任务所等待的 Gate 或 BackpressureController，不拥有或销毁这些对象。不得在线程仍可能访问对象时释放资源，不得先销毁图形 Buffer 再注销 CUDA。
 
 ### 23.3 Dataset 替换
 

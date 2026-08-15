@@ -92,7 +92,7 @@ public:
     }
 
     ~Impl() {
-        waitForCompletion();
+        shutdown();
     }
 
     Result<TaskId> submit(
@@ -185,6 +185,26 @@ public:
         }
     }
 
+    void shutdown() noexcept {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (!m_shutdownRequested) {
+                m_shutdownRequested = true;
+                m_accepting = false;
+                for (const auto& entry : m_activeCancellationSources) {
+                    entry.second->requestCancellation();
+                }
+            }
+        }
+
+        // Closing the completion queue is specific to the cancellation-based
+        // shutdown path. It releases workers that are blocked while publishing
+        // a completion when no consumer is draining the queue.
+        m_completionQueue.close();
+        m_workAvailable.notify_all();
+        waitForCompletion();
+    }
+
     void waitForCompletion() noexcept {
         stopAccepting();
 
@@ -200,13 +220,16 @@ public:
                 return;
             }
 
+            // Exactly one caller owns the entire drain-and-join sequence. This
+            // prevents concurrent lifecycle calls from independently waiting
+            // for task completion and racing to join the worker collection.
+            m_joinInProgress = true;
             m_allTasksCompleted.wait(lock, [this] {
                 return queuedTaskCountLocked() == 0U &&
                        m_activeTaskCount == 0U;
             });
             m_completionQueue.close();
             m_exitRequested = true;
-            m_joinInProgress = true;
         }
 
         m_workAvailable.notify_all();
@@ -351,6 +374,7 @@ private:
     std::size_t m_activeTaskCount = 0U;
     bool m_taskIdExhausted = false;
     bool m_accepting = true;
+    bool m_shutdownRequested = false;
     bool m_exitRequested = false;
     bool m_joinInProgress = false;
     bool m_workersJoined = false;
@@ -371,7 +395,7 @@ TaskSystem::TaskSystem(
           completionQueueCapacity)) {}
 
 TaskSystem::~TaskSystem() {
-    waitForCompletion();
+    shutdown();
 }
 
 Result<TaskId> TaskSystem::submitResult(
@@ -459,6 +483,10 @@ void TaskSystem::requestCancelAll() noexcept {
 
 void TaskSystem::waitForCompletion() noexcept {
     m_impl->waitForCompletion();
+}
+
+void TaskSystem::shutdown() noexcept {
+    m_impl->shutdown();
 }
 
 } // namespace dzc::tasks

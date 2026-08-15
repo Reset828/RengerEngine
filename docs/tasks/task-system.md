@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-008 已完成）
+> 模块状态：进行中（TS-001 至 TS-009 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -34,7 +34,7 @@
 - [x] **TS-006 实现任务完成队列**
 - [x] **TS-007 实现 I/O 并发闸门**
 - [x] **TS-008 实现高低水位背压器**
-- [ ] **TS-009 实现 TaskSystem 安全关闭**
+- [x] **TS-009 实现 TaskSystem 安全关闭**
 
 ## 5. 子任务说明
 
@@ -142,30 +142,33 @@
 - **追踪**：NFR-PERF-003、7.3
 ### TS-009 实现 TaskSystem 安全关闭
 
-- **状态**：未开始
-- **目标**：按停止接收、取消、唤醒、汇合顺序关闭。
-- **前置任务**：TS-005, TS-007, TS-008
-- **预计文件**：`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemShutdownTests.cpp`
-- **实现要求**：shutdown 幂等；析构兜底；不得 detach worker。
-- **验收检查**：活动任务、等待许可任务均能在时限内结束。
-- **测试要求**：故障注入与重复 shutdown 测试。
+- **状态**：已完成
+- **目标**：为 `TaskSystem` 提供取消式、幂等的安全关闭路径，同时保留 `waitForCompletion()` 的正常自然排空语义。
+- **前置任务**：TS-005、TS-006、TS-007、TS-008
+- **实现文件**：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemShutdownTests.cpp`；`tests/unit/CMakeLists.txt` 注册 `dzc_task_system_shutdown`。
+- **最终接口**：新增 `void shutdown() noexcept;`；析构函数自动调用它。
+- **安全关闭顺序**：首次 `shutdown()` 原子停止接收，取消调用线性化时已接受任务的内部 `CancellationSource`，立即关闭 `TaskCompletionQueue` 以解除完成队列满时的 worker 发布阻塞；随后仍排空已接受任务、请求 worker 退出并只汇合一次。关闭期间无法投递的完成消息允许丢失。
+- **正常排空区别**：`waitForCompletion()` 仅停止接收，等待已接受任务自然执行与完成消息正常发布；它不主动取消任务，也不提前关闭完成队列。
+- **并发与边界**：多个外部控制线程可并发或重复调用 `shutdown()`、`waitForCompletion()`、`stopAccepting()` 和 `requestCancelAll()`；单一调用方负责 drain/join，其余调用方等待相同结果，避免重复 join 和死锁。TaskSystem 不拥有或关闭 `ConcurrencyGate`、`BackpressureController`，但任务收到的组合 Token 可使其等待及时结束。
+- **测试结果**：`dzc_task_system_shutdown` 覆盖停止接收、运行/排队任务取消、Gate/Backpressure 等待唤醒、满完成队列解除阻塞、并发 shutdown/wait、析构安全关闭与正常 `waitForCompletion()` 保持自然排空。2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下 Debug 完整 CTest **24/24 通过**。
 - **追踪**：NFR-REL-002、23.2
+
 
 ## 6. 模块级验收
 
-- [ ] 线程数公式与配置覆盖测试通过
-- [ ] 队列、取消、优先级和背压并发测试通过
-- [ ] TaskSystem 关闭无悬挂线程
-- [ ] 任务异常不会跨线程或模块传播
+- [x] 线程数公式与配置覆盖测试通过
+- [x] 队列、取消、优先级和背压并发测试通过
+- [x] TaskSystem 关闭无悬挂线程
+- [x] 任务异常不会跨线程或模块传播
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成日期：2026-08-15
+- 完成人：Codex
+- 关键变更：TS-009 新增 TaskSystem 取消式安全关闭与 shutdown 专项 CTest。
+- 未解决问题：无；下一任务为 TS-010。
+- 测试命令与结果：MSVC 14.44 / Qt MSVC 2022 / NMake Makefiles 下 Debug 构建成功，完整 CTest 24/24 通过。
+- 关联提交：未提交。
 
 ## 8. 变更约束
 

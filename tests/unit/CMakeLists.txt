@@ -168,3 +168,11 @@ target_compile_features(dzc_backpressure_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_backpressure_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_backpressure COMMAND dzc_backpressure_tests)
+add_executable(dzc_task_system_shutdown_tests
+    TaskSystemShutdownTests.cpp
+)
+
+target_compile_features(dzc_task_system_shutdown_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_task_system_shutdown_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_task_system_shutdown COMMAND dzc_task_system_shutdown_tests)

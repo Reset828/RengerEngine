@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 的 TS-001 至 TS-008 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-009 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006、TS-007、TS-008。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006、TS-007、TS-008、TS-009。
 
 用户约束仍然有效：
 
@@ -172,3 +172,12 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 取消与关闭：等待在未暂停时立即成功；暂停时可被普通 Token 或 TaskSystem 组合 Token 的外部/内部取消及时唤醒。取消和关闭均优先于恢复返回 `false`。`close()` 幂等、永久关闭且唤醒全部等待者；关闭后 `updateUsage()` 不会恢复；析构自动关闭。不绑定 Reader、队列、TaskSystem 或 I/O Gate。
 - 工具链与验证：MSVC：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`；开发环境：`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`；Qt：`D:\qt_2\5.15.19\msvc2022_64`；生成器：`NMake Makefiles`。2026-08-15 以 OpenGL 开启、Vulkan/CUDA 关闭、测试开启配置 `build-ts008`，Debug 构建成功，完整 CTest **23/23 通过**，包含 `dzc_backpressure`。
 - 清理与状态：`build-ts008` 已在验证后删除；`git diff --check` 通过；工作区所有此前与本次变更仍未提交。
+## 16. TS-009 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-009：实现 TaskSystem 安全关闭。下一任务：TS-010。
+
+- 实现文件：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemShutdownTests.cpp`；`tests/unit/CMakeLists.txt` 注册 `dzc_task_system_shutdown`。
+- 最终接口与安全关闭：新增幂等 `TaskSystem::shutdown() noexcept`，析构函数调用它。首次关闭停止接收、取消当时所有已接受任务的内部取消源、立即关闭 `TaskCompletionQueue` 以解除 worker 的完成发布背压，再排空已接受任务、退出并汇合 worker；关闭后无法发布的完成结果允许丢失。
+- 正常排空差异：`waitForCompletion()` 仍仅停止接收并等待已接受任务自然执行与完成消息发布，不主动取消任务、不提前关闭完成队列。并发 shutdown/wait 只允许一个调用方完成 drain/join，其余调用方等待，避免重复 join 或死锁。TaskSystem 不拥有 Gate/Backpressure；任务收到的组合 Token 可及时取消其等待。
+- 工具链与验证：MSVC：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`；开发环境：`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`；Qt：`D:\qt_2\5.15.19\msvc2022_64`；生成器：`NMake Makefiles`。2026-08-15 以 OpenGL 开启、Vulkan/CUDA 关闭、测试开启配置 `build-ts009`，Debug 构建成功，完整 CTest **24/24 通过**，包含 `dzc_task_system_shutdown`。
+- 清理与状态：`build-ts009` 已在验证后删除；`git diff --check` 已通过；工作区所有此前与本次变更仍未提交。
