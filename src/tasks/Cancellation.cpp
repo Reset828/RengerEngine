@@ -10,12 +10,43 @@ public:
     std::atomic_bool cancellationRequested{false};
 };
 
+class CancellationComposite final {
+public:
+    CancellationComposite(CancellationToken firstToken, CancellationToken secondToken)
+        : first(std::move(firstToken)),
+          second(std::move(secondToken)) {}
+
+    CancellationToken first;
+    CancellationToken second;
+};
+
 CancellationToken::CancellationToken(std::shared_ptr<const CancellationState> state) noexcept
     : m_state(std::move(state)) {}
 
+CancellationToken CancellationToken::combine(
+    const CancellationToken& first,
+    const CancellationToken& second) {
+    if (first.m_state == nullptr && first.m_composite == nullptr) {
+        return second;
+    }
+    if (second.m_state == nullptr && second.m_composite == nullptr) {
+        return first;
+    }
+
+    CancellationToken combined;
+    combined.m_composite = std::make_shared<CancellationComposite>(first, second);
+    return combined;
+}
+
 bool CancellationToken::isCancellationRequested() const noexcept {
-    return m_state != nullptr &&
-           m_state->cancellationRequested.load(std::memory_order_acquire);
+    if (m_state != nullptr &&
+        m_state->cancellationRequested.load(std::memory_order_acquire)) {
+        return true;
+    }
+
+    return m_composite != nullptr &&
+           (m_composite->first.isCancellationRequested() ||
+            m_composite->second.isCancellationRequested());
 }
 
 CancellationSource::CancellationSource()

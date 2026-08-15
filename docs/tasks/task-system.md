@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-003 已实现，TS-003 已完成 CMake 配置）
+> 模块状态：进行中（TS-001 至 TS-005 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -30,7 +30,7 @@
 - [x] **TS-002 实现通用有界队列**
 - [x] **TS-003 实现命令合并辅助器**
 - [x] **TS-004 实现线程数自动计算**
-- [ ] **TS-005 实现优先级线程池**
+- [x] **TS-005 实现优先级线程池**
 - [ ] **TS-006 实现任务完成队列**
 - [ ] **TS-007 实现 I/O 并发闸门**
 - [ ] **TS-008 实现高低水位背压器**
@@ -91,13 +91,15 @@
 - **追踪**：DDD-006、7.1
 ### TS-005 实现优先级线程池
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：实现四级 FIFO 任务队列和 worker 生命周期。
 - **前置任务**：TS-001, TS-002, TS-004
-- **预计文件**：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemTests.cpp`
-- **实现要求**：任务入口捕获异常；返回 TaskId；worker 不直接修改 Scene。
-- **验收检查**：优先级顺序、任务完成、异常转换和停止接收正确。
-- **测试要求**：确定性单 worker 测试与多 worker 压力测试。
+- **实现文件**：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemTests.cpp`；`src/tasks/CMakeLists.txt` 与 `tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 和 `dzc_task_system` CTest。
+- **最终接口**：`TaskSystem(workerThreads, queueCapacity = 1024U)` 管理固定数量 worker；`TaskPriority` 固定为 `Critical`、`High`、`Normal`、`Low`；`TaskErrorCode` 固定定义 `InvalidTask`、`NotAccepting`、`QueueFull`、`TaskIdExhausted`、`UnhandledException` 与 `UnknownException`。对象不可复制、不可移动。
+- **队列与提交**：四个优先级各自具有独立的固定容量 FIFO；worker 始终先取最高非空优先级，同级保持 FIFO。容量和 worker 数为 0 时构造抛出 `std::invalid_argument`；成功提交从 `TaskId{1}` 单调分配且不复用。空函数或非法优先级、停止接收、队列满和 ID 耗尽均返回 `ErrorDomain::Task` 的稳定错误码。
+- **取消与异常**：每个接受任务拥有独立内部取消源；任务取得的 Token 将调用方 Token 与内部取消合并，任一取消即为取消。`requestCancelAll()` 只取消调用时已接受的排队/运行任务，后续任务不受影响；已排队任务仍会被协作式调用。worker 在锁外运行任务，捕获标准和未知异常为 `TaskId + Error` 私有记录，异常不会跨线程且后续任务继续执行。
+- **停止与汇合**：`stopAccepting()` 幂等地拒绝后续提交，不中断已有任务；`waitForCompletion()` 停止接收、排空已接受任务、通知 worker 退出并汇合，支持多个外部控制线程并发/重复调用。析构函数自动执行该流程；任务函数和 worker 不得调用 `waitForCompletion()`。
+- **测试结果**：自有 `assert` 测试覆盖构造校验、TaskId、同级 FIFO、严格优先级、每级容量、提交错误、标准/未知异常、外部和全局取消、取消后新任务、停止排空、重复等待、析构以及多生产者/多 worker 压力。2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下 Debug 完整 CTest **20/20 通过**。
 - **追踪**：7.2、7.4、NFR-REL-001
 
 ### TS-006 实现任务完成队列

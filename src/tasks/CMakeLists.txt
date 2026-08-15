@@ -5,6 +5,8 @@ add_library(dzc_tasks STATIC
     CommandCoalescer.h
     ThreadConfiguration.cpp
     ThreadConfiguration.h
+    TaskSystem.cpp
+    TaskSystem.h
 )
 
 target_compile_features(dzc_tasks PUBLIC cxx_std_17)

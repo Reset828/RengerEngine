@@ -136,3 +136,11 @@ target_compile_features(dzc_thread_configuration_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_thread_configuration_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_thread_configuration COMMAND dzc_thread_configuration_tests)
+add_executable(dzc_task_system_tests
+    TaskSystemTests.cpp
+)
+
+target_compile_features(dzc_task_system_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_task_system_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_task_system COMMAND dzc_task_system_tests)

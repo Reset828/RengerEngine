@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 的 TS-001 至 TS-004 已完成并通过完整 CTest。尚未创建本次 TS-004 的 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-005 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005。
 
 用户约束仍然有效：
 
@@ -132,3 +132,14 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 测试命令：在 `VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44` 环境中设置 `CMAKE_PREFIX_PATH=D:\qt_2\5.15.19\msvc2022_64`，执行 `cmake -G "NMake Makefiles" -S . -B build-ts004 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`、`cmake --build build-ts004 --config Debug` 和 `ctest --test-dir build-ts004 -C Debug --output-on-failure`。
 - 测试结果：2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下，Debug 构建成功，完整 CTest **19/19 通过**；`CommandCoalescerTests.cpp` 同时补充了缺失的标准 `<stdexcept>` 包含以恢复既有 TS-003 测试的 MSVC 编译完整性。
 - 构建目录与状态：`build-ts004` 已在验证后清理；本次变更尚未创建 Git 提交。
+
+## 12. TS-005 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-005：实现优先级线程池。下一任务：TS-006。
+
+- 实现文件：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemTests.cpp`；`src/tasks/Cancellation.h/.cpp` 已仅以私有组合状态方式扩展，使 TaskSystem 能将外部 Token 与每任务内部取消源组合；`src/tasks/CMakeLists.txt` 与 `tests/unit/CMakeLists.txt` 已注册 `dzc_task_system`。
+- 最终行为：四个各自有界的 FIFO 队列采用严格 `Critical → High → Normal → Low` 调度；构造函数接收非零 worker 数和每级容量（默认 1024），对象不可复制/移动。成功提交从 `TaskId{1}` 单调分配；提交失败使用固定 `TaskErrorCode` 和 `ErrorDomain::Task`。
+- 取消与生命周期：`requestCancelAll()` 仅取消当时已接受的任务，并把内部/外部任一取消反映到任务 Token；排队任务仍以已取消 Token 协作执行，后续新任务不受影响。`stopAccepting()` 拒绝新任务；`waitForCompletion()` 停止接收、排空、退出并汇合 worker，析构自动兜底；等待只允许外部控制线程调用。
+- 异常：worker 捕获标准和未知异常，转换为 `TaskId + Error` 私有记录，不跨线程传播且不停止后续任务；TS-006 将公开完成结果。
+- 工具链与验证：使用 `D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`，MSVC 为 `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`，Qt 为 `D:\qt_2\5.15.19\msvc2022_64`，CMake 生成器为 `NMake Makefiles`。`build-ts005` Debug 构建成功，完整 CTest **20/20 通过**；验证目录已清理；`git diff --check` 通过。
+- 工作区状态：本次及此前任务的变更均未提交。

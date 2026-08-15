@@ -5,6 +5,8 @@
 namespace dzc::tasks {
 
 class CancellationState;
+class CancellationComposite;
+class TaskSystem;
 
 class CancellationToken final {
 public:
@@ -14,10 +16,15 @@ public:
 
 private:
     explicit CancellationToken(std::shared_ptr<const CancellationState> state) noexcept;
+    static CancellationToken combine(
+        const CancellationToken& first,
+        const CancellationToken& second);
 
     std::shared_ptr<const CancellationState> m_state;
+    std::shared_ptr<const CancellationComposite> m_composite;
 
     friend class CancellationSource;
+    friend class TaskSystem;
 };
 
 class CancellationSource final {

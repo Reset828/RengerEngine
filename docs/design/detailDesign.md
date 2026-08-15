@@ -594,8 +594,27 @@ public:
     bool requestCancellation() noexcept;
 };
 
+enum class TaskErrorCode : std::uint32_t {
+    InvalidTask = 1U,
+    NotAccepting = 2U,
+    QueueFull = 3U,
+    TaskIdExhausted = 4U,
+    UnhandledException = 5U,
+    UnknownException = 6U
+};
+
 class TaskSystem final {
 public:
+    explicit TaskSystem(
+        std::uint32_t workerThreads,
+        std::size_t queueCapacity = 1024U);
+    ~TaskSystem();
+
+    TaskSystem(const TaskSystem&) = delete;
+    TaskSystem& operator=(const TaskSystem&) = delete;
+    TaskSystem(TaskSystem&&) = delete;
+    TaskSystem& operator=(TaskSystem&&) = delete;
+
     Result<TaskId> submit(
         TaskPriority priority,
         CancellationToken token,
@@ -609,7 +628,9 @@ public:
 
 TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 只提供轮询查询，不提供回调、阻塞等待或唤醒机制。
 
-线程池使用每优先级 FIFO 队列。每个 Dataset 拥有 CancellationSource；Chunk 子任务继承令牌。任务必须在打开文件前、每个批次后、昂贵构建步骤前后和提交 GPU 上传前检查取消。
+TS-005 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，并使用严格 `Critical`、`High`、`Normal`、`Low` 选择顺序；每级容量相同，默认 1024。worker 数或队列容量为 0 时构造失败。成功提交的 `TaskId` 从 1 单调分配且不复用；空任务、非法优先级、停止接收、队列满与 ID 耗尽均以 `ErrorDomain::Task` 和 `TaskErrorCode` 返回。`stopAccepting()` 只停止接收；`waitForCompletion()` 停止接收、排空、通知 worker 退出并汇合，析构函数执行同一幂等流程。该等待仅允许外部控制线程调用。
+
+每个 Dataset 仍拥有 `CancellationSource`；Chunk 子任务继承令牌。TaskSystem 为每个已接受任务另持有内部取消源，并向任务传递“外部或内部任一取消即取消”的组合 Token。`requestCancelAll()` 仅取消调用时已接受任务，排队任务仍会取得已取消 Token 并被协作式调用；此后新提交的任务使用新的内部取消源。任务必须在打开文件前、每个批次后、昂贵构建步骤前后和提交 GPU 上传前检查取消。
 
 ### 7.3 I/O 并发与背压
 
@@ -621,7 +642,7 @@ TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken`
 
 ### 7.4 异常与任务结果
 
-任务入口捕获全部异常并转换为 `Error`。第三方异常文本只写 `diagnosticMessage`；`userMessage` 使用可理解的稳定描述。任务完成结果通过内部完成队列返回 Engine 单消费者，不允许工作线程直接修改 Scene。
+任务入口捕获全部异常并转换为 `Error`。TS-005 将标准异常记为 `TaskErrorCode::UnhandledException`、未知异常记为 `TaskErrorCode::UnknownException`，`userMessage` 固定为可理解描述，第三方异常文本只写 `diagnosticMessage`；失败记录以 `TaskId + Error` 私有 FIFO 保存至 TaskSystem 析构，且不会停止后续 worker。TS-006 再将成功、失败和取消统一经完成队列公开给 Engine 单消费者；worker 不允许直接修改 Scene。
 
 
 ## 8. 点云核心数据模型
