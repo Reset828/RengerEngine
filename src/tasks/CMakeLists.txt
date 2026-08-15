@@ -3,6 +3,8 @@ add_library(dzc_tasks STATIC
     BoundedQueue.h
     CommandCoalescer.cpp
     CommandCoalescer.h
+    ThreadConfiguration.cpp
+    ThreadConfiguration.h
 )
 
 target_compile_features(dzc_tasks PUBLIC cxx_std_17)

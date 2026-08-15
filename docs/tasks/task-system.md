@@ -28,8 +28,8 @@
 
 - [x] **TS-001 实现 CancellationToken/Source**
 - [x] **TS-002 实现通用有界队列**
-- [ ] **TS-003 实现命令合并辅助器**
-- [ ] **TS-004 实现线程数自动计算**
+- [x] **TS-003 实现命令合并辅助器**
+- [x] **TS-004 实现线程数自动计算**
 - [ ] **TS-005 实现优先级线程池**
 - [ ] **TS-006 实现任务完成队列**
 - [ ] **TS-007 实现 I/O 并发闸门**
@@ -66,7 +66,7 @@
 - **追踪**：DDD-005、6.4
 ### TS-003 实现命令合并辅助器
 
-- **状态**：已完成实现（CMake 已配置；构建与 CTest 待后续执行）
+- **状态**：已完成
 - **目标**：为最后值生效的参数命令提供线程安全的队列内合并策略。
 - **前置任务**：TS-002
 - **实现文件**：`src/tasks/CommandCoalescer.h`、`src/tasks/CommandCoalescer.cpp`、`tests/unit/CommandCoalescerTests.cpp`
@@ -75,19 +75,20 @@
 - **合并规则**：点大小、着色、固定颜色、CUDA 模式和 Resize 只在最后一个屏障后的当前命令段内合并；同类命令保留首次入队位置并更新为最后值，不增加队列长度。背景色以及加载、取消、卸载、重置、Shutdown 均为屏障，不跨屏障合并。
 - **容量与关闭**：队列固定容量、FIFO、立即返回；满队列时已有同类参数命令仍可原位更新，没有可更新目标时返回 `false`；`close()` 拒绝新命令但保留并排空已接受命令，Shutdown 命令本身不自动关闭队列。
 - **职责边界**：不校验路径、浮点、颜色或尺寸值域；不新增 InputEvent、动态字符串指标、Qt 或 Fatal 语义。
-- **测试结果**：已新增自有 `assert` 测试，覆盖容量、FIFO、批量消费、连续参数、屏障分段、满队列更新、关闭、Shutdown、生产者/消费者并发和并发关闭。2026-08-15 已使用指定 MSVC 14.44 工具链完成 CMake 配置；构建与 CTest 待后续执行。
+- **测试结果**：已新增自有 `assert` 测试，覆盖容量、FIFO、批量消费、连续参数、屏障分段、满队列更新、关闭、Shutdown、生产者/消费者并发和并发关闭。2026-08-15 已使用指定 MSVC 14.44 工具链完成 Debug 构建与完整 CTest；完整 CTest **19/19 通过**。
 - **追踪**：6.1、6.4
 ### TS-004 实现线程数自动计算
 
-- **状态**：未开始
-- **目标**：实现 H=0 回退和 Phase 1/Phase 2 公式。
+- **状态**：已完成
+- **目标**：实现可注入硬件并发数的确定性线程配置解析，并支持 Phase 1/Phase 2 自动公式和配置覆盖。
 - **前置任务**：project-foundation/PF-006
-- **预计文件**：`src/tasks/ThreadConfiguration.h`、`src/tasks/ThreadConfiguration.cpp`、`tests/unit/ThreadConfigurationTests.cpp`
-- **实现要求**：Phase1 clamp(H-1,2,8)，Phase2 clamp(H/2,2,8)，配置非零覆盖且安全限制。
-- **验收检查**：H=0、1、4、16 和覆盖值结果正确。
-- **测试要求**：参数化单元测试。
+- **实现文件**：`src/tasks/ThreadConfiguration.h`、`src/tasks/ThreadConfiguration.cpp`、`tests/unit/ThreadConfigurationTests.cpp`
+- **最终接口**：`ResolvedThreadConfig` 固定包含 `phase1WorkerThreads`、`phase2RecordingThreads` 和 `maxConcurrentIoTasks`；无状态 `ThreadConfiguration::resolve(const dzc::ThreadConfig&, std::uint32_t) noexcept` 返回独立的解析结果。
+- **自动计算**：注入的硬件并发数为 0 时按 4 处理；Phase 1 使用 `clamp(H - 1, 2, 8)`，Phase 2 使用 `clamp(H / 2, 2, 8)`，并在计算前完成回退以避免无符号下溢；I/O 并发默认值为 2。
+- **配置覆盖**：`ThreadConfig` 的三个非零字段分别覆盖自动/默认结果，所有覆盖统一钳制到 `[1, 8]`；I/O 字段为 0 时保留默认值 2；解析过程不修改输入配置。
+- **职责边界**：不创建线程、不读取真实硬件、不使用全局状态；不引入 Qt、图形 API、任务队列、线程池或 Fatal 语义。
+- **测试结果**：表驱动测试覆盖 H=0、1、4、16，Phase 1/Phase 2/I/O 覆盖、零 I/O 默认、上限钳制、输入不变与重复确定性解析；2026-08-15 指定 MSVC 14.44 工具链下 Debug 完整 CTest **19/19 通过**。
 - **追踪**：DDD-006、7.1
-
 ### TS-005 实现优先级线程池
 
 - **状态**：未开始

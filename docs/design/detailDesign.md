@@ -546,7 +546,9 @@ TS-003 的 `CommandCoalescer` 为命令队列提供同等的固定容量、FIFO�
 
 ### 7.1 线程配置
 
-令 `H = std::thread::hardware_concurrency()`；当 H 为 0 时按 4 处理：
+`ThreadConfiguration` 在 `dzc::tasks` 中以无状态 `resolve(const dzc::ThreadConfig&, std::uint32_t hardwareConcurrency) noexcept` 解析调用方显式注入的硬件并发数；它不在内部读取全局硬件状态，因此单元测试可以确定性覆盖所有硬件值。解析结果以独立值对象 `ResolvedThreadConfig` 返回，包含 `phase1WorkerThreads`、`phase2RecordingThreads` 和 `maxConcurrentIoTasks`。
+
+令输入硬件并发数为 `H`；当输入为 0 时，先将 `H` 回退为 4：
 
 ```text
 phase1WorkerThreads = clamp(H - 1, 2, 8)
@@ -554,7 +556,9 @@ phase2RecordingThreads = clamp(H / 2, 2, 8)
 maxConcurrentIoTasks = 2
 ```
 
-用户配置的非零值覆盖自动值，但必须至少为 1，并受实现安全上限保护。Phase 2 的通用 worker 与命令录制 worker 应分组，防止 I/O 或缓存构建占满录制线程。
+回退在 Phase 1 减法之前执行，避免无符号下溢。`ThreadConfig` 的 `workerThreads`、`commandRecordingThreads` 和 `maxConcurrentIoTasks` 分别以非零值覆盖对应结果；所有非零覆盖统一钳制到 `[1, 8]`。I/O 配置为 0 时保留默认值 2；两个线程字段为 0 时分别使用自动公式。解析不修改输入配置，也不创建线程。
+
+Phase 2 的通用 worker 与命令录制 worker 应分组，防止 I/O 或缓存构建占满录制线程。
 
 ### 7.2 接口与任务描述
 

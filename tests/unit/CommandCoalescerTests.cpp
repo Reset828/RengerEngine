@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstddef>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>

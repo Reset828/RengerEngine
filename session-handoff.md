@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 当前 TS-003 已完成实现并已完成 CMake 配置，尚未执行构建和 CTest。尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-004 已完成并通过完整 CTest。尚未创建本次 TS-004 的 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003（实现完成）。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004。
 
 用户约束仍然有效：
 
@@ -104,13 +104,13 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 实现文件：`src/tasks/CommandCoalescer.h`、`src/tasks/CommandCoalescer.cpp`、`tests/unit/CommandCoalescerTests.cpp`；`src/tasks/CMakeLists.txt` 和 `tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 静态库及 `dzc_command_coalescer` CTest。
 - 最终行为：固定容量默认 1024；零容量抛出 `std::invalid_argument`；FIFO 单条/批量立即消费；点大小、着色、固定颜色、CUDA 模式和 Resize 在最后屏障后的当前段内原位保留最后值；加载、取消、卸载、背景色、重置视图和 Shutdown 为屏障；满队列时已有同类参数仍可更新；关闭拒绝新命令并排空已有命令；Shutdown 不自动关闭队列；不提前定义 InputEvent。
 - 计划验证命令：`cmake -S . -B build-ts003 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-ts003 --config Debug -- /m:1`；`ctest --test-dir build-ts003 -C Debug --output-on-failure`。
-- 当前验证结果：2026-08-15 已在 MSVC 开发环境中完成 CMake 配置；尚未执行构建和 CTest，未伪造测试通过结果。
-- 构建目录：`build-ts003` 已按用户要求清理；后续需要验证时重新配置。
+- 验证结果：2026-08-15 已在指定 MSVC 开发环境中完成 Debug 构建和完整 CTest；完整 CTest **19/19 通过**。
+- 构建目录：`build-ts003` 已按用户要求清理；已在 TS-004 验证中完成构建与完整 CTest；无需保留该目录。
 - 工作区状态：未创建 Git 提交；已有 DG-006 至 DG-008、TS-001、TS-002 变更未回退。
 
 ## 10. 当前构建工具链记录
 
-为避免后续开发再次遇到编译器发现问题，当前 TS-003 使用以下工具链完成 CMake 配置：
+为避免后续开发再次遇到编译器发现问题，TS-004 已使用以下工具链完成 CMake 配置、Debug 构建和完整 CTest：
 
 - MSVC 编译器：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`
 - MSVC 开发环境脚本：`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat`
@@ -118,6 +118,17 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - Qt 安装目录：`D:\qt_2\5.15.19\msvc2022_64`
 - CMake 生成器：`NMake Makefiles`
 - CMake 配置命令：
-  `cmake -G "NMake Makefiles" -S . -B build-ts003 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`
-- 配置结果：成功；CMake 识别为 MSVC `19.44.35227.0`，OpenGL 开启，Vulkan/CUDA 关闭，测试开启。
-- 当前状态：`build-ts003` 已清理；后续需要验证时重新配置、构建并运行 CTest。
+  `cmake -G "NMake Makefiles" -S . -B build-ts004 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`
+- 配置与验证结果：成功；CMake 识别为 MSVC `19.44.35227.0`，OpenGL 开启，Vulkan/CUDA 关闭，测试开启；Debug 构建和完整 CTest **19/19 通过**。
+- 当前状态：`build-ts003` 已清理；`build-ts004` 已在验证后清理。
+
+## 11. TS-004 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-004：实现线程数自动计算。下一任务：TS-005。
+
+- 实现文件：`src/tasks/ThreadConfiguration.h`、`src/tasks/ThreadConfiguration.cpp`、`tests/unit/ThreadConfigurationTests.cpp`；`src/tasks/CMakeLists.txt` 已将实现纳入 `dzc_tasks`，`tests/unit/CMakeLists.txt` 已注册 `dzc_thread_configuration`。
+- 最终接口：`ResolvedThreadConfig` 返回 Phase 1 worker、Phase 2 recording worker 和 I/O 并发数；`ThreadConfiguration::resolve(const dzc::ThreadConfig&, std::uint32_t) noexcept` 接收调用方注入的硬件并发数，不读取全局硬件状态。
+- 最终规则：硬件并发数 0 回退为 4；自动值为 Phase 1 `clamp(H - 1, 2, 8)` 与 Phase 2 `clamp(H / 2, 2, 8)`；I/O 默认 2。三个非零配置覆盖都钳制到 `[1, 8]`，I/O 配置 0 保留默认值 2；回退先于减法执行，输入配置不被修改。
+- 测试命令：在 `VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44` 环境中设置 `CMAKE_PREFIX_PATH=D:\qt_2\5.15.19\msvc2022_64`，执行 `cmake -G "NMake Makefiles" -S . -B build-ts004 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`、`cmake --build build-ts004 --config Debug` 和 `ctest --test-dir build-ts004 -C Debug --output-on-failure`。
+- 测试结果：2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下，Debug 构建成功，完整 CTest **19/19 通过**；`CommandCoalescerTests.cpp` 同时补充了缺失的标准 `<stdexcept>` 包含以恢复既有 TS-003 测试的 MSVC 编译完整性。
+- 构建目录与状态：`build-ts004` 已在验证后清理；本次变更尚未创建 Git 提交。
