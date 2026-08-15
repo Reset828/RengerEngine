@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 已完成）
+> 模块状态：进行中（TS-001 至 TS-002 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **TS-001 实现 CancellationToken/Source**
-- [ ] **TS-002 实现通用有界队列**
+- [x] **TS-002 实现通用有界队列**
 - [ ] **TS-003 实现命令合并辅助器**
 - [ ] **TS-004 实现线程数自动计算**
 - [ ] **TS-005 实现优先级线程池**
@@ -53,15 +53,17 @@
 
 ### TS-002 实现通用有界队列
 
-- **状态**：未开始
-- **目标**：实现 mutex/condition_variable 环形队列和关闭语义。
+- **状态**：已完成
+- **目标**：实现固定容量、FIFO、多生产者单消费者的通用有界队列。
 - **前置任务**：TS-001
-- **预计文件**：`src/tasks/BoundedQueue.h`、`tests/unit/BoundedQueueTests.cpp`
-- **实现要求**：容量固定；支持 tryPush、tryPop、批量弹出和 close；不得无限阻塞 UI。
-- **验收检查**：容量、FIFO、关闭、多生产者单消费者行为正确。
-- **测试要求**：并发压力、满/空/关闭测试。
+- **实现文件**：`src/tasks/BoundedQueue.h`、`tests/unit/BoundedQueueTests.cpp`
+- **最终接口**：提供 `BoundedQueue<T>(capacity = 1024)`、`tryPush(T)`、`tryPop()`、`tryPopBatch(maxCount)` 和 `close()`；队列自身不可复制、不可移动。
+- **容量与元素**：容量必须大于零，零容量构造抛出 `std::invalid_argument`；元素要求可移动构造，不额外要求可复制。
+- **入队/出队**：使用固定容量环形存储；入队和出队均立即返回，不提供阻塞等待；满队列入队失败，空队列出队失败；批量出队按 FIFO 最多返回 `maxCount` 个当前元素。
+- **关闭语义**：`close()` 幂等，关闭后拒绝新元素，但保留并允许排空已入队元素；析构函数自动调用 `close()`。
+- **并发语义**：所有公开操作由互斥量保护，支持多生产者和单消费者安全访问；条件变量仅用于状态通知，不向调用方暴露阻塞接口。
+- **测试结果**：`dzc_bounded_queue` 覆盖默认/自定义容量、零容量异常、FIFO、满/空、批量出队、关闭排空、析构、移动元素、多生产者并发和并发关闭；2026-08-15 的 Debug 全量 CTest 为 **17/17 通过**。
 - **追踪**：DDD-005、6.4
-
 ### TS-003 实现命令合并辅助器
 
 - **状态**：未开始

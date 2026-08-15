@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 当前任务 TS-001 已完成，模块处于进行中状态。尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 当前任务 TS-002 已完成，模块处于进行中状态。尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002。
 
 用户约束仍然有效：
 
@@ -66,11 +66,11 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - `docs/tasks/diagnostics.md`：DG-008 已标记完成并记录固定 Markdown 模板、字段顺序、TBD、转义、失败语义和测试结果；
 - `docs/tasks/progress.md`：Diagnostics 已更新为完成，DG-001 至 DG-008 全部完成；
 - `docs/design/detailDesign.md`：21.4 已补充 CSV 与 `PerformanceSummary`/`PerformanceSummaryWriter` 的固定模板、字段顺序、格式、缺失值、TBD、转义、线程安全和生命周期语义；
-- 当前未创建 Git 提交，工作区包含 DG-006、DG-007 和 DG-008 的源码、测试、CMake、文档变更。
+- 当前未创建 Git 提交，工作区包含 Diagnostics（DG-006 至 DG-008）和 Task System（TS-001 至 TS-002）的源码、测试、CMake、文档变更。
 
 ## 6. DG-008 完成记录
 
-已完成 `docs/tasks/diagnostics.md` 的 DG-008：实现 Markdown 性能摘要。后续开始 Task System 时，下一任务为 TS-002。继续遵守“先读取交接和任务文档、发现不明确事项先提问”的流程。
+已完成 `docs/tasks/diagnostics.md` 的 DG-008：实现 Markdown 性能摘要。Task System 的 TS-001 与 TS-002 已完成，下一任务为 TS-003。继续遵守“先读取交接和任务文档、发现不明确事项先提问”的流程。
 - 实现文件：`src/diagnostics/PerformanceSummaryWriter.h`、`src/diagnostics/PerformanceSummaryWriter.cpp`、`tests/unit/PerformanceSummaryWriterTests.cpp`。
 - 固定行为：五章节 Markdown 摘要、UTF-8 无 BOM、单 LF、classic locale 固定 6 位浮点、普通缺失值为空、未确认字段为 TBD、Markdown 字符串转义、一次性写出、flush/close 幂等和线程安全。
 - 测试命令：`cmake -S . -B build-dg008 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg008 --config Debug -- /m:1`；`ctest --test-dir build-dg008 -C Debug --output-on-failure`。
@@ -86,3 +86,13 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 测试命令：`cmake -S . -B build-ts001 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-ts001 --config Debug -- /m:1`；`ctest --test-dir build-ts001 -C Debug --output-on-failure`。
 - 测试结果：2026-08-15 Debug 全量 CTest **16/16 通过**；`build-ts001` 已清理；`git diff --check` 通过。
 - 工作区状态：尚未创建 Git 提交；DG-006 至 DG-008 与 TS-001 的变更均保留在工作区。
+
+## 8. TS-002 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-002：实现通用有界队列。下一任务：TS-003。
+
+- 实现文件：`src/tasks/BoundedQueue.h`、`tests/unit/BoundedQueueTests.cpp`；`src/tasks/CMakeLists.txt` 已将模板头文件纳入 `dzc_tasks` 静态库源清单，`tests/unit/CMakeLists.txt` 已注册 `dzc_bounded_queue`。
+- 最终行为：默认容量 1024；容量必须大于零；零容量构造抛出 `std::invalid_argument`；队列使用固定容量环形存储和互斥量，支持多生产者单消费者；入队、单条出队和批量出队立即返回；关闭后拒绝新元素并排空已接受元素；析构自动关闭。
+- 测试命令：默认 Visual Studio 生成器配置时 CMake 未检测到 C++ 编译器；随后在 VS 2026 Developer Command Prompt 中使用 `cmake -G "NMake Makefiles" -S . -B build-ts002 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`、`cmake --build build-ts002` 和 `ctest --test-dir build-ts002 -C Debug --output-on-failure` 完成验证。
+- 测试结果：2026-08-15 Debug 全量 CTest **17/17 通过**；`build-ts002` 已清理；`git diff --check` 通过。
+- 工作区状态：尚未创建 Git 提交；DG-006 至 DG-008、TS-001 和 TS-002 的变更均保留在工作区。

@@ -1,5 +1,6 @@
 add_library(dzc_tasks STATIC
     Cancellation.cpp
+    BoundedQueue.h
 )
 
 target_compile_features(dzc_tasks PUBLIC cxx_std_17)

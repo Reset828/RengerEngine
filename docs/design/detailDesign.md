@@ -528,7 +528,9 @@ struct EngineSnapshot final {
 
 ### 6.4 有界队列和溢出策略
 
-`BoundedQueue<T>` 使用 `std::mutex`、`std::condition_variable` 和环形存储，默认容量均为 1024。Command 是多生产者单消费者，Event 是多生产者、UI 单消费者。
+`BoundedQueue<T>` 使用 `std::mutex`、`std::condition_variable` 和固定容量环形存储，默认容量为 1024。公共接口为 `tryPush(T)`、`tryPop()`、`tryPopBatch(maxCount)` 和 `close()`；队列不可复制、不可移动，元素要求可移动构造。容量必须大于零，零容量构造抛出 `std::invalid_argument`。Command 是多生产者单消费者，Event 是多生产者、UI 单消费者。
+
+`tryPush`、`tryPop` 和 `tryPopBatch` 均为立即返回操作：队列满时入队失败，队列空时出队返回空值，批量出队按 FIFO 最多返回当前已有的 `maxCount` 个元素，`maxCount == 0` 返回空批次。队列关闭后拒绝新入队，但保留已接受元素供消费者排空；`close()` 幂等，析构函数自动调用。互斥量保护所有公开操作；条件变量仅发送状态通知，不向调用方提供阻塞等待接口。
 
 | 队列情况 | 处理方式 |
 |---|---|

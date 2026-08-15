@@ -110,3 +110,11 @@ target_compile_features(dzc_cancellation_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_cancellation_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_cancellation COMMAND dzc_cancellation_tests)
+add_executable(dzc_bounded_queue_tests
+    BoundedQueueTests.cpp
+)
+
+target_compile_features(dzc_bounded_queue_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_bounded_queue_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_bounded_queue COMMAND dzc_bounded_queue_tests)
