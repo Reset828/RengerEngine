@@ -1,5 +1,6 @@
-﻿add_library(dzc_diagnostics STATIC
+add_library(dzc_diagnostics STATIC
     TextFileSink.cpp
+    RotatingFileSink.cpp
 )
 
 target_compile_features(dzc_diagnostics PUBLIC cxx_std_17)

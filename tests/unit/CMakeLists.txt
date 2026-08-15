@@ -50,3 +50,12 @@ target_compile_features(dzc_text_file_sink_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_text_file_sink_tests PRIVATE dzc_diagnostics)
 
 add_test(NAME dzc_text_file_sink COMMAND dzc_text_file_sink_tests)
+
+add_executable(dzc_log_rotation_tests
+    LogRotationTests.cpp
+)
+
+target_compile_features(dzc_log_rotation_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_log_rotation_tests PRIVATE dzc_diagnostics)
+
+add_test(NAME dzc_log_rotation COMMAND dzc_log_rotation_tests)
