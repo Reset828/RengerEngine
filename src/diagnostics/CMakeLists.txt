@@ -1,4 +1,5 @@
 add_library(dzc_diagnostics STATIC
+    Logger.cpp
     TextFileSink.cpp
     RotatingFileSink.cpp
 )

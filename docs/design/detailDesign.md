@@ -1368,7 +1368,7 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 2026-08-13T23:59:59.123+08:00 [INFO] [Render.Vulkan] code=0 dataset=7 chunk=18 frame=42 message="..."
 ```
 
-默认单文件最大 20 MiB，保留最近 10 个文件。达到上限后关闭、按序号轮转并重新创建；轮转失败时继续写当前可用 Sink 或 stderr，不能因日志失败终止渲染。记录内容不得逐点输出。多线程先格式化结构化记录，再由日志线程串行写入；队列满时可丢弃低级别记录，但 Error 必须同步写备用 Sink。
+默认单文件最大 20 MiB，保留最近 10 个文件。达到上限后关闭、按序号轮转并重新创建；轮转失败时继续写当前可用 Sink 或 stderr，不能因日志失败终止渲染。记录内容不得逐点输出。Logger 使用默认容量 1024 的有界 FIFO 队列和单个后台日志线程，生产者线程安全提交 `LogRecord`，由日志线程串行调用主 Sink。队列满时 Trace/Debug/Info 可丢弃，Warn 等待队列空间；Error 在队列满时同步写备用 Sink，备用 Sink 缺失或失败通过 `write()` 返回 `false` 报告。Logger 的 `shutdown()` 先拒绝新记录，再排空已接受队列并汇合日志线程；不扩展 `ILogSink`，也不由 Logger 主动关闭具体 Sink。DG-004 不新增 Fatal 级别，文档中的 Error/Fatal 统一按 Error 处理。
 
 ### 21.3 指标采集
 

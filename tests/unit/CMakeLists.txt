@@ -1,4 +1,4 @@
-﻿add_executable(dzc_engine_types_tests
+add_executable(dzc_engine_types_tests
     EngineTypesTests.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/EngineTypes.cpp
 )
@@ -59,3 +59,11 @@ target_compile_features(dzc_log_rotation_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_log_rotation_tests PRIVATE dzc_diagnostics)
 
 add_test(NAME dzc_log_rotation COMMAND dzc_log_rotation_tests)
+add_executable(dzc_logger_tests
+    LoggerTests.cpp
+)
+
+target_compile_features(dzc_logger_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_logger_tests PRIVATE dzc_diagnostics)
+
+add_test(NAME dzc_logger COMMAND dzc_logger_tests)

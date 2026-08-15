@@ -28,8 +28,8 @@
 
 - [x] **DG-001 定义日志记录与 Sink 接口**
 - [x] **DG-002 实现 UTF-8 文本文件 Sink**
-- [ ] **DG-003 实现日志轮转**
-- [ ] **DG-004 实现异步 Logger**
+- [x] **DG-003 实现日志轮转**
+- [x] **DG-004 实现异步 Logger**
 - [ ] **DG-005 实现帧统计聚合器**
 - [ ] **DG-006 定义通用指标快照**
 - [ ] **DG-007 实现 CSV 性能写出**
@@ -90,15 +90,24 @@
 - 完整 CTest：**10/10 通过**。
 ### DG-004 实现异步 Logger
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：加入有界队列和日志线程，低级日志拥塞时可丢弃。
 - **前置任务**：DG-003
 - **预计文件**：`src/diagnostics/Logger.h`、`src/diagnostics/Logger.cpp`、`tests/unit/LoggerTests.cpp`
-- **实现要求**：Error/Fatal 队列满时同步写备用 Sink；shutdown 必须 flush 并汇合线程。
-- **验收检查**：多线程写入无数据竞争；关闭后不接受新记录。
-- **测试要求**：并发压力、队列满、Error 保留、幂等关闭测试。
+- **实现要求**：队列满时允许丢弃 Trace/Debug/Info；Warn 等待队列空间；Error 队列满时同步写备用 Sink；shutdown 排空队列并汇合线程。
+- **验收检查**：多线程写入无数据竞争；关闭后不接受新记录；Error 在队列拥塞时仍可通过备用 Sink 诊断。
+- **测试要求**：并发压力、FIFO、队列满、Warn 保留、Error 备用回退、失败传播和幂等关闭测试。
 - **追踪**：NFR-REL-002、21.2
 
+### DG-004 完成记录（2026-08-15）
+
+- 新增 `Logger` 公共接口：主 Sink、可选备用 Sink、可配置有界容量（默认 1024）、`write()` 和幂等 `shutdown()`。
+- Logger 构造时启动单个后台线程，按 FIFO 顺序串行调用主 Sink；不扩展 `ILogSink`，shutdown 的 flush 语义为排空 Logger 队列并汇合线程。
+- 队列满时 Trace/Debug/Info 返回 `false` 并允许丢弃；Warn 阻塞等待空间；Error 同步写备用 Sink，备用 Sink 缺失或失败时返回 `false`。
+- 容量为 0 时不接受异步入队，Warn/Error 同步尝试备用 Sink；shutdown 后拒绝新记录；主 Sink 写失败不会停止日志线程或自动转发备用 Sink。
+- 不新增 `Fatal` 日志级别；DG-004 中原有 `Error/Fatal` 统一按 `Error` 处理。
+- `dzc_logger` 覆盖 FIFO、并发写入、低级日志丢弃、Warn 等待、Error 备用回退、容量边界、主 Sink 写失败、空主 Sink和并发幂等 shutdown。
+- Debug 构建完整 CTest：**11/11 通过**。
 ### DG-005 实现帧统计聚合器
 
 - **状态**：未开始
@@ -145,8 +154,8 @@
 
 ## 6. 模块级验收
 
-- [ ] 日志为 UTF-8 且轮转策略通过测试
-- [ ] Error/Fatal 在队列拥塞时仍可诊断
+- [x] 日志为 UTF-8 且轮转策略通过测试
+- [x] Error 在队列拥塞时仍可诊断
 - [ ] FPS 和指标聚合测试通过
 - [ ] CSV 与 Markdown Golden file 测试通过
 
