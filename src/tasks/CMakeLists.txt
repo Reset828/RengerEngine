@@ -7,6 +7,9 @@ add_library(dzc_tasks STATIC
     ThreadConfiguration.h
     TaskSystem.cpp
     TaskSystem.h
+    TaskCompletionQueue.cpp
+    TaskCompletion.h
+    TaskCompletionQueue.h
 )
 
 target_compile_features(dzc_tasks PUBLIC cxx_std_17)

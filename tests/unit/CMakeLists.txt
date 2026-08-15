@@ -144,3 +144,11 @@ target_compile_features(dzc_task_system_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_task_system_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_task_system COMMAND dzc_task_system_tests)
+add_executable(dzc_task_completion_tests
+    TaskCompletionTests.cpp
+)
+
+target_compile_features(dzc_task_completion_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_task_completion_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_task_completion COMMAND dzc_task_completion_tests)

@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-005 已完成）
+> 模块状态：进行中（TS-001 至 TS-006 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -31,7 +31,7 @@
 - [x] **TS-003 实现命令合并辅助器**
 - [x] **TS-004 实现线程数自动计算**
 - [x] **TS-005 实现优先级线程池**
-- [ ] **TS-006 实现任务完成队列**
+- [x] **TS-006 实现任务完成队列**
 - [ ] **TS-007 实现 I/O 并发闸门**
 - [ ] **TS-008 实现高低水位背压器**
 - [ ] **TS-009 实现 TaskSystem 安全关闭**
@@ -95,7 +95,7 @@
 - **目标**：实现四级 FIFO 任务队列和 worker 生命周期。
 - **前置任务**：TS-001, TS-002, TS-004
 - **实现文件**：`src/tasks/TaskSystem.h`、`src/tasks/TaskSystem.cpp`、`tests/unit/TaskSystemTests.cpp`；`src/tasks/CMakeLists.txt` 与 `tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 和 `dzc_task_system` CTest。
-- **最终接口**：`TaskSystem(workerThreads, queueCapacity = 1024U)` 管理固定数量 worker；`TaskPriority` 固定为 `Critical`、`High`、`Normal`、`Low`；`TaskErrorCode` 固定定义 `InvalidTask`、`NotAccepting`、`QueueFull`、`TaskIdExhausted`、`UnhandledException` 与 `UnknownException`。对象不可复制、不可移动。
+- **最终接口**：TS-005 建立的 `TaskSystem` 由 TS-006 扩展为 `TaskSystem(workerThreads, queueCapacity = 1024U, completionQueueCapacity = 1024U)`；`TaskPriority` 固定为 `Critical`、`High`、`Normal`、`Low`。`TaskErrorCode` 的基础错误码为 `InvalidTask`、`NotAccepting`、`QueueFull`、`TaskIdExhausted`、`UnhandledException` 与 `UnknownException`；TS-006 另增加 `Cancelled`。对象不可复制、不可移动。
 - **队列与提交**：四个优先级各自具有独立的固定容量 FIFO；worker 始终先取最高非空优先级，同级保持 FIFO。容量和 worker 数为 0 时构造抛出 `std::invalid_argument`；成功提交从 `TaskId{1}` 单调分配且不复用。空函数或非法优先级、停止接收、队列满和 ID 耗尽均返回 `ErrorDomain::Task` 的稳定错误码。
 - **取消与异常**：每个接受任务拥有独立内部取消源；任务取得的 Token 将调用方 Token 与内部取消合并，任一取消即为取消。`requestCancelAll()` 只取消调用时已接受的排队/运行任务，后续任务不受影响；已排队任务仍会被协作式调用。worker 在锁外运行任务，捕获标准和未知异常为 `TaskId + Error` 私有记录，异常不会跨线程且后续任务继续执行。
 - **停止与汇合**：`stopAccepting()` 幂等地拒绝后续提交，不中断已有任务；`waitForCompletion()` 停止接收、排空已接受任务、通知 worker 退出并汇合，支持多个外部控制线程并发/重复调用。析构函数自动执行该流程；任务函数和 worker 不得调用 `waitForCompletion()`。
@@ -104,13 +104,16 @@
 
 ### TS-006 实现任务完成队列
 
-- **状态**：未开始
-- **目标**：让 worker 以值对象向 Engine 单消费者报告结果。
+- **状态**：已完成
+- **目标**：让 worker 以值对象向 Engine 单消费者安全报告成功、失败与取消结果。
 - **前置任务**：TS-005
-- **预计文件**：`src/tasks/TaskCompletion.h`、`src/tasks/TaskCompletionQueue.h`、`tests/unit/TaskCompletionTests.cpp`
-- **实现要求**：完成消息包含 TaskId、DatasetId、Result；旧 Dataset 结果可识别。
-- **验收检查**：成功、失败、取消结果均可安全传递。
-- **测试要求**：完成顺序、队列关闭和旧 Dataset 过滤测试。
+- **实现文件**：`src/tasks/TaskCompletion.h`、`src/tasks/TaskCompletionQueue.h`、`src/tasks/TaskCompletionQueue.cpp`、`tests/unit/TaskCompletionTests.cpp`；`src/tasks/TaskSystem.h/.cpp`、`src/tasks/CMakeLists.txt` 与 `tests/unit/CMakeLists.txt` 已同步接入。
+- **完成值对象**：`TaskCompletion` 固定包含 `TaskId taskId`、`std::optional<DatasetId> datasetId` 与 `Result<void> result`。无数据集任务保留空 DatasetId；数据集任务由 `submitForDataset()` 提交。Engine 读取后自行将 DatasetId 与当前数据集比较并过滤旧结果，队列不擅自丢弃。
+- **队列与读取**：`TaskCompletionQueue(capacity = 1024U)` 是不可复制、不可移动的有界 FIFO；零容量抛出 `std::invalid_argument`。`push()` 在队列满时阻塞等待空间，不静默丢弃完成消息；`tryPop()` 与 `tryPopBatch(maxCount)` 为 Engine 的立即返回式读取接口。`close()` 幂等、唤醒阻塞发布者、拒绝新发布，但仍允许排空已接受消息；析构自动关闭。
+- **TaskSystem 集成**：构造函数增加 `completionQueueCapacity = 1024U`，零值构造失败；公开 `tryPopCompletion()`、`tryPopCompletionBatch(maxCount)`。提交回调以 `Result<void>` 表达结果，同时保留 TS-005 的 `void(CancellationToken)` 调用兼容适配。worker 捕获的异常转换为 Task 域失败完成消息；若回调成功返回但组合 Token 在完成时已取消，则发布 `TaskErrorCode::Cancelled`。`waitForCompletion()` 仅在全部任务完成消息已发布后关闭完成队列、退出并汇合 worker。
+- **调用约定**：由于完成队列满时 worker 会阻塞，调用方必须在 `waitForCompletion()` 前或并发期间持续消费完成消息；否则 worker 与等待方都会等待可用完成队列空间。这是有意避免静默丢失完成消息的背压语义。
+- **验收检查**：成功、业务失败、标准异常、取消结果及可选 DatasetId 均可安全传递；关闭、FIFO 与旧 Dataset 调用方过滤语义明确。
+- **测试结果**：`dzc_task_completion` 覆盖零容量、FIFO、批量读取、满队列阻塞、关闭唤醒和排空、成功/失败/异常/取消完成、DatasetId 和旧数据集过滤、完成容量校验。2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下 Debug 完整 CTest **21/21 通过**。
 - **追踪**：5.3、7.4
 
 ### TS-007 实现 I/O 并发闸门

@@ -1,5 +1,7 @@
 #include "tasks/TaskSystem.h"
 
+#include "tasks/TaskCompletionQueue.h"
+
 #include <array>
 #include <condition_variable>
 #include <cstddef>
@@ -44,17 +46,29 @@ Error makeTaskError(TaskErrorCode code, const char* userMessage) {
     return error;
 }
 
+Result<void> makeCancelledResult() {
+    return Result<void>::failure(makeTaskError(
+        TaskErrorCode::Cancelled,
+        "Task was cancelled before completion."));
+}
+
 } // namespace
 
 class TaskSystem::Impl final {
 public:
-    Impl(std::uint32_t workerThreads, std::size_t queueCapacity)
-        : m_queueCapacity(queueCapacity) {
+    Impl(
+        std::uint32_t workerThreads,
+        std::size_t queueCapacity,
+        std::size_t completionQueueCapacity)
+        : m_queueCapacity(queueCapacity),
+          m_completionQueue(completionQueueCapacity) {
         if (workerThreads == 0U) {
-            throw std::invalid_argument("TaskSystem workerThreads must be greater than zero");
+            throw std::invalid_argument(
+                "TaskSystem workerThreads must be greater than zero");
         }
         if (queueCapacity == 0U) {
-            throw std::invalid_argument("TaskSystem queueCapacity must be greater than zero");
+            throw std::invalid_argument(
+                "TaskSystem queueCapacity must be greater than zero");
         }
 
         m_workers.reserve(workerThreads);
@@ -82,10 +96,11 @@ public:
     }
 
     Result<TaskId> submit(
+        std::optional<DatasetId> datasetId,
         TaskPriority priority,
         std::shared_ptr<CancellationSource> cancellationSource,
         CancellationToken token,
-        std::function<void(CancellationToken)> task) {
+        std::function<Result<void>(CancellationToken)> task) {
         if (!task) {
             return Result<TaskId>::failure(makeTaskError(
                 TaskErrorCode::InvalidTask,
@@ -117,26 +132,23 @@ public:
         }
 
         const TaskId taskId{m_nextTaskId};
-        try {
-            const auto insertion = m_activeCancellationSources.emplace(
-                taskId.value,
-                std::move(cancellationSource));
-            if (!insertion.second) {
-                return Result<TaskId>::failure(makeTaskError(
-                    TaskErrorCode::TaskIdExhausted,
-                    "Task identifier space is exhausted."));
-            }
+        const auto insertion = m_activeCancellationSources.emplace(
+            taskId.value,
+            std::move(cancellationSource));
+        if (!insertion.second) {
+            return Result<TaskId>::failure(makeTaskError(
+                TaskErrorCode::TaskIdExhausted,
+                "Task identifier space is exhausted."));
+        }
 
-            try {
-                m_queues[*index].push_back(TaskItem{
-                    taskId,
-                    std::move(token),
-                    std::move(task)});
-            } catch (...) {
-                m_activeCancellationSources.erase(insertion.first);
-                throw;
-            }
+        try {
+            m_queues[*index].push_back(TaskItem{
+                taskId,
+                std::move(datasetId),
+                std::move(token),
+                std::move(task)});
         } catch (...) {
+            m_activeCancellationSources.erase(insertion.first);
             throw;
         }
 
@@ -148,6 +160,14 @@ public:
 
         m_workAvailable.notify_one();
         return Result<TaskId>::success(taskId);
+    }
+
+    std::optional<TaskCompletion> tryPopCompletion() {
+        return m_completionQueue.tryPop();
+    }
+
+    std::vector<TaskCompletion> tryPopCompletionBatch(std::size_t maxCount) {
+        return m_completionQueue.tryPopBatch(maxCount);
     }
 
     void stopAccepting() noexcept {
@@ -174,13 +194,17 @@ public:
                 return;
             }
             if (m_joinInProgress) {
-                m_workersJoinedCondition.wait(lock, [this] { return m_workersJoined; });
+                m_workersJoinedCondition.wait(lock, [this] {
+                    return m_workersJoined;
+                });
                 return;
             }
 
             m_allTasksCompleted.wait(lock, [this] {
-                return queuedTaskCountLocked() == 0U && m_activeTaskCount == 0U;
+                return queuedTaskCountLocked() == 0U &&
+                       m_activeTaskCount == 0U;
             });
+            m_completionQueue.close();
             m_exitRequested = true;
             m_joinInProgress = true;
         }
@@ -201,10 +225,13 @@ public:
     }
 
 private:
+    using TaskFunction = std::function<Result<void>(CancellationToken)>;
+
     struct TaskItem final {
         TaskId id;
+        std::optional<DatasetId> datasetId;
         CancellationToken token;
-        std::function<void(CancellationToken)> task;
+        TaskFunction task;
     };
 
     struct TaskFailureRecord final {
@@ -232,29 +259,30 @@ private:
         return std::nullopt;
     }
 
-    void recordFailure(TaskId id, TaskErrorCode code, const char* diagnosticMessage) noexcept {
+    void recordFailure(TaskId id, const Error& error) noexcept {
         try {
-            Error error = makeTaskError(code, "Task execution failed.");
-            error.diagnosticMessage = diagnosticMessage;
-
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_failures.push_back(TaskFailureRecord{id, std::move(error)});
+            m_failures.push_back(TaskFailureRecord{id, error});
         } catch (...) {
-            // An allocation failure while recording a failure must not terminate a worker.
+            // Failure storage is diagnostic-only and must not terminate a worker.
         }
     }
 
-    void recordFailure(TaskId id, const std::exception& exception) noexcept {
-        try {
-            Error error = makeTaskError(
-                TaskErrorCode::UnhandledException,
-                "Task execution failed.");
-            error.diagnosticMessage = exception.what();
+    void publishCompletion(
+        const TaskItem& item,
+        Result<void> result) noexcept {
+        if (result.hasValue() && item.token.isCancellationRequested()) {
+            result = makeCancelledResult();
+        }
 
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_failures.push_back(TaskFailureRecord{id, std::move(error)});
+        try {
+            (void)m_completionQueue.push(TaskCompletion{
+                item.id,
+                item.datasetId,
+                std::move(result)});
         } catch (...) {
-            // An allocation failure while recording a failure must not terminate a worker.
+            // The queue is diagnostic/reporting infrastructure. The task still
+            // completes and the worker remains alive if publication fails.
         }
     }
 
@@ -287,22 +315,32 @@ private:
                 continue;
             }
 
+            Result<void> result = Result<void>::success();
             try {
-                item->task(item->token);
+                result = item->task(item->token);
             } catch (const std::exception& exception) {
-                recordFailure(item->id, exception);
+                Error error = makeTaskError(
+                    TaskErrorCode::UnhandledException,
+                    "Task execution failed.");
+                error.diagnosticMessage = exception.what();
+                recordFailure(item->id, error);
+                result = Result<void>::failure(std::move(error));
             } catch (...) {
-                recordFailure(
-                    item->id,
+                Error error = makeTaskError(
                     TaskErrorCode::UnknownException,
-                    "Task threw a non-standard exception.");
+                    "Task execution failed.");
+                error.diagnosticMessage = "Task threw a non-standard exception.";
+                recordFailure(item->id, error);
+                result = Result<void>::failure(std::move(error));
             }
 
+            publishCompletion(*item, std::move(result));
             finishTask(item->id);
         }
     }
 
     const std::size_t m_queueCapacity;
+    TaskCompletionQueue m_completionQueue;
     std::array<std::deque<TaskItem>, kPriorityCount> m_queues;
     std::unordered_map<std::uint64_t, std::shared_ptr<CancellationSource>>
         m_activeCancellationSources;
@@ -323,26 +361,92 @@ private:
     std::condition_variable m_workersJoinedCondition;
 };
 
-TaskSystem::TaskSystem(std::uint32_t workerThreads, std::size_t queueCapacity)
-    : m_impl(std::make_unique<Impl>(workerThreads, queueCapacity)) {}
+TaskSystem::TaskSystem(
+    std::uint32_t workerThreads,
+    std::size_t queueCapacity,
+    std::size_t completionQueueCapacity)
+    : m_impl(std::make_unique<Impl>(
+          workerThreads,
+          queueCapacity,
+          completionQueueCapacity)) {}
 
 TaskSystem::~TaskSystem() {
     waitForCompletion();
 }
 
-Result<TaskId> TaskSystem::submit(
+Result<TaskId> TaskSystem::submitResult(
     TaskPriority priority,
     CancellationToken token,
-    std::function<void(CancellationToken)> task) {
+    std::function<Result<void>(CancellationToken)> task) {
     const auto cancellationSource = std::make_shared<CancellationSource>();
     CancellationToken combinedToken = CancellationToken::combine(
         token,
         cancellationSource->token());
     return m_impl->submit(
+        std::nullopt,
         priority,
         cancellationSource,
         std::move(combinedToken),
         std::move(task));
+}
+
+Result<TaskId> TaskSystem::submitVoid(
+    TaskPriority priority,
+    CancellationToken token,
+    std::function<void(CancellationToken)> task) {
+    std::function<Result<void>(CancellationToken)> adapted;
+    if (task) {
+        adapted = [task = std::move(task)](CancellationToken taskToken) mutable {
+            task(taskToken);
+            return Result<void>::success();
+        };
+    }
+    return submitResult(priority, token, std::move(adapted));
+}
+
+Result<TaskId> TaskSystem::submitForDatasetResult(
+    DatasetId datasetId,
+    TaskPriority priority,
+    CancellationToken token,
+    std::function<Result<void>(CancellationToken)> task) {
+    const auto cancellationSource = std::make_shared<CancellationSource>();
+    CancellationToken combinedToken = CancellationToken::combine(
+        token,
+        cancellationSource->token());
+    return m_impl->submit(
+        datasetId,
+        priority,
+        cancellationSource,
+        std::move(combinedToken),
+        std::move(task));
+}
+
+Result<TaskId> TaskSystem::submitForDatasetVoid(
+    DatasetId datasetId,
+    TaskPriority priority,
+    CancellationToken token,
+    std::function<void(CancellationToken)> task) {
+    std::function<Result<void>(CancellationToken)> adapted;
+    if (task) {
+        adapted = [task = std::move(task)](CancellationToken taskToken) mutable {
+            task(taskToken);
+            return Result<void>::success();
+        };
+    }
+    return submitForDatasetResult(
+        datasetId,
+        priority,
+        token,
+        std::move(adapted));
+}
+
+std::optional<TaskCompletion> TaskSystem::tryPopCompletion() {
+    return m_impl->tryPopCompletion();
+}
+
+std::vector<TaskCompletion> TaskSystem::tryPopCompletionBatch(
+    std::size_t maxCount) {
+    return m_impl->tryPopCompletionBatch(maxCount);
 }
 
 void TaskSystem::stopAccepting() noexcept {

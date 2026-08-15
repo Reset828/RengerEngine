@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 的 TS-001 至 TS-005 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-006 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006。
 
 用户约束仍然有效：
 
@@ -143,3 +143,13 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 异常：worker 捕获标准和未知异常，转换为 `TaskId + Error` 私有记录，不跨线程传播且不停止后续任务；TS-006 将公开完成结果。
 - 工具链与验证：使用 `D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`，MSVC 为 `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`，Qt 为 `D:\qt_2\5.15.19\msvc2022_64`，CMake 生成器为 `NMake Makefiles`。`build-ts005` Debug 构建成功，完整 CTest **20/20 通过**；验证目录已清理；`git diff --check` 通过。
 - 工作区状态：本次及此前任务的变更均未提交。
+## 13. TS-006 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-006：实现任务完成队列。下一任务：TS-007。
+
+- 实现文件：`src/tasks/TaskCompletion.h`、`src/tasks/TaskCompletionQueue.h`、`src/tasks/TaskCompletionQueue.cpp`、`tests/unit/TaskCompletionTests.cpp`；`src/tasks/TaskSystem.h/.cpp` 已集成完成发布与读取，`src/tasks/CMakeLists.txt`、`tests/unit/CMakeLists.txt` 已将其纳入 `dzc_tasks` 和 `dzc_task_completion` CTest。
+- 最终接口与行为：`TaskCompletion` 为 `{ TaskId, std::optional<DatasetId>, Result<void> }`；TaskSystem 构造函数增加 `completionQueueCapacity = 1024U`，公开 `tryPopCompletion()` 与 `tryPopCompletionBatch(maxCount)`，并支持 `submitForDataset()`。任务以 `Result<void>` 报告结果，同时兼容既有 void 回调。完成队列是有界 FIFO，满时 worker 阻塞等待空间，不静默丢弃；读取始终立即返回。`close()` 唤醒阻塞发布者、拒绝新发布并允许排空已经发布的消息。
+- 取消与结果：每个任务都携带外部与内部取消源的组合 Token。回调成功但完成时 Token 已取消，会发布 `ErrorDomain::Task` / `TaskErrorCode::Cancelled`；业务失败和捕获的标准/未知异常也都作为完成结果传递。可选 DatasetId 由 Engine 单消费者与当前 DatasetId 比较并过滤旧结果，队列不自动丢弃。
+- 生命周期约定：`waitForCompletion()` 停止接收，等待任务执行和完成消息发布，然后关闭完成队列、退出并汇合 worker。因为完成队列满时发布会阻塞，调用方必须在等待前或并发期间持续消费完成消息；否则 worker 和等待方会共同等待，这是避免结果丢失的既定背压行为。
+- 工具链与验证：继续使用 MSVC `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`、`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`、Qt `D:\qt_2\5.15.19\msvc2022_64` 与 `NMake Makefiles`。执行配置命令 `cmd.exe /d /s /c 'call "D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 -vcvars_ver=14.44 && set "CMAKE_PREFIX_PATH=D:\qt_2\5.15.19\msvc2022_64" && cmake -G "NMake Makefiles" -S . -B build-ts006 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON'`，随后执行对应开发环境下的 `cmake --build build-ts006 --config Debug` 与 `ctest --test-dir build-ts006 -C Debug --output-on-failure`。
+- 测试结果：2026-08-15 Debug 构建成功，完整 CTest **21/21 通过**（包含 `dzc_task_completion`）；`build-ts006` 已在验证后清理，工作区所有变更仍未提交。
