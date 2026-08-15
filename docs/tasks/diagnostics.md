@@ -126,14 +126,17 @@
 - **追踪**：FR-STAT-001、6.3
 ### DG-006 定义通用指标快照
 
-- **状态**：未开始
-- **目标**：实现线程安全计数器和每帧 DiagnosticsSnapshot。
+- **状态**：已完成
+- **目标**：实现线程安全计数器和每帧 `MetricsSnapshot`。
 - **前置任务**：DG-005
-- **预计文件**：`src/diagnostics/MetricsRegistry.h`、`src/diagnostics/MetricsRegistry.cpp`、`tests/unit/MetricsRegistryTests.cpp`
-- **实现要求**：包含设计 21.3 的点数、块数、驻留、上传、LOD、队列和录制工作量字段；不复制点云。
-- **验收检查**：多线程更新后快照数值一致，帧级计数可重置。
-- **测试要求**：并发计数和帧切换测试。
+- **实现文件**：`src/diagnostics/MetricsRegistry.h`、`src/diagnostics/MetricsRegistry.cpp`、`tests/unit/MetricsRegistryTests.cpp`
+- **最终接口**：`MetricsRegistry` 使用 Pimpl，提供 `beginFrame()`、`reset()`、`snapshot()`，以及固定字段的 `addXxx`/`setXxx` 更新方法；快照按性能、几何、传输、内存、LOD、运行时、录制和计算分组。
+- **生命周期**：`beginFrame(frameId)` 原样记录帧号并清零帧级指标，保留驻留/预算、队列深度和 I/O 活跃数等状态指标；`reset()` 清零全部字段并恢复帧号 0。
+- **数值规则**：无符号整数累加采用饱和语义；FPS、帧耗时、录制耗时和 CUDA 同步耗时拒绝负数及非有限值；录制聚合耗时合法输入累加并在 double 上溢时钳制到最大值。
+- **线程安全**：所有公开操作由统一互斥量保护；`snapshot()` 返回一致的值副本，不暴露内部状态。
+- **测试**：覆盖初始化、固定字段更新、帧切换、状态保留、reset、整数饱和、double 校验、录制/CUDA 指标、快照副本和多线程并发。
 - **追踪**：FR-STAT-001、NFR-TEST-002
+- **验证**：`cmake --build build-dg006 --config Debug` 成功；完整 CTest **13/13 通过**，新增 `dzc_metrics_registry` 测试通过。
 
 ### DG-007 实现 CSV 性能写出
 
@@ -161,7 +164,7 @@
 
 - [x] 日志为 UTF-8 且轮转策略通过测试
 - [x] Error 在队列拥塞时仍可诊断
-- [ ] FPS 和指标聚合测试通过
+- [x] FPS 和指标聚合测试通过
 - [ ] CSV 与 Markdown Golden file 测试通过
 
 ## 7. 交接记录
@@ -169,15 +172,24 @@
 - 完成日期：2026-08-14（DG-001）
 - 完成人：Codex
 - 关键变更：新增 `src/diagnostics/LogTypes.h`、`src/diagnostics/ILogSink.h`、`tests/unit/LogTypesTests.cpp`，并接入 `dzc_diagnostics` 测试目标。
-- 未解决问题：DG-002 至 DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 未解决问题：DG-007、DG-008 尚未实现；Diagnostics 模块不可标记为完成。
 - 测试命令与结果：`cmake --build build-dg001 --config Debug`；`ctest --test-dir build-dg001 -C Debug --output-on-failure`；8/8 通过。
 - 关联提交：尚未创建 Git 提交。
 ### DG-002（2026-08-15）
 
 - 完成人：Codex
 - 关键变更：新增 `src/diagnostics/TextFileSink.h`、`src/diagnostics/TextFileSink.cpp`、`tests/unit/TextFileSinkTests.cpp`，并将 `dzc_diagnostics` 接入静态库实现。
-- 未解决问题：DG-003 至 DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 未解决问题：DG-007、DG-008 尚未实现；Diagnostics 模块不可标记为完成。
 - 测试命令与结果：`cmake --build build-dg002 --config Debug`；`ctest --test-dir build-dg002 -C Debug --output-on-failure`；9/9 通过。
+- 关联提交：尚未创建 Git 提交。
+
+### DG-006（2026-08-15）
+
+- 完成人：Codex
+- 关键变更：新增固定字段、分组快照和 Pimpl 实现的 `MetricsRegistry`，接入 `dzc_diagnostics`；新增并注册 `MetricsRegistryTests.cpp`。
+- 行为：所有公开操作线程安全；`beginFrame()` 清零帧级指标并保留状态指标；`reset()` 全量清零；整数累加饱和；非法 double 被拒绝；快照返回一致副本。
+- 测试命令与结果：`cmake -S . -B build-dg006 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg006 --config Debug`；`ctest --test-dir build-dg006 -C Debug --output-on-failure`；13/13 通过。
+- 未解决问题：DG-007、DG-008 尚未实现；Diagnostics 模块不可标记为完成。
 - 关联提交：尚未创建 Git 提交。
 ## 8. 变更约束
 

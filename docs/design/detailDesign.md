@@ -1372,19 +1372,24 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 
 ### 21.3 指标采集
 
-`DiagnosticsService` 维护 CPU scoped timer、GPU timestamp/query 延迟结果和原子计数器。帧统计由线程安全的 `FrameStatistics` 聚合器提供：调用方传入 `std::chrono::nanoseconds` frame delta，聚合器通过注入的 `IClock` 获取时间戳，同时维护最近最多 120 帧和最近 1 秒两个窗口。FPS 使用窗口样本数除以窗口首尾时间跨度，平均帧时使用窗口内有效样本的算术平均值并以毫秒输出；无样本时返回零值。非正 delta 和时钟回退样本被拒绝，`snapshot()` 会按当前时钟淘汰过期时间窗口样本。`addFrame()`、`snapshot()` 和 `reset()` 均受互斥量保护。
+`DiagnosticsService` 维护 CPU scoped timer、GPU timestamp/query 延迟结果和固定字段指标注册器。帧统计由线程安全的 `FrameStatistics` 聚合器提供：调用方传入 `std::chrono::nanoseconds` frame delta，聚合器通过注入的 `IClock` 获取时间戳，同时维护最近最多 120 帧和最近 1 秒两个窗口。FPS 使用窗口样本数除以窗口首尾时间跨度，平均帧时使用窗口内有效样本的算术平均值并以毫秒输出；无样本返回零值。非正 delta 和时钟回退样本被拒绝，`snapshot()` 会按当前时钟淘汰过期时间窗口样本。`addFrame()`、`snapshot()` 和 `reset()` 均受互斥量保护。
 
-至少记录：
+通用指标由 `MetricsRegistry` 维护，并通过 `MetricsSnapshot` 返回一致值副本。快照固定包含以下分组：
 
-- CPU/GPU frame ms、FPS；
-- visible/submitted points、visible/drawn chunks；
-- reader bytes、cache bytes、upload bytes；
-- CPU/GPU resident 与 budget；
-- LOD 请求、命中、祖先回退；
-- task queue depth、I/O 活跃数；
-- Vulkan 每 worker 录制 draw 数和耗时；
-- CUDA 处理点数与同步耗时。
+- `PerformanceMetrics`：FPS、CPU frame ms、GPU frame ms；
+- `GeometryMetrics`：visible/submitted points、visible/drawn chunks；
+- `TransferMetrics`：reader bytes、cache bytes、upload bytes；
+- `MemoryMetrics`：CPU/GPU resident 与 budget；
+- `LodMetrics`：LOD 请求、命中、祖先回退；
+- `RuntimeMetrics`：task queue depth、I/O 活跃数；
+- `RecordingMetrics`：聚合 recording draw count、duration 和 worker count；
+- `ComputeMetrics`：CUDA processed points 与 synchronization duration。
 
+`MetricsRegistry` 不持有 `FrameStatistics`；调用方从 `FrameStatistics::snapshot()` 获取 FPS 和帧耗时后调用对应 setter。Registry 使用固定字段更新方法，不使用字符串键值注册表，也不保存逐 worker 动态列表。
+
+`beginFrame(frameId)` 原样保存帧号，并清零 FPS、帧耗时、点/块/字节计数、LOD 计数、录制工作量和 CUDA 帧级指标；CPU/GPU resident、budget、task queue depth 和 I/O active count 等状态指标跨帧保留。`reset()` 清零全部字段并将帧号恢复为 0。帧号不校验回退、重复或严格递增。
+
+所有公开操作由同一互斥量保护，`snapshot()` 不自动重置并返回调用时刻的一致副本。无符号整数累加采用饱和到最大值的规则；FPS、CPU/GPU frame ms、录制聚合耗时和 CUDA synchronization duration 只接受有限且非负值，非法输入返回 `false` 并保持旧值。录制聚合耗时合法输入执行累加，上溢时钳制到 double 最大值。
 ### 21.4 CSV 与 Markdown
 
 性能明细 CSV 使用 UTF-8、逗号分隔、首行固定列名；数值使用 C locale，小数点为点，缺失值留空。建议列：

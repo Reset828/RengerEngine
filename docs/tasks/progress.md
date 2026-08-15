@@ -36,7 +36,7 @@
 ## 4. 公共基础
 
 - [x] [Project Foundation](./project-foundation.md) — 状态：完成
-- [ ] [Diagnostics](./diagnostics.md) — 状态：进行中（DG-001、DG-002、DG-003、DG-004、DG-005 已完成）
+- [ ] [Diagnostics](./diagnostics.md) — 状态：进行中（DG-001 至 DG-006 已完成）
 - [ ] [Task System](./task-system.md) — 状态：未开始
 - [ ] [Engine Core](./engine-core.md) — 状态：未开始
 - [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：未开始
