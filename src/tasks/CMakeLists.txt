@@ -1,0 +1,1 @@
+dzc_add_interface_target(dzc_tasks)

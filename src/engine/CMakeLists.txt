@@ -1,0 +1,2 @@
+dzc_add_interface_target(dzc_engine_api)
+dzc_add_interface_target(dzc_engine_core)

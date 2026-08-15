@@ -1,9 +1,9 @@
-# Dzc-RenderEngine 任务总体进度
+﻿# Dzc-RenderEngine 任务总体进度
 
 > 文件：`docs/tasks/progress.md`  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)  
 > 模块总数：18  
-> 当前完成：0  
+> 当前完成：1  
 
 ## 1. 使用说明
 
@@ -35,8 +35,8 @@
 
 ## 4. 公共基础
 
-- [ ] [Project Foundation](./project-foundation.md) — 状态：未开始
-- [ ] [Diagnostics](./diagnostics.md) — 状态：未开始
+- [x] [Project Foundation](./project-foundation.md) — 状态：完成
+- [ ] [Diagnostics](./diagnostics.md) — 状态：进行中（DG-001 已完成）
 - [ ] [Task System](./task-system.md) — 状态：未开始
 - [ ] [Engine Core](./engine-core.md) — 状态：未开始
 - [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：未开始
@@ -123,11 +123,11 @@
 
 | 阶段 | 唯一模块数 | 完成 | 进行中 | 阻塞 | 未开始 |
 |---|---:|---:|---:|---:|---:|
-| 公共基础 | 6 | 0 | 0 | 1 | 5 |
+| 公共基础 | 6 | 1 | 0 | 1 | 4 |
 | Phase 1 专属 | 5 | 0 | 0 | 0 | 5 |
 | Phase 2 专属 | 5 | 0 | 0 | 0 | 5 |
 | 跨阶段/最终验收 | 2 | 0 | 0 | 0 | 2 |
-| **合计** | **18** | **0** | **0** | **1** | **17** |
+| **合计** | **18** | **1** | **0** | **1** | **16** |
 
 > 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera 当前以“整体阻塞”统计，但其抽象子任务可以推进。
 
@@ -135,4 +135,14 @@
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-08-14 | PF-008 完成 / Project Foundation 完成 | 已注册默认与显式 OpenGL-only 的 configure;smoke CTest 用例；默认配置、构建和完整 CTest 7/7 通过，configure 标签 2/2 通过；Project Foundation 全部必需任务和模块级验收已满足 |
+| 2026-08-14 | PF-007 完成 | 已定义注入式 Render/Compute 后端工厂契约和 ApplicationComposition；Render/Compute 显式失败语义明确，CUDA Off/On/Auto 语义符合确认方案；Fake 工厂与装配测试通过，默认 OpenGL 配置下 5/5 CTest 通过 |
+| 2026-08-14 | PF-006 完成 | 已实现公共 Engine 配置类型和默认值；队列容量规则按主人确认通过 hasValidQueueCapacities() 校验；默认 OpenGL 配置下 4/4 CTest 通过 |
+| 2026-08-14 | PF-005 完成 | 已实现 ErrorDomain、Error、Result<T> 和 Result<void>；错误访问采用主人确认的 Debug assert/Release std::terminate 保护；默认 OpenGL 配置下 3/3 CTest 通过 |
+| 2026-08-14 | PF-004 完成 | 已实现 DatasetId、ChunkId、FrameId、TaskId、RenderSize、ColorRgba；公共头保持后端无关；新增自包含 CMake/CTest 单元测试，默认值、比较和强类型静态断言通过 |
+| 2026-08-14 | PF-003 完成 | 已创建 15 个模块 Target、单向依赖图和 Target 边界 CTest；Qt/PCL 依赖按确认延迟到后续具体实现任务 |
+| 2026-08-14 | PF-002 完成 | 已加入 CMake 3.21、C++17 基线及 OpenGL/Vulkan/CUDA/Tests 构建选项；完成三种配置验收 |
+| 2026-08-14 | PF-001 完成 | 已创建项目源码与测试目录骨架；Project Foundation 模块进入进行中状态 |
 |  | 初始化任务划分 | 18 个模块和最小任务已建立；所有 checklist 初始未完成 |
+
+

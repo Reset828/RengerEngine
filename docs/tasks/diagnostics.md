@@ -1,8 +1,8 @@
-# Diagnostics 任务清单
+﻿# Diagnostics 任务清单
 
 > 文件：`docs/tasks/diagnostics.md`  
 > 所属阶段：公共基础  
-> 模块状态：未开始  
+> 模块状态：进行中  
 > 前置模块：[project-foundation](./project-foundation.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **DG-001 定义日志记录与 Sink 接口**
+- [x] **DG-001 定义日志记录与 Sink 接口**
 - [ ] **DG-002 实现 UTF-8 文本文件 Sink**
 - [ ] **DG-003 实现日志轮转**
 - [ ] **DG-004 实现异步 Logger**
@@ -39,7 +39,7 @@
 
 ### DG-001 定义日志记录与 Sink 接口
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：建立 LogLevel、LogRecord、ILogSink 和结构化上下文。
 - **前置任务**：project-foundation/PF-005
 - **预计文件**：`src/diagnostics/LogTypes.h`、`src/diagnostics/ILogSink.h`
@@ -47,6 +47,8 @@
 - **验收检查**：内存 Sink 可接收并格式化 UTF-8 单行日志。
 - **测试要求**：测试字段缺省、特殊字符转义和 UTF-8 内容。
 - **追踪**：FR-UI-005、21.2
+- **完成记录（2026-08-14）**：实现 `LogTypes.h` 与 `ILogSink.h`；使用 `Trace`/`Debug`/`Info`/`Warn`/`Error` 五级枚举；记录 `system_clock::time_point`、模块、`uint32_t` 错误码、可选 `uint64_t` Dataset/Chunk/Frame、消息及有序键值上下文；提供 UTF-8 单行格式化和约定的特殊字符转义；Sink 通过 `bool` 报告接收结果，线程安全由实现类负责。
+- **验证**：`dzc_log_types` 测试覆盖缺省字段、特殊字符转义、UTF-8 内容、结构化键值字段和内存 Sink；完整 CTest 8/8 通过。
 
 ### DG-002 实现 UTF-8 文本文件 Sink
 
@@ -134,13 +136,14 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
-
+- 完成日期：2026-08-14（DG-001）
+- 完成人：Codex
+- 关键变更：新增 `src/diagnostics/LogTypes.h`、`src/diagnostics/ILogSink.h`、`tests/unit/LogTypesTests.cpp`，并接入 `dzc_diagnostics` 测试目标。
+- 未解决问题：DG-002 至 DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 测试命令与结果：`cmake --build build-dg001 --config Debug`；`ctest --test-dir build-dg001 -C Debug --output-on-failure`；8/8 通过。
+- 关联提交：尚未创建 Git 提交。
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。
+
+

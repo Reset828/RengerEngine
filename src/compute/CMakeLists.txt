@@ -1,0 +1,4 @@
+dzc_add_interface_target(dzc_compute_api)
+dzc_add_interface_target(dzc_compute_cuda)
+dzc_add_interface_target(dzc_interop_gl)
+dzc_add_interface_target(dzc_interop_vk)

@@ -1,0 +1,3 @@
+dzc_add_interface_target(dzc_render_api)
+dzc_add_interface_target(dzc_render_opengl)
+dzc_add_interface_target(dzc_render_vulkan)
