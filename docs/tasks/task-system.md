@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：未开始  
+> 模块状态：进行中（TS-001 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **TS-001 实现 CancellationToken/Source**
+- [x] **TS-001 实现 CancellationToken/Source**
 - [ ] **TS-002 实现通用有界队列**
 - [ ] **TS-003 实现命令合并辅助器**
 - [ ] **TS-004 实现线程数自动计算**
@@ -40,13 +40,15 @@
 
 ### TS-001 实现 CancellationToken/Source
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：建立共享取消状态和轻量查询接口。
 - **前置任务**：project-foundation/PF-005
-- **预计文件**：`src/tasks/Cancellation.h`、`src/tasks/Cancellation.cpp`、`tests/unit/CancellationTests.cpp`
-- **实现要求**：Source 拥有状态，Token 只观察；取消幂等且线程安全。
-- **验收检查**：多个 Token 能观察一次取消；Source 销毁不会造成悬空。
-- **测试要求**：并发取消和重复取消测试。
+- **实现文件**：`src/tasks/Cancellation.h`、`src/tasks/Cancellation.cpp`、`tests/unit/CancellationTests.cpp`
+- **最终接口**：`CancellationToken` 支持默认构造与 `isCancellationRequested()` 轮询；`CancellationSource` 不可复制、可移动，并提供 `token()` 和幂等 `requestCancellation()`。
+- **实现结果**：Source 与 Token 通过共享状态保持生命周期；状态使用原子布尔值和 acquire/release 内存序。默认 Token 始终未取消；首次取消返回 `true`，后续取消返回 `false`。Source 析构会请求取消，移动赋值会先取消目标原状态，确保其已发出 Token 不会悬空或保持未取消。
+- **范围边界**：TS-001 仅提供协作式轮询取消，不包含回调、阻塞等待、任务队列、线程池或跨线程异常传播。
+- **验收检查**：多个 Token 可观察同一取消；Source 销毁后存活 Token 安全观察取消；移动构造和移动赋值保持已确认的取消语义。
+- **测试结果**：`dzc_cancellation` 覆盖默认 Token、Token 副本、幂等取消、析构取消、移动、并发取消和并发查询；2026-08-15 的 Debug 全量 CTest 为 **16/16 通过**。
 - **追踪**：FR-DATA-004、7.2
 
 ### TS-002 实现通用有界队列

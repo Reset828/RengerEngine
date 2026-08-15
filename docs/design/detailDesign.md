@@ -567,7 +567,26 @@ enum class TaskPriority : std::uint8_t {
 
 class CancellationToken final {
 public:
+    CancellationToken() noexcept = default;
+
     bool isCancellationRequested() const noexcept;
+
+private:
+    // 仅供 CancellationSource 构造共享观察令牌。
+};
+
+class CancellationSource final {
+public:
+    CancellationSource();
+    ~CancellationSource();
+
+    CancellationSource(const CancellationSource&) = delete;
+    CancellationSource& operator=(const CancellationSource&) = delete;
+    CancellationSource(CancellationSource&&) noexcept;
+    CancellationSource& operator=(CancellationSource&&) noexcept;
+
+    CancellationToken token() const noexcept;
+    bool requestCancellation() noexcept;
 };
 
 class TaskSystem final {
@@ -582,6 +601,8 @@ public:
     void waitForCompletion() noexcept;
 };
 ```
+
+TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 只提供轮询查询，不提供回调、阻塞等待或唤醒机制。
 
 线程池使用每优先级 FIFO 队列。每个 Dataset 拥有 CancellationSource；Chunk 子任务继承令牌。任务必须在打开文件前、每个批次后、昂贵构建步骤前后和提交 GPU 上传前检查取消。
 

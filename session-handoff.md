@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 当前任务 DG-008 已完成；Diagnostics 模块整体已完成。尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 当前任务 TS-001 已完成，模块处于进行中状态。尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001。
 
 用户约束仍然有效：
 
@@ -70,9 +70,19 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 
 ## 6. DG-008 完成记录
 
-已完成 `docs/tasks/diagnostics.md` 的 DG-008：实现 Markdown 性能摘要。下一任务：待用户指定。继续遵守“先读取交接和任务文档、发现不明确事项先提问”的流程。
+已完成 `docs/tasks/diagnostics.md` 的 DG-008：实现 Markdown 性能摘要。后续开始 Task System 时，下一任务为 TS-002。继续遵守“先读取交接和任务文档、发现不明确事项先提问”的流程。
 - 实现文件：`src/diagnostics/PerformanceSummaryWriter.h`、`src/diagnostics/PerformanceSummaryWriter.cpp`、`tests/unit/PerformanceSummaryWriterTests.cpp`。
 - 固定行为：五章节 Markdown 摘要、UTF-8 无 BOM、单 LF、classic locale 固定 6 位浮点、普通缺失值为空、未确认字段为 TBD、Markdown 字符串转义、一次性写出、flush/close 幂等和线程安全。
 - 测试命令：`cmake -S . -B build-dg008 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg008 --config Debug -- /m:1`；`ctest --test-dir build-dg008 -C Debug --output-on-failure`。
 - 测试结果：完整 CTest 15/15 通过；`build-dg008` 已清理；`git diff --check` 通过。
 - 工作区状态：尚未创建 Git 提交，DG-001 至 DG-008 变更保留在工作区。
+
+## 7. TS-001 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-001：实现 `CancellationToken` / `CancellationSource`。下一任务：TS-002。
+
+- 实现文件：`src/tasks/Cancellation.h`、`src/tasks/Cancellation.cpp`、`tests/unit/CancellationTests.cpp`；`src/tasks/CMakeLists.txt` 已将 `dzc_tasks` 从 Interface Target 改为 C++17 静态库，`tests/unit/CMakeLists.txt` 已注册 `dzc_cancellation`。
+- 最终行为：Source 与 Token 通过共享原子取消状态维持安全生命周期；Token 默认未取消且仅支持轮询；首次 `requestCancellation()` 返回成功，重复调用失败；析构自动取消；移动赋值先取消被替换的 Source 状态。
+- 测试命令：`cmake -S . -B build-ts001 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-ts001 --config Debug -- /m:1`；`ctest --test-dir build-ts001 -C Debug --output-on-failure`。
+- 测试结果：2026-08-15 Debug 全量 CTest **16/16 通过**；`build-ts001` 已清理；`git diff --check` 通过。
+- 工作区状态：尚未创建 Git 提交；DG-006 至 DG-008 与 TS-001 的变更均保留在工作区。
