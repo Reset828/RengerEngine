@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/diagnostics.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中  
+> 模块状态：完成
 > 前置模块：[project-foundation](./project-foundation.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -31,9 +31,9 @@
 - [x] **DG-003 实现日志轮转**
 - [x] **DG-004 实现异步 Logger**
 - [x] **DG-005 实现帧统计聚合器**
-- [ ] **DG-006 定义通用指标快照**
+- [x] **DG-006 定义通用指标快照**
 - [x] **DG-007 实现 CSV 性能写出**
-- [ ] **DG-008 实现 Markdown 性能摘要**
+- [x] **DG-008 实现 Markdown 性能摘要**
 
 ## 5. 子任务说明
 
@@ -156,13 +156,18 @@
 - **验证**：`cmake -S . -B build-dg007 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg007 --config Debug`（MSVC PDB 并发问题后以 `/m:1` 完成）；`ctest --test-dir build-dg007 -C Debug --output-on-failure`；完整 CTest **14/14 通过**。
 ### DG-008 实现 Markdown 性能摘要
 
-- **状态**：未开始
-- **目标**：输出环境、数据集、配置和统计摘要，并保留 TBD。
+- **状态**：已完成
+- **目标**：输出环境、数据集、配置、统计和错误摘要，并保留未确认信息的 TBD 标记。
 - **前置任务**：DG-007
-- **预计文件**：`src/diagnostics/PerformanceSummaryWriter.h`、`src/diagnostics/PerformanceSummaryWriter.cpp`、`tests/unit/PerformanceSummaryWriterTests.cpp`
-- **实现要求**：基准硬件、低帧率百分位、Camera 路径未确认时必须写 TBD。
-- **验收检查**：摘要包含设计 21.4 全部字段，不虚构结果。
-- **测试要求**：Golden file 测试完整环境和缺失环境。
+- **实现文件**：`src/diagnostics/PerformanceSummaryWriter.h`、`src/diagnostics/PerformanceSummaryWriter.cpp`、`tests/unit/PerformanceSummaryWriterTests.cpp`
+- **最终接口**：固定 `PerformanceSummary` 数据结构和 Pimpl `PerformanceSummaryWriter`；Writer 只允许首次成功写出一份完整摘要。
+- **固定模板**：`Performance Summary` 下依次输出 `Environment`、`Dataset`、`Configuration`、`Statistics`、`Errors` 五个章节，字段顺序与详细设计 21.4 一致。
+- **格式**：二进制写入 UTF-8、无 BOM、单 LF；整数使用十进制；double 使用 classic/C locale 和固定 6 位小数。
+- **缺失值**：普通缺失字段输出空值；`benchmarkHardware`、`cameraPath`、`lowFrameRatePercentile` 缺失时输出 `TBD`。
+- **Markdown 转义**：字符串中的反斜杠转义为 `\\`，`|` 转义为 `\|`，CR/LF 转为空格，确保表格结构和单行约束不被破坏。
+- **失败语义**：父目录不自动创建；打开、非法浮点、写入和关闭失败通过返回值报告，不抛异常；非法 optional double 拒绝整份摘要且不写入；`close()` flush 后关闭并幂等。
+- **线程安全**：`write()`、`close()` 和 `isOpen()` 由互斥量保护；关闭后拒绝写入；并发首次写入最多一个线程成功。
+- **测试结果**：`dzc_performance_summary_writer` 覆盖完整/缺失 Golden file、TBD、编码、换行、数值格式、转义、非法浮点、生命周期、打开失败及并发行为。
 - **追踪**：NFR-TEST-001、ADR-014
 
 ## 6. 模块级验收
@@ -170,7 +175,7 @@
 - [x] 日志为 UTF-8 且轮转策略通过测试
 - [x] Error 在队列拥塞时仍可诊断
 - [x] FPS 和指标聚合测试通过
-- [x] CSV Golden file 与 CSV 格式测试通过（Markdown Golden file 仍待 DG-008）
+- [x] CSV 与 Markdown Golden file 及格式测试通过
 
 ## 7. 交接记录
 
@@ -205,6 +210,15 @@
 - 未解决问题：DG-008 尚未实现；Diagnostics 模块不可标记为完成。
 - 下一任务：DG-008 实现 Markdown 性能摘要。
 - 关联提交：尚未创建 Git 提交。
+### DG-008（2026-08-15）
+
+- 完成人：Codex
+- 关键变更：新增固定 `PerformanceSummary` 与线程安全 Pimpl `PerformanceSummaryWriter`；接入 `dzc_diagnostics`；新增并注册 `PerformanceSummaryWriterTests.cpp`。
+- 行为：固定 Markdown 五章节和字段顺序；UTF-8 无 BOM、单 LF、classic locale 固定 6 位浮点、普通缺失值为空、未确认字段为 TBD；Markdown 字符串执行反斜杠/管道转义并将 CR/LF 转为空格；一次性写出、关闭 flush 且幂等、失败通过返回值报告。
+- 测试命令与结果：`cmake -S . -B build-dg008 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-dg008 --config Debug -- /m:1`；`ctest --test-dir build-dg008 -C Debug --output-on-failure`；完整 CTest 15/15 通过。
+- 未解决问题：Diagnostics 模块已完成；下一任务待用户指定。
+- 关联提交：尚未创建 Git 提交。
+
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。

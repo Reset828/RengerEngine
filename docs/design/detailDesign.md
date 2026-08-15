@@ -1426,6 +1426,63 @@ uploadBytes,lodMisses,recordingWorkers
 字符串字段遵循 CSV 转义：字段包含逗号、双引号、CR 或 LF 时用双引号包裹，字段内双引号加倍。optional 浮点为 NaN 或正负无穷时整行拒绝且不写入；打开、写入、flush 失败均以 `false` 报告，不抛异常、不写 `stderr`。`close()` 在互斥量保护下 flush 后关闭，重复调用幂等；析构自动调用 `close()`。不创建后台刷新线程，`write()`、`close()` 和 `isOpen()` 可并发调用，关闭后写入全部失败。
 
 调用方从指标快照组装行时将 LOD 计数映射为 `lodMisses = max(lod.requests - lod.hits, 0)`；Writer 只输出上述固定列。Markdown 摘要包含项目版本、构建类型、操作系统、CPU、GPU、驱动、内存/显存、CUDA、数据集身份、点数、分辨率、后端、参数、样本帧数、平均 FPS、CPU/GPU 平均帧时和错误计数。基准硬件、低帧率百分位及可重复相机路径尚未确定，摘要必须标为 TBD，不得给出虚构验收数据。
+
+Markdown 性能摘要由调用方组装固定的 `PerformanceSummary` 后交给 `PerformanceSummaryWriter` 写出。
+固定数据结构为：
+
+```cpp
+struct PerformanceSummary final {
+    std::optional<std::string> projectVersion;
+    std::optional<std::string> buildType;
+    std::optional<std::string> operatingSystem;
+    std::optional<std::string> cpu;
+    std::optional<std::string> gpu;
+    std::optional<std::string> driver;
+    std::optional<std::string> memory;
+    std::optional<std::string> gpuMemory;
+    std::optional<std::string> cuda;
+    std::optional<std::string> datasetIdentity;
+    std::optional<std::string> backend;
+    std::optional<std::string> parameters;
+    std::optional<std::string> benchmarkHardware;
+    std::optional<std::string> cameraPath;
+    std::optional<std::uint64_t> pointCount;
+    std::optional<std::uint64_t> sampleFrameCount;
+    std::optional<std::uint64_t> errorCount;
+    std::optional<std::uint32_t> width;
+    std::optional<std::uint32_t> height;
+    std::optional<double> averageFps;
+    std::optional<double> averageCpuFrameMilliseconds;
+    std::optional<double> averageGpuFrameMilliseconds;
+    std::optional<double> lowFrameRatePercentile;
+};
+```
+
+`PerformanceSummary` 包含 Environment、Dataset、Configuration、Statistics 和 Errors 五组固定字段；Writer 不依赖 `MetricsRegistry` 或 `FrameStatistics`，不使用动态字符串指标注册表。
+
+`PerformanceSummaryWriter` 使用 Pimpl、RAII 和互斥量，固定接口为：
+
+```cpp
+class PerformanceSummaryWriter final {
+public:
+    explicit PerformanceSummaryWriter(const std::filesystem::path& path);
+    ~PerformanceSummaryWriter();
+
+    PerformanceSummaryWriter(const PerformanceSummaryWriter&) = delete;
+    PerformanceSummaryWriter& operator=(const PerformanceSummaryWriter&) = delete;
+    PerformanceSummaryWriter(PerformanceSummaryWriter&&) = delete;
+    PerformanceSummaryWriter& operator=(PerformanceSummaryWriter&&) = delete;
+
+    bool write(const PerformanceSummary& summary);
+    bool close() noexcept;
+    bool isOpen() const noexcept;
+};
+```
+
+摘要文件固定输出 `# Performance Summary` 标题及 `Environment`、`Dataset`、`Configuration`、`Statistics`、`Errors` 五个 Markdown 表格章节，字段顺序不得改变。文件以二进制模式创建或截断，不自动创建父目录；编码为 UTF-8、无 BOM；所有行使用单个 LF。整数使用十进制无前导格式，double 使用 classic/C locale、小数点为 `.`、固定 6 位小数。普通 `std::nullopt` 输出空值；`benchmarkHardware`、`cameraPath` 和 `lowFrameRatePercentile` 缺失时输出 `TBD`。
+
+字符串表格单元格中，反斜杠转换为 `\\`，`|` 转换为 `\|`，CR/LF 转为空格。optional double 为 NaN 或正负无穷时拒绝整份摘要且不写入。Writer 只允许首次成功写出一份完整摘要；`write()`、`close()` 和 `isOpen()` 均受同一互斥量保护，`close()` flush 后关闭并幂等，关闭后拒绝写入，析构函数自动关闭。
+
 ## 22. 错误码与恢复策略
 
 ### 22.1 稳定错误码

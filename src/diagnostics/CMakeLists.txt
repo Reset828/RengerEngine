@@ -1,6 +1,7 @@
 add_library(dzc_diagnostics STATIC
     MetricsRegistry.cpp
     PerformanceCsvWriter.cpp
+    PerformanceSummaryWriter.cpp
     FrameStatistics.cpp
     Logger.cpp
     TextFileSink.cpp
