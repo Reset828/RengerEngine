@@ -1,4 +1,4 @@
-﻿# Dzc-RenderEngine 任务总体进度
+# Dzc-RenderEngine 任务总体进度
 
 > 文件：`docs/tasks/progress.md`  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)  
@@ -36,7 +36,7 @@
 ## 4. 公共基础
 
 - [x] [Project Foundation](./project-foundation.md) — 状态：完成
-- [ ] [Diagnostics](./diagnostics.md) — 状态：进行中（DG-001 已完成）
+- [ ] [Diagnostics](./diagnostics.md) — 状态：进行中（DG-001、DG-002 已完成）
 - [ ] [Task System](./task-system.md) — 状态：未开始
 - [ ] [Engine Core](./engine-core.md) — 状态：未开始
 - [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：未开始
@@ -144,5 +144,3 @@
 | 2026-08-14 | PF-002 完成 | 已加入 CMake 3.21、C++17 基线及 OpenGL/Vulkan/CUDA/Tests 构建选项；完成三种配置验收 |
 | 2026-08-14 | PF-001 完成 | 已创建项目源码与测试目录骨架；Project Foundation 模块进入进行中状态 |
 |  | 初始化任务划分 | 18 个模块和最小任务已建立；所有 checklist 初始未完成 |
-
-

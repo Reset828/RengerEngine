@@ -1,4 +1,4 @@
-﻿# Diagnostics 任务清单
+# Diagnostics 任务清单
 
 > 文件：`docs/tasks/diagnostics.md`  
 > 所属阶段：公共基础  
@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **DG-001 定义日志记录与 Sink 接口**
-- [ ] **DG-002 实现 UTF-8 文本文件 Sink**
+- [x] **DG-002 实现 UTF-8 文本文件 Sink**
 - [ ] **DG-003 实现日志轮转**
 - [ ] **DG-004 实现异步 Logger**
 - [ ] **DG-005 实现帧统计聚合器**
@@ -52,7 +52,7 @@
 
 ### DG-002 实现 UTF-8 文本文件 Sink
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：实现线程安全追加和明确写入失败返回。
 - **前置任务**：DG-001
 - **预计文件**：`src/diagnostics/TextFileSink.h`、`src/diagnostics/TextFileSink.cpp`、`tests/unit/TextFileSinkTests.cpp`
@@ -61,6 +61,12 @@
 - **测试要求**：临时目录测试创建、追加、关闭和不可写路径。
 - **追踪**：NFR-MAIN-002、FR-UI-005
 
+### DG-002 完成记录（2026-08-15）
+
+- 实现 `TextFileSink.h`/`TextFileSink.cpp`，使用 RAII 文件流、互斥保护追加写入，并启动每 3 秒执行一次 `flush()` 的后台线程。
+- 构造函数立即尝试以二进制追加模式打开 UTF-8 文件，不创建父目录、不写 BOM，每条记录追加单个 LF。
+- `dzc_text_file_sink` 覆盖创建与追加、UTF-8 内容、单个 LF、无 BOM、关闭后资源释放、父目录不存在、目录路径失败、并发写入和 3 秒后台刷新。
+- 完整 CTest 9/9 通过。
 ### DG-003 实现日志轮转
 
 - **状态**：未开始
@@ -142,8 +148,13 @@
 - 未解决问题：DG-002 至 DG-008 尚未实现；Diagnostics 模块不可标记为完成。
 - 测试命令与结果：`cmake --build build-dg001 --config Debug`；`ctest --test-dir build-dg001 -C Debug --output-on-failure`；8/8 通过。
 - 关联提交：尚未创建 Git 提交。
+### DG-002（2026-08-15）
+
+- 完成人：Codex
+- 关键变更：新增 `src/diagnostics/TextFileSink.h`、`src/diagnostics/TextFileSink.cpp`、`tests/unit/TextFileSinkTests.cpp`，并将 `dzc_diagnostics` 接入静态库实现。
+- 未解决问题：DG-003 至 DG-008 尚未实现；Diagnostics 模块不可标记为完成。
+- 测试命令与结果：`cmake --build build-dg002 --config Debug`；`ctest --test-dir build-dg002 -C Debug --output-on-failure`；9/9 通过。
+- 关联提交：尚未创建 Git 提交。
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。
-
-
