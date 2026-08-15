@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-002 已完成）
+> 模块状态：进行中（TS-001 至 TS-003 已实现，TS-003 已完成 CMake 配置）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -66,15 +66,17 @@
 - **追踪**：DDD-005、6.4
 ### TS-003 实现命令合并辅助器
 
-- **状态**：未开始
-- **目标**：为最后值生效的参数命令提供队列内合并策略。
+- **状态**：已完成实现（CMake 已配置；构建与 CTest 待后续执行）
+- **目标**：为最后值生效的参数命令提供线程安全的队列内合并策略。
 - **前置任务**：TS-002
-- **预计文件**：`src/tasks/CommandCoalescer.h`、`src/tasks/CommandCoalescer.cpp`、`tests/unit/CommandCoalescerTests.cpp`
-- **实现要求**：只合并点大小、着色、颜色、CUDA 模式、Resize；不得重排加载/取消/输入/关闭。
-- **验收检查**：相同参数保留最后值，屏障命令前后顺序不变。
-- **测试要求**：覆盖连续参数、屏障分隔和队列满。
+- **实现文件**：`src/tasks/CommandCoalescer.h`、`src/tasks/CommandCoalescer.cpp`、`tests/unit/CommandCoalescerTests.cpp`
+- **固定命令集合**：复用 `DatasetId`、`ColorRgba`、`RenderSize`、`ShadingMode` 和 `OptionalFeatureMode`，提供加载、取消、卸载、点大小、着色、固定颜色、背景色、CUDA 模式、重置视图、Resize 和 Shutdown 命令；`SubmitInputCommand` 等待 CA-003 提供公共 `InputEvent` 后接入。
+- **公共接口**：`CommandCoalescer(capacity = 1024)`、`push`、`pop`、`popBatch` 和 `close`；对象不可复制/移动，容量为零抛出 `std::invalid_argument`。
+- **合并规则**：点大小、着色、固定颜色、CUDA 模式和 Resize 只在最后一个屏障后的当前命令段内合并；同类命令保留首次入队位置并更新为最后值，不增加队列长度。背景色以及加载、取消、卸载、重置、Shutdown 均为屏障，不跨屏障合并。
+- **容量与关闭**：队列固定容量、FIFO、立即返回；满队列时已有同类参数命令仍可原位更新，没有可更新目标时返回 `false`；`close()` 拒绝新命令但保留并排空已接受命令，Shutdown 命令本身不自动关闭队列。
+- **职责边界**：不校验路径、浮点、颜色或尺寸值域；不新增 InputEvent、动态字符串指标、Qt 或 Fatal 语义。
+- **测试结果**：已新增自有 `assert` 测试，覆盖容量、FIFO、批量消费、连续参数、屏障分段、满队列更新、关闭、Shutdown、生产者/消费者并发和并发关闭。2026-08-15 已使用指定 MSVC 14.44 工具链完成 CMake 配置；构建与 CTest 待后续执行。
 - **追踪**：6.1、6.4
-
 ### TS-004 实现线程数自动计算
 
 - **状态**：未开始

@@ -118,3 +118,12 @@ target_compile_features(dzc_bounded_queue_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_bounded_queue_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_bounded_queue COMMAND dzc_bounded_queue_tests)
+
+add_executable(dzc_command_coalescer_tests
+    CommandCoalescerTests.cpp
+)
+
+target_compile_features(dzc_command_coalescer_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_command_coalescer_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_command_coalescer COMMAND dzc_command_coalescer_tests)
