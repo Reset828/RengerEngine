@@ -152,3 +152,11 @@ target_compile_features(dzc_task_completion_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_task_completion_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_task_completion COMMAND dzc_task_completion_tests)
+add_executable(dzc_concurrency_gate_tests
+    ConcurrencyGateTests.cpp
+)
+
+target_compile_features(dzc_concurrency_gate_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_concurrency_gate_tests PRIVATE dzc_tasks)
+
+add_test(NAME dzc_concurrency_gate COMMAND dzc_concurrency_gate_tests)

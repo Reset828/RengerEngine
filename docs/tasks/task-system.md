@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/task-system.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中（TS-001 至 TS-006 已完成）
+> 模块状态：进行中（TS-001 至 TS-007 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -32,7 +32,7 @@
 - [x] **TS-004 实现线程数自动计算**
 - [x] **TS-005 实现优先级线程池**
 - [x] **TS-006 实现任务完成队列**
-- [ ] **TS-007 实现 I/O 并发闸门**
+- [x] **TS-007 实现 I/O 并发闸门**
 - [ ] **TS-008 实现高低水位背压器**
 - [ ] **TS-009 实现 TaskSystem 安全关闭**
 
@@ -118,13 +118,15 @@
 
 ### TS-007 实现 I/O 并发闸门
 
-- **状态**：未开始
-- **目标**：用 C++17 mutex/condition_variable 实现默认容量 2 的许可。
+- **状态**：已完成
+- **目标**：提供不接入具体 Reader 或 TaskSystem 调度的、可取消的 C++17 I/O 许可控制。
 - **前置任务**：TS-005
-- **预计文件**：`src/tasks/ConcurrencyGate.h`、`src/tasks/ConcurrencyGate.cpp`、`tests/unit/ConcurrencyGateTests.cpp`
-- **实现要求**：等待可被 CancellationToken 唤醒；RAII Lease 自动释放许可。
-- **验收检查**：活跃 I/O 不超过限制，取消等待者及时退出。
-- **测试要求**：并发峰值、取消和异常释放测试。
+- **实现文件**：`src/tasks/ConcurrencyGate.h`、`src/tasks/ConcurrencyGate.cpp`、`tests/unit/ConcurrencyGateTests.cpp`；`src/tasks/Cancellation.h/.cpp` 增加仅供 Gate 使用的私有取消通知注册；`src/tasks/CMakeLists.txt` 与 `tests/unit/CMakeLists.txt` 已接入 `dzc_tasks` 和 `dzc_concurrency_gate` CTest。
+- **最终接口**：`ConcurrencyGate(capacity = 2U)`、`acquire(CancellationToken = {})` 和幂等 `close()`；零容量构造抛出 `std::invalid_argument`。成功获取返回不可复制、可移动的 RAII `Lease`，不提供手动释放、容量或活动数查询。
+- **许可与关闭**：Gate 使用共享 Pimpl 状态、互斥量与条件变量保存固定许可数。许可不足时等待；Lease 析构或移动赋值会归还原许可并唤醒等待者。`close()` 拒绝新的获取、唤醒所有等待者但不撤销既有 Lease；Gate 析构自动关闭，晚于 Gate 析构的 Lease 仍通过共享状态安全归还许可。
+- **取消唤醒**：已取消 Token、等待期间取消或关闭均使 `acquire()` 返回空 optional；取消和关闭在发放许可前优先检查。Cancellation 保持既有公开轮询接口，仅在私有实现中登记弱引用通知，并对组合 Token 的全部底层状态登记，因此外部或 TaskSystem 内部取消均可及时唤醒等待；等待结束后注册失效，不保留对 acquire 栈帧的访问。
+- **范围边界**：TS-007 仅控制并发许可；不自动读取 ThreadConfig、不实现 Reader、TaskSystem 自动接入、高低水位背压或完整 TaskSystem 关闭。
+- **测试结果**：`dzc_concurrency_gate` 覆盖默认/自定义容量、零容量、并发峰值、作用域/移动/异常展开释放、默认等待、预取消/等待中取消/组合 Token 取消、关闭语义和 acquire/release/close/cancel 并发压力。2026-08-15 指定 MSVC 14.44/Qt MSVC 2022 工具链下 Debug 完整 CTest **22/22 通过**。
 - **追踪**：DDD-006、7.3
 
 ### TS-008 实现高低水位背压器

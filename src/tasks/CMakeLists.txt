@@ -1,5 +1,7 @@
 add_library(dzc_tasks STATIC
     Cancellation.cpp
+    ConcurrencyGate.cpp
+    ConcurrencyGate.h
     BoundedQueue.h
     CommandCoalescer.cpp
     CommandCoalescer.h

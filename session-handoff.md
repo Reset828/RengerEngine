@@ -6,9 +6,9 @@
 
 ## 1. 当前状态
 
-Diagnostics 模块已完成；Task System 的 TS-001 至 TS-006 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
+Diagnostics 模块已完成；Task System 的 TS-001 至 TS-007 已完成并通过完整 CTest。当前工作区尚未创建 Git 提交。
 
-已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006。
+已完成：DG-001、DG-002、DG-003、DG-004、DG-005、DG-006、DG-007、DG-008、TS-001、TS-002、TS-003、TS-004、TS-005、TS-006、TS-007。
 
 用户约束仍然有效：
 
@@ -153,3 +153,12 @@ ctest --test-dir build-dg008 -C Debug --output-on-failure
 - 生命周期约定：`waitForCompletion()` 停止接收，等待任务执行和完成消息发布，然后关闭完成队列、退出并汇合 worker。因为完成队列满时发布会阻塞，调用方必须在等待前或并发期间持续消费完成消息；否则 worker 和等待方会共同等待，这是避免结果丢失的既定背压行为。
 - 工具链与验证：继续使用 MSVC `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`、`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`、Qt `D:\qt_2\5.15.19\msvc2022_64` 与 `NMake Makefiles`。执行配置命令 `cmd.exe /d /s /c 'call "D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 -vcvars_ver=14.44 && set "CMAKE_PREFIX_PATH=D:\qt_2\5.15.19\msvc2022_64" && cmake -G "NMake Makefiles" -S . -B build-ts006 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON'`，随后执行对应开发环境下的 `cmake --build build-ts006 --config Debug` 与 `ctest --test-dir build-ts006 -C Debug --output-on-failure`。
 - 测试结果：2026-08-15 Debug 构建成功，完整 CTest **21/21 通过**（包含 `dzc_task_completion`）；`build-ts006` 已在验证后清理，工作区所有变更仍未提交。
+## 14. TS-007 完成记录
+
+已完成 `docs/tasks/task-system.md` 的 TS-007：实现可取消的 I/O 并发闸门。下一任务：TS-008。
+
+- 实现文件：`src/tasks/ConcurrencyGate.h`、`src/tasks/ConcurrencyGate.cpp`、`tests/unit/ConcurrencyGateTests.cpp`；`src/tasks/Cancellation.h/.cpp` 仅以私有订阅/通知机制扩展，以便 Gate 对普通与组合 Token 的取消及时唤醒等待；`src/tasks/CMakeLists.txt`、`tests/unit/CMakeLists.txt` 已纳入 `dzc_tasks` 和 `dzc_concurrency_gate`。
+- 最终接口与行为：`ConcurrencyGate(capacity = 2U)` 的零容量构造抛出 `std::invalid_argument`；`acquire(CancellationToken = {})` 成功返回不可复制、可移动的 RAII `Lease`。许可不足时阻塞；取消、关闭均优先于新许可发放并以空 optional 返回。Lease 析构和移动赋值归还许可；没有手动 release、容量或活动数公共查询。
+- 生命周期与取消：Gate 共享 Pimpl 状态，`close()` 幂等、拒绝新获取并唤醒全部等待者，但不撤销既有 Lease；Gate 析构自动 close，晚析构 Lease 不会访问悬空 Gate。取消注册仅保存失效安全的弱引用通知，等待结束后注册即失效；组合 Token 的所有底层状态均被登记，因此 TaskSystem 的外部或内部取消也能及时唤醒。
+- 工具链与验证：MSVC `D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\cl.exe`、`D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64 -vcvars_ver=14.44`、Qt `D:\qt_2\5.15.19\msvc2022_64`、`NMake Makefiles`。2026-08-15 使用 `build-ts007` 配置/Debug 构建成功；完整 CTest **22/22 通过**，包含 `dzc_concurrency_gate`。
+- 工作区状态：`build-ts007` 已在验证后清理；`git diff --check` 已通过；所有此前与本次变更均未提交。

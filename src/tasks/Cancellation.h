@@ -1,12 +1,16 @@
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <vector>
 
 namespace dzc::tasks {
 
 class CancellationState;
 class CancellationComposite;
+class CancellationRegistration;
 class TaskSystem;
+class ConcurrencyGate;
 
 class CancellationToken final {
 public:
@@ -19,12 +23,15 @@ private:
     static CancellationToken combine(
         const CancellationToken& first,
         const CancellationToken& second);
+    std::vector<std::shared_ptr<CancellationRegistration>>
+    registerCancellationNotification(std::function<void()> notification) const;
 
     std::shared_ptr<const CancellationState> m_state;
     std::shared_ptr<const CancellationComposite> m_composite;
 
     friend class CancellationSource;
     friend class TaskSystem;
+    friend class ConcurrencyGate;
 };
 
 class CancellationSource final {

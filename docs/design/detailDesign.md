@@ -645,7 +645,7 @@ public:
 };
 ```
 
-TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 只提供轮询查询，不提供回调、阻塞等待或唤醒机制。
+TS-001 中，`CancellationSource` 创建共享取消状态，`CancellationToken` 仅持有共享观察引用。默认构造 Token 不关联 Source，查询始终返回未取消；Source 析构时请求取消，因此仍存活的 Token 不会访问已销毁的 Source。`requestCancellation()` 以原子 compare-exchange 使用 acquire/release 语义实现线程安全且幂等的状态迁移，只有首次未取消到已取消的调用返回 `true`。Source 不可复制、可移动；移动赋值会先取消目标原有状态，再接管来源状态。TS-001 的公开接口只提供轮询查询，不向调用方提供回调、阻塞等待或唤醒机制；TS-007 仅在私有实现中增加 Gate 专用的取消通知登记。
 
 TS-005/TS-006 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，并使用严格 `Critical`、`High`、`Normal`、`Low` 选择顺序；每级容量相同，默认 1024。worker 数、任务队列容量或完成队列容量为 0 时构造失败。成功提交的 `TaskId` 从 1 单调分配且不复用；空任务、非法优先级、停止接收、队列满与 ID 耗尽均以 `ErrorDomain::Task` 和 `TaskErrorCode` 返回。提交任务可返回 `Result<void>`；为兼容既有调用，返回 `void` 的任务适配为成功结果。`stopAccepting()` 只停止接收；`waitForCompletion()` 停止接收，等待已接受任务执行及其完成消息发布，再关闭完成队列、通知 worker 退出并汇合，析构函数执行同一幂等流程。该等待仅允许外部控制线程调用。
 
@@ -655,7 +655,10 @@ TS-005/TS-006 的 `TaskSystem` 为每个优先级维护独立的有界 FIFO，�
 
 ### 7.3 I/O 并发与背压
 
-- 使用计数信号量等效实现限制同时活跃的文件读取任务，C++17 可用 mutex/condition_variable 自行实现；
+TS-007 的 `ConcurrencyGate` 是独立的计数信号量等效对象：`ConcurrencyGate(capacity = 2U)` 的容量必须大于零，使用共享 Pimpl、mutex 和 condition_variable 保存可用许可及关闭状态。`acquire(CancellationToken = {})` 在 Gate 打开、Token 未取消且许可可用时返回不可复制、可移动的 RAII `Lease`；许可不足时阻塞等待。`Lease` 析构或移动赋值归还其原许可；即使 Lease 晚于 Gate 对象析构，仍通过共享内部状态安全归还。Gate 不暴露手动 release、容量或活动数查询。
+
+`acquire()` 对已取消 Token、等待期间取消以及已关闭 Gate 均返回空 optional；在唤醒后先检查取消和关闭，因此二者优先于新许可发放。`close()` 幂等，拒绝新 acquire、唤醒全部等待者，但不撤销既有 Lease；Gate 析构自动 close。Cancellation 的公开边界仍为查询式 Token；其私有实现仅为 Gate 登记失效安全的条件变量唤醒通知，并递归登记组合 Token 的底层状态，使外部或 TaskSystem 内部取消能及时唤醒等待而不运行调用方回调。
+
 - 一个 Reader 任务以批次输出，不一次性复制全文件；
 - 下游待构建批次、CPU 驻留字节或上传队列达到高水位时暂停继续读取；
 - 队列降到低水位后唤醒；高水位建议为容量 80%，低水位为 60%；
