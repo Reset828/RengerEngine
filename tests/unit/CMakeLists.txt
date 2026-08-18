@@ -46,6 +46,16 @@ target_include_directories(dzc_engine_state_machine_tests PRIVATE ${PROJECT_SOUR
 target_link_libraries(dzc_engine_state_machine_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_engine_state_machine COMMAND dzc_engine_state_machine_tests)
+add_executable(dzc_scene_tests
+    SceneTests.cpp
+    ${PROJECT_SOURCE_DIR}/src/scene/Scene.cpp
+)
+
+target_compile_features(dzc_scene_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_scene_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_scene_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_scene COMMAND dzc_scene_tests)
 add_executable(dzc_result_tests
     ResultTests.cpp
 )

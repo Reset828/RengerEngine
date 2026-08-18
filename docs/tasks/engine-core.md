@@ -30,7 +30,7 @@
 - [x] **EC-002 定义 EngineEvent 值类型**
 - [x] **EC-003 定义 EngineSnapshot**
 - [x] **EC-004 实现 Engine 状态机**
-- [ ] **EC-005 实现 Scene 参数容器**
+- [x] **EC-005 实现 Scene 参数容器**
 - [ ] **EC-006 实现 Engine 公共类和 Pimpl**
 - [ ] **EC-007 实现命令消费与事件溢出策略**
 - [ ] **EC-008 实现原子 Snapshot 发布**
@@ -87,15 +87,16 @@
 
 ### EC-005 实现 Scene 参数容器
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-18）
 - **目标**：保存当前 Dataset 引用、渲染参数和后端无关帧输入。
 - **前置任务**：EC-003
-- **预计文件**：`src/scene/Scene.h`、`src/scene/Scene.cpp`、`tests/unit/SceneTests.cpp`
-- **实现要求**：Scene 不拥有 GPU 对象；参数更新只在 Engine 单消费者线程执行。
-- **验收检查**：点大小、模式、颜色和 Dataset 引用可原子帧切换。
-- **测试要求**：参数命令应用和 Dataset 清空测试。
+- **实际文件**：`src/scene/Scene.h`、`src/scene/Scene.cpp`、`tests/unit/SceneTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现要求**：采用私有 Scene；使用 `std::optional<DatasetId>` 表示当前 Dataset；Scene 不拥有 GPU 对象；参数更新只在 Engine 单消费者线程执行。
+- **接口语义**：`SceneParameters` 包含点大小、着色模式、固定颜色、背景颜色和渲染尺寸；`SceneFrameInput` 按值返回 Dataset 引用和完整参数；非法点大小返回 `Configuration/1` 并保持旧参数不变。
+- **验收检查**：点大小、模式、颜色、尺寸和 Dataset 引用可通过一次参数提交及帧输入读取完成切换；Dataset 可设置和清空。
+- **测试要求**：默认值、完整参数和 Dataset 字段访问、Dataset 清空、点大小边界、非法点大小失败及失败后旧参数保持测试。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 构建成功；`dzc_scene` 专项测试通过；完整 CTest 29/29 通过；`git diff --check` 通过。
 - **追踪**：FR-REN-002~004、6.4
-
 ### EC-006 实现 Engine 公共类和 Pimpl
 
 - **状态**：未开始
