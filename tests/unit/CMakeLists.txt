@@ -7,6 +7,34 @@ target_compile_features(dzc_engine_types_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_engine_types_tests PRIVATE dzc_engine_api)
 
 add_test(NAME dzc_engine_types COMMAND dzc_engine_types_tests)
+
+add_executable(dzc_engine_command_tests
+    EngineCommandTests.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/EngineCommand.cpp
+)
+
+target_compile_features(dzc_engine_command_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_engine_command_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_engine_command COMMAND dzc_engine_command_tests)
+
+add_executable(dzc_engine_event_tests
+    EngineEventTests.cpp
+)
+
+target_compile_features(dzc_engine_event_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_engine_event_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_engine_event COMMAND dzc_engine_event_tests)
+
+add_executable(dzc_engine_snapshot_tests
+    EngineSnapshotTests.cpp
+)
+
+target_compile_features(dzc_engine_snapshot_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_engine_snapshot_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_engine_snapshot COMMAND dzc_engine_snapshot_tests)
 add_executable(dzc_result_tests
     ResultTests.cpp
 )

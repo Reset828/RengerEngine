@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/engine-core.md`  
 > 所属阶段：公共基础  
-> 模块状态：未开始  
+> 模块状态：进行中
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)、[task-system](./task-system.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,9 +26,9 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **EC-001 定义 EngineCommand 值类型**
-- [ ] **EC-002 定义 EngineEvent 值类型**
-- [ ] **EC-003 定义 EngineSnapshot**
+- [x] **EC-001 定义 EngineCommand 值类型**
+- [x] **EC-002 定义 EngineEvent 值类型**
+- [x] **EC-003 定义 EngineSnapshot**
 - [ ] **EC-004 实现 Engine 状态机**
 - [ ] **EC-005 实现 Scene 参数容器**
 - [ ] **EC-006 实现 Engine 公共类和 Pimpl**
@@ -42,10 +42,10 @@
 
 ### EC-001 定义 EngineCommand 值类型
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-17）
 - **目标**：实现详细设计 6.1 的封闭 variant 命令。
 - **前置任务**：project-foundation/PF-006
-- **预计文件**：`include/dzc/EngineCommand.h`、`tests/unit/EngineCommandTests.cpp`
+- **实际文件**：`include/dzc/EngineCommand.h`、`src/engine/EngineCommand.cpp`、`tests/unit/EngineCommandTests.cpp`
 - **实现要求**：负载不含可变裸指针、Qt 类型或 GPU 句柄；Reset 只表达请求。
 - **验收检查**：每类命令可构造、访问和移动；参数基础校验可调用。
 - **测试要求**：variant 分支和非法参数测试。
@@ -53,24 +53,24 @@
 
 ### EC-002 定义 EngineEvent 值类型
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-18）
 - **目标**：实现消息、错误、进度、加载完成/取消和降级事件。
 - **前置任务**：EC-001
-- **预计文件**：`include/dzc/EngineEvent.h`、`tests/unit/EngineEventTests.cpp`
-- **实现要求**：错误/完成/取消不可静默丢失；持续状态不放 Event。
-- **验收检查**：所有事件具有稳定上下文和严重级别。
+- **实际文件**：`include/dzc/EngineEvent.h`、`tests/unit/EngineEventTests.cpp`
+- **实现要求**：严格遵循详细设计 6.2；错误/完成/取消不可静默丢失的队列行为留待 EC-007；持续状态不放 Event。
+- **验收检查**：6 个事件分支、默认值、字段访问、移动语义和封闭 variant 测试通过。
 - **测试要求**：构造、移动和上下文字段测试。
 - **追踪**：FR-DATA-003、FR-UI-004/005
 
 ### EC-003 定义 EngineSnapshot
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-18）
 - **目标**：实现不可变快照、Dataset/Performance/Memory 摘要。
 - **前置任务**：EC-002, diagnostics/DG-006
-- **预计文件**：`include/dzc/EngineSnapshot.h`、`tests/unit/EngineSnapshotTests.cpp`
-- **实现要求**：不得含完整点云或底层句柄；包含最近错误和参数。
-- **验收检查**：默认快照和有数据集快照字段完整。
-- **测试要求**：字段默认值和复制成本约束测试。
+- **实际文件**：`include/dzc/EngineState.h`、`include/dzc/EngineSnapshot.h`、`tests/unit/EngineSnapshotTests.cpp`
+- **实现要求**：不得含完整点云或底层句柄；包含最近错误和参数；发布后的不可变性由后续 `shared_ptr<const EngineSnapshot>` 机制保证。
+- **验收检查**：默认快照和有数据集快照字段完整；EngineState 独立定义供后续 EC-004 复用。
+- **测试要求**：字段默认值、完整字段复制和 `sizeof(EngineSnapshot) <= 512` 复制成本约束测试。
 - **追踪**：FR-DATA-005、FR-STAT-001、6.3
 
 ### EC-004 实现 Engine 状态机
@@ -170,12 +170,22 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+### EC-002 与 EC-003（2026-08-18）
+
+- 完成人：Codex
+- 关键变更：新增 `include/dzc/EngineEvent.h`、`include/dzc/EngineState.h`、`include/dzc/EngineSnapshot.h`、`tests/unit/EngineEventTests.cpp` 和 `tests/unit/EngineSnapshotTests.cpp`；注册 `dzc_engine_event` 与 `dzc_engine_snapshot` CTest。
+- EC-002：严格实现详细设计 6.2 的 `EventSeverity`、`EventContext`、6 个事件值类型及封闭 `EngineEvent` variant；未增加统一上下文/严重级别，未实现队列或消费逻辑。
+- EC-003：严格实现详细设计 5.1/6.3 的 `EngineState`、`DatasetState`、数据集/性能/内存摘要和 `EngineSnapshot`；快照保持可复制值类型，验证 `shared_ptr<const EngineSnapshot>` 和 `sizeof(EngineSnapshot) <= 512`。
+- 验证结果：MSVC 14.44 / NMake Makefiles 下 Debug 构建成功；新增事件和快照测试 2/2 通过；完整 CTest 27/27 通过；`git diff --check` 通过；任务专用构建目录已清理。
+- 后续任务：EC-004 实现 Engine 状态机；Engine Core 模块仍为“进行中”。
+- 关联提交：未提交。
+### EC-001（2026-08-17）
+
+- 完成人：Codex
+- 关键变更：新增 `include/dzc/EngineCommand.h`、`src/engine/EngineCommand.cpp` 和 `tests/unit/EngineCommandTests.cpp`；定义 11 种命令值类型及封闭 `dzc::EngineCommand` variant；实现非空严格 UTF-8 路径校验和点大小有限数/`[1.0F, 64.0F]` 校验；已接入 `dzc_engine_api` 测试目标与 CTest。
+- 未解决问题：EC-001 无未解决问题；当时后续任务为 EC-002。Engine Core 模块仍为“进行中”。
+- 测试命令与结果：`cmake -G "NMake Makefiles" -S . -B build-ec001 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-ec001 --config Debug`；`ctest --test-dir build-ec001 -C Debug -R '^dzc_engine_command$' --output-on-failure`（1/1 通过）；`ctest --test-dir build-ec001 -C Debug --output-on-failure`（25/25 通过）；`git diff --check`。
+- 关联提交：未提交。
 
 ## 8. 变更约束
 
