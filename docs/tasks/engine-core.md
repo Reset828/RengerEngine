@@ -29,7 +29,7 @@
 - [x] **EC-001 定义 EngineCommand 值类型**
 - [x] **EC-002 定义 EngineEvent 值类型**
 - [x] **EC-003 定义 EngineSnapshot**
-- [ ] **EC-004 实现 Engine 状态机**
+- [x] **EC-004 实现 Engine 状态机**
 - [ ] **EC-005 实现 Scene 参数容器**
 - [ ] **EC-006 实现 Engine 公共类和 Pimpl**
 - [ ] **EC-007 实现命令消费与事件溢出策略**
@@ -75,13 +75,14 @@
 
 ### EC-004 实现 Engine 状态机
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-18）
 - **目标**：编码 Created 到 Stopped 的合法迁移表。
 - **前置任务**：EC-003
-- **预计文件**：`src/engine/EngineStateMachine.h`、`src/engine/EngineStateMachine.cpp`、`tests/unit/EngineStateMachineTests.cpp`
-- **实现要求**：文件错误不进入 Failed；非法迁移返回 Internal/InvalidState。
-- **验收检查**：所有设计迁移和禁止迁移均有测试。
-- **测试要求**：状态转移表驱动测试。
+- **实际文件**：`src/engine/EngineStateMachine.h`、`src/engine/EngineStateMachine.cpp`、`tests/unit/EngineStateMachineTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现要求**：实现单线程、非线程安全状态机；文件错误不进入 Failed；非法迁移返回 `Internal/InvalidState` 且保持原状态。
+- **验收检查**：实现 Created、Initializing、Ready、Running、Loading、Failed、ShuttingDown、Stopped 的详细设计迁移表；Loading 结果恢复到进入前的 Ready 或 Running；Stopped 为终态。
+- **测试要求**：使用表驱动测试覆盖所有设计迁移、关闭路径、Loading 恢复路径和禁止迁移，并验证稳定触发器底层类型与错误码。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 构建成功；`dzc_engine_state_machine` 专项测试通过；完整 CTest 28/28 通过；`git diff --check` 通过。
 - **追踪**：5.1、NFR-REL-001
 
 ### EC-005 实现 Scene 参数容器
