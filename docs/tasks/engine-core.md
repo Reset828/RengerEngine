@@ -99,13 +99,16 @@
 - **追踪**：FR-REN-002~004、6.4
 ### EC-006 实现 Engine 公共类和 Pimpl
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-18）
 - **目标**：实现 init/enqueueCommand/update/render/resize/getSnapshot/pollEvents/shutdown。
 - **前置任务**：EC-004, EC-005, task-system/TS-009
-- **预计文件**：`include/dzc/Engine.h`、`src/engine/Engine.cpp`、`tests/unit/EnginePublicApiTests.cpp`
+- **实际文件**：`include/dzc/Engine.h`、`include/dzc/FrameInput.h`、`src/engine/Engine.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/EnginePublicApiTests.cpp`、`tests/unit/CMakeLists.txt`
 - **实现要求**：公共头最小化；Engine 不继承 QObject/QWidget；私有实现只在 cpp。
-- **验收检查**：生命周期调用符合线程和状态规则，重复 shutdown 安全。
+- **实现结果**：实现 Pimpl、内部 Fake Render/Compute Backend、基础命令/事件有界队列、互斥量保护的非原子快照读取，以及基于 EngineStateMachine 的最小生命周期骨架。`FrameInput` 为后端无关的空值类型；命令不在本任务消费或合并，事件不实现溢出策略，Snapshot 不实现原子发布，每帧协调留给后续任务。
+- **验收检查**：生命周期调用符合状态规则，重复 shutdown 安全；非法业务调用返回 `Internal/InvalidState`；配置队列容量为零返回 `Configuration/1`；命令队列满返回 `Task/QueueFull`。
 - **测试要求**：Fake 后端下的 API 生命周期测试。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_engine_public_api` 通过；完整 CTest 30/30 通过；`git diff --check` 通过；任务专用 `build-ec006` 已清理。
+- **后续任务**：EC-007 实现命令消费与事件溢出策略。
 - **追踪**：ADR-004、NFR-MAIN-004、4
 
 ### EC-007 实现命令消费与事件溢出策略
@@ -192,3 +195,13 @@
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。
+### EC-006（2026-08-18）
+
+- 完成人：Codex
+- 关键变更：新增公共 `Engine` Pimpl 接口和最小 `FrameInput` 值类型；`Engine::Impl` 仅在 `src/engine/Engine.cpp` 内完整定义，内部拥有状态机、Scene、基础命令/事件有界队列、快照互斥量和私有 Fake Render/Compute Backend。
+- 生命周期：`init` 校验队列容量后执行 `Created -> Initializing -> Ready`；第一次成功 `update` 执行 `Ready -> Running` 并递增快照帧号；`render` 使用 Fake 后端无操作成功路径；`resize` 更新 Scene 渲染尺寸；业务调用只允许 Ready/Running/Loading，其他状态返回 `Internal/InvalidState`。
+- 边界：命令仅进行值校验和入队，不消费或合并；事件只支持基础 FIFO 排空；快照读取由互斥量保护，未实现 EC-008 原子发布；未实现真实 GPU、Dataset 生命周期、完整帧协调、状态机失败注入或关闭回滚编排。
+- CMake：`dzc_engine_core` 已改为静态库并编入 Engine、EngineCommand、状态机和 Scene 实现；既有状态机及 Scene 测试改为链接该核心库，新增 `dzc_engine_public_api`。
+- 验证结果：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_engine_public_api` 通过；完整 CTest 30/30 通过；`git diff --check` 通过；任务专用构建目录已清理。
+- 后续任务：EC-007 实现命令消费与事件溢出策略；Engine Core 模块仍为“进行中”。
+- 关联提交：未提交。

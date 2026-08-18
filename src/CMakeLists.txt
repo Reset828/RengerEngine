@@ -74,7 +74,7 @@ target_link_libraries(dzc_interop_vk INTERFACE
     dzc_compute_cuda
 )
 
-target_link_libraries(dzc_engine_core INTERFACE
+target_link_libraries(dzc_engine_core PUBLIC
     dzc_engine_api
     dzc_data_core
     dzc_render_api

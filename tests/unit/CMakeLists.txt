@@ -38,7 +38,6 @@ add_test(NAME dzc_engine_snapshot COMMAND dzc_engine_snapshot_tests)
 
 add_executable(dzc_engine_state_machine_tests
     EngineStateMachineTests.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/EngineStateMachine.cpp
 )
 
 target_compile_features(dzc_engine_state_machine_tests PRIVATE cxx_std_17)
@@ -48,7 +47,6 @@ target_link_libraries(dzc_engine_state_machine_tests PRIVATE dzc_engine_core dzc
 add_test(NAME dzc_engine_state_machine COMMAND dzc_engine_state_machine_tests)
 add_executable(dzc_scene_tests
     SceneTests.cpp
-    ${PROJECT_SOURCE_DIR}/src/scene/Scene.cpp
 )
 
 target_compile_features(dzc_scene_tests PRIVATE cxx_std_17)
@@ -225,3 +223,12 @@ target_compile_features(dzc_task_system_shutdown_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_task_system_shutdown_tests PRIVATE dzc_tasks)
 
 add_test(NAME dzc_task_system_shutdown COMMAND dzc_task_system_shutdown_tests)
+
+add_executable(dzc_engine_public_api_tests
+    EnginePublicApiTests.cpp
+)
+
+target_compile_features(dzc_engine_public_api_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_engine_public_api_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_engine_public_api COMMAND dzc_engine_public_api_tests)
