@@ -1,9 +1,11 @@
-﻿#include "dzc/Engine.h"
+#include "dzc/Engine.h"
 
 #include "compute/common/ComputeBackendFactory.h"
+#include "engine/DatasetSession.h"
 #include "engine/EngineCoordinator.h"
 #include "engine/EngineQueues.h"
 #include "engine/EngineStateMachine.h"
+#include "engine/EngineTestAccess.h"
 #include "render/common/RenderBackendFactory.h"
 #include "scene/Scene.h"
 #include "tasks/CommandCoalescer.h"
@@ -14,6 +16,7 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -72,9 +75,8 @@ class FakeComputeBackend final : public IComputeBackend {};
 class Engine::Impl final {
 public:
     Impl()
-        : m_snapshot(std::make_shared<EngineSnapshot>()) {
-        m_coordinator = EngineCoordinator(makeCoordinatorStages());
-    }
+        : m_snapshot(std::make_shared<EngineSnapshot>()),
+          m_coordinator(makeCoordinatorStages()) {}
 
     Result<void> init(const EngineConfig& config) {
         if (m_stateMachine.state() != EngineState::Created) {
@@ -100,7 +102,12 @@ public:
             m_shutdownRequested.store(false, std::memory_order_release);
         } catch (const std::exception& exception) {
             static_cast<void>(m_stateMachine.transition(EngineStateTrigger::InitializationFailed));
-            publishSnapshot(EngineState::Failed, exception.what());
+            publishSnapshot(EngineState::Failed, Error{
+                ErrorDomain::Resource,
+                kInvalidConfiguration,
+                "Engine initialization failed",
+                exception.what(),
+                "Engine::init"});
             return Result<void>::failure(Error{
                 ErrorDomain::Resource,
                 kInvalidConfiguration,
@@ -110,7 +117,12 @@ public:
         } catch (...) {
             constexpr const char* kUnknownFailure = "Unknown exception during Engine initialization.";
             static_cast<void>(m_stateMachine.transition(EngineStateTrigger::InitializationFailed));
-            publishSnapshot(EngineState::Failed, kUnknownFailure);
+            publishSnapshot(EngineState::Failed, Error{
+                ErrorDomain::Resource,
+                kInvalidConfiguration,
+                "Engine initialization failed",
+                kUnknownFailure,
+                "Engine::init"});
             return Result<void>::failure(Error{
                 ErrorDomain::Resource,
                 kInvalidConfiguration,
@@ -185,6 +197,10 @@ public:
         return m_eventQueue == nullptr ? std::vector<EngineEvent>{} : m_eventQueue->poll();
     }
 
+    void injectDatasetCompletion(tasks::TaskCompletion completion) {
+        m_datasetSession.injectCompletionForTesting(std::move(completion));
+    }
+
     void shutdown() noexcept {
         const EngineState state = m_stateMachine.state();
         if (state == EngineState::Created || state == EngineState::Initializing ||
@@ -224,7 +240,9 @@ private:
         stages.command = [this](const FrameInput& input) {
             return consumeCommands(input);
         };
-        stages.taskCompletion = noOp;
+        stages.taskCompletion = [this](const FrameInput& input) {
+            return consumeTaskCompletions(input);
+        };
         stages.camera = noOp;
         stages.visibility = noOp;
         stages.residency = noOp;
@@ -272,14 +290,92 @@ private:
         return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Continue);
     }
 
+    Result<EngineCoordinatorControl> consumeTaskCompletions(const FrameInput&) {
+        for (tasks::TaskCompletion completion : m_datasetSession.takeInjectedCompletions()) {
+            const DatasetSessionCompletion applied =
+                m_datasetSession.applyCompletion(std::move(completion));
+            const Result<void> result = applyDatasetCompletion(applied);
+            if (!result.hasValue()) {
+                return Result<EngineCoordinatorControl>::failure(result.error());
+            }
+        }
+        return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Continue);
+    }
+
+    Result<void> applyDatasetCompletion(const DatasetSessionCompletion& completion) {
+        switch (completion.kind) {
+        case DatasetSessionCompletionKind::Ignored:
+            return Result<void>::success();
+
+        case DatasetSessionCompletionKind::Loaded: {
+            m_scene.setDataset(m_datasetSession.sceneDatasetId());
+            m_mostRecentError.reset();
+            const Result<void> transition =
+                m_stateMachine.transition(EngineStateTrigger::DatasetCompleted);
+            if (!transition.hasValue()) {
+                return transition;
+            }
+            pushEvent(DatasetLoadedEvent{completion.datasetId});
+            return Result<void>::success();
+        }
+
+        case DatasetSessionCompletionKind::Cancelled: {
+            m_scene.setDataset(m_datasetSession.sceneDatasetId());
+            const Result<void> transition =
+                m_stateMachine.transition(EngineStateTrigger::DatasetCancelled);
+            if (!transition.hasValue()) {
+                return transition;
+            }
+            pushEvent(DatasetLoadCancelledEvent{completion.datasetId});
+            return Result<void>::success();
+        }
+
+        case DatasetSessionCompletionKind::Failed: {
+            m_scene.setDataset(m_datasetSession.sceneDatasetId());
+            if (completion.error.has_value()) {
+                m_mostRecentError = completion.error;
+                pushEvent(ErrorEvent{
+                    EventSeverity::RecoverableError,
+                    *completion.error,
+                    EventContext{completion.datasetId, {}, completion.taskId, {}}});
+            }
+            const Result<void> transition =
+                m_stateMachine.transition(EngineStateTrigger::DatasetRecoverableFailure);
+            return transition;
+        }
+        }
+
+        return Result<void>::success();
+    }
+
     Result<void> applyCommand(const EngineCommand& command) {
         SceneParameters parameters = m_scene.frameInput().parameters;
         bool sceneChanged = false;
+        Result<void> commandResult = Result<void>::success();
 
         std::visit(
-            [this, &parameters, &sceneChanged](const auto& value) {
+            [this, &parameters, &sceneChanged, &commandResult](const auto& value) {
                 using Command = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<Command, SetPointSizeCommand>) {
+                if constexpr (std::is_same_v<Command, LoadDatasetCommand>) {
+                    const Result<DatasetId> session = m_datasetSession.beginLoad(value.path);
+                    if (!session.hasValue()) {
+                        commandResult = Result<void>::failure(session.error());
+                        return;
+                    }
+                    if (m_stateMachine.state() != EngineState::Loading) {
+                        commandResult = m_stateMachine.transition(EngineStateTrigger::LoadDataset);
+                    }
+                } else if constexpr (std::is_same_v<Command, CancelDatasetLoadCommand>) {
+                    static_cast<void>(m_datasetSession.requestCancel(value.datasetId));
+                } else if constexpr (std::is_same_v<Command, UnloadDatasetCommand>) {
+                    if (m_datasetSession.unload(value.datasetId)) {
+                        m_scene.setDataset(m_datasetSession.sceneDatasetId());
+                        if (!m_datasetSession.sceneDatasetId().has_value() &&
+                            m_stateMachine.state() != EngineState::Loading) {
+                            m_mostRecentError.reset();
+                        }
+                    }
+                } else if constexpr (std::is_same_v<Command, SetPointSizeCommand>) {
                     parameters.pointSize = value.pixels;
                     sceneChanged = true;
                 } else if constexpr (std::is_same_v<Command, SetShadingModeCommand>) {
@@ -296,17 +392,23 @@ private:
                     sceneChanged = true;
                 } else if constexpr (std::is_same_v<Command, SetCudaModeCommand>) {
                     m_requestedCudaMode = value.mode;
-                } else {
-                    // Dataset and camera commands are deliberately consumed as
-                    // FIFO no-ops until their owning modules are implemented.
                 }
             },
             command);
 
+        if (!commandResult.hasValue()) {
+            return commandResult;
+        }
         return sceneChanged ? m_scene.applyParameters(parameters) : Result<void>::success();
     }
 
-    void publishSnapshot(EngineState state, const char* diagnostic = nullptr) {
+    void pushEvent(EngineEvent event) {
+        if (m_eventQueue != nullptr) {
+            static_cast<void>(m_eventQueue->tryPush(std::move(event)));
+        }
+    }
+
+    void publishSnapshot(EngineState state, std::optional<Error> error = std::nullopt) {
         const SceneFrameInput sceneFrame = m_scene.frameInput();
         const auto current = std::atomic_load_explicit(&m_snapshot, std::memory_order_acquire);
         auto next = std::make_shared<EngineSnapshot>(*current);
@@ -315,17 +417,15 @@ private:
         next->backend = m_config.backend;
         next->cudaAvailable = false;
         next->cudaEnabled = false;
+        next->dataset = m_datasetSession.snapshotSummary();
         next->pointSize = sceneFrame.parameters.pointSize;
         next->shadingMode = sceneFrame.parameters.shadingMode;
         next->fixedColor = sceneFrame.parameters.fixedColor;
         next->backgroundColor = sceneFrame.parameters.backgroundColor;
-        if (diagnostic != nullptr) {
-            next->mostRecentError = Error{
-                ErrorDomain::Resource,
-                kInvalidConfiguration,
-                "Engine initialization failed",
-                diagnostic,
-                "Engine::init"};
+        if (error.has_value()) {
+            next->mostRecentError = std::move(error);
+        } else if (m_mostRecentError.has_value()) {
+            next->mostRecentError = m_mostRecentError;
         }
         std::atomic_store_explicit(
             &m_snapshot,
@@ -337,6 +437,7 @@ private:
     EngineCoordinator m_coordinator;
     EngineConfig m_config;
     Scene m_scene;
+    DatasetSession m_datasetSession;
     std::unique_ptr<tasks::CommandCoalescer> m_commandQueue;
     std::unique_ptr<EngineEventQueue> m_eventQueue;
     std::unique_ptr<IRenderBackend> m_renderBackend;
@@ -344,6 +445,7 @@ private:
     OptionalFeatureMode m_requestedCudaMode{OptionalFeatureMode::Auto};
     std::atomic_bool m_shutdownRequested{false};
     std::shared_ptr<const EngineSnapshot> m_snapshot;
+    std::optional<Error> m_mostRecentError;
     std::uint64_t m_snapshotFrame{0U};
 };
 
@@ -417,6 +519,16 @@ void Engine::shutdown() noexcept {
     if (m_impl != nullptr) {
         m_impl->shutdown();
     }
+}
+
+bool EngineTestAccess::injectDatasetCompletion(
+    Engine& engine,
+    tasks::TaskCompletion completion) {
+    if (engine.m_impl == nullptr) {
+        return false;
+    }
+    engine.m_impl->injectDatasetCompletion(std::move(completion));
+    return true;
 }
 
 } // namespace dzc

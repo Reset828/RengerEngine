@@ -35,6 +35,7 @@ public:
     void shutdown() noexcept;
 
 private:
+    friend class EngineTestAccess;
     class Impl;
     std::unique_ptr<Impl> m_impl;
 };

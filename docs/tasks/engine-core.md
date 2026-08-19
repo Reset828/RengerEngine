@@ -1,4 +1,4 @@
-﻿# Engine Core 任务清单
+# Engine Core 任务清单
 
 > 文件：`docs/tasks/engine-core.md`  
 > 所属阶段：公共基础  
@@ -35,7 +35,7 @@
 - [x] **EC-007 实现命令消费与事件溢出策略**
 - [x] **EC-008 实现原子 Snapshot 发布**
 - [x] **EC-009 实现每帧协调骨架**
-- [ ] **EC-010 实现 Dataset 替换和旧结果过滤**
+- [x] **EC-010 实现 Dataset 替换和旧结果过滤**
 - [ ] **EC-011 实现初始化回滚与关闭编排**
 
 ## 5. 子任务说明
@@ -151,15 +151,16 @@
 - **追踪**：5.3、NFR-PERF-003
 ### EC-010 实现 Dataset 替换和旧结果过滤
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-19）
 - **目标**：用 DatasetId 和取消源隔离替换任务。
 - **前置任务**：EC-009, task-system/TS-006
-- **预计文件**：`src/engine/DatasetSession.h`、`src/engine/DatasetSession.cpp`、`tests/unit/DatasetReplacementTests.cpp`
-- **实现要求**：新 Dataset 未就绪前不破坏旧有效数据；旧任务结果不得写入新 Scene。
-- **验收检查**：替换、失败、取消三种路径结果正确。
-- **测试要求**：可控执行器测试乱序完成。
+- **实际文件**：`src/engine/DatasetSession.h`、`src/engine/DatasetSession.cpp`、`src/engine/EngineTestAccess.h`、`src/engine/Engine.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/DatasetReplacementTests.cpp`、`tests/unit/EnginePublicApiTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：私有 `DatasetSession` 分离当前有效 Dataset 与候选加载 Dataset。每次 Load 分配新的 `DatasetId`；新候选会请求取消旧候选。任务完成仅在结果的 `DatasetId` 与当前候选一致时生效，过期或乱序结果被忽略，绝不写入新的 Scene。
+- **替换规则**：候选成功时才替换 Scene 的当前 Dataset 并发布 `DatasetLoadedEvent`；候选失败或取消时保留旧有效 Dataset，分别发布带 Dataset/Task 上下文的可恢复 `ErrorEvent` 或 `DatasetLoadCancelledEvent`。首次加载失败会在 Snapshot 中保留失败摘要。
+- **测试要求**：新增 CTest `dzc_dataset_replacement`，通过私有测试接缝注入可控完成结果，覆盖替换、失败、取消、乱序旧结果过滤、首次失败及事件；更新公共 API 测试以反映 Load 后的 `Loading/Opening` 状态。
+- **验证结果**：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_dataset_replacement` 与 `dzc_engine_public_api` 专项测试通过；完整 CTest 34/34 通过；`git diff --check` 通过；任务专用 `build-ec010` 待本任务验证结束后清理。
+- **后续任务**：EC-011 实现初始化回滚与关闭编排；Engine Core 模块仍为“进行中”。
 - **追踪**：23.3、NFR-REL-001
-
 ### EC-011 实现初始化回滚与关闭编排
 
 - **状态**：未开始

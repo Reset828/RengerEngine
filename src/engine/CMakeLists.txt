@@ -1,4 +1,4 @@
-﻿add_library(dzc_engine_api INTERFACE)
+add_library(dzc_engine_api INTERFACE)
 target_compile_features(dzc_engine_api INTERFACE cxx_std_17)
 
 target_include_directories(dzc_engine_api INTERFACE
@@ -8,6 +8,7 @@ target_include_directories(dzc_engine_api INTERFACE
 
 add_library(dzc_engine_core STATIC
     Engine.cpp
+    DatasetSession.cpp
     EngineCoordinator.cpp
     EngineQueues.cpp
     EngineCommand.cpp

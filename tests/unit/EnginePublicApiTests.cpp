@@ -1,4 +1,4 @@
-﻿#include <dzc/Engine.h>
+#include <dzc/Engine.h>
 
 #include <cassert>
 #include <cmath>
@@ -140,7 +140,7 @@ void testCommandConsumptionAndCoalescing() {
     assert(barrier.getSnapshot()->pointSize == 2.0F);
 }
 
-void testDatasetAndViewCommandsAreConsumedAsNoOps() {
+void testDatasetAndViewCommandsStartDatasetLifecycle() {
     dzc::Engine engine;
     dzc::EngineConfig config;
     config.commandQueueCapacity = 4U;
@@ -152,8 +152,9 @@ void testDatasetAndViewCommandsAreConsumedAsNoOps() {
     assertSuccess(engine.update(dzc::FrameInput{}));
 
     const auto snapshot = engine.getSnapshot();
-    assert(snapshot->state == dzc::EngineState::Running);
-    assert(snapshot->dataset.state == dzc::DatasetState::None);
+    assert(snapshot->state == dzc::EngineState::Loading);
+    assert(snapshot->dataset.id == dzc::DatasetId{1U});
+    assert(snapshot->dataset.state == dzc::DatasetState::Opening);
 }
 
 void testShutdownStopsCoordinatorBeforeSnapshotStage() {
@@ -194,7 +195,7 @@ int main() {
     testInvalidConfigurationPreservesCreatedState();
     testCommandValidationAndQueuePolicy();
     testCommandConsumptionAndCoalescing();
-    testDatasetAndViewCommandsAreConsumedAsNoOps();
+    testDatasetAndViewCommandsStartDatasetLifecycle();
     testShutdownStopsCoordinatorBeforeSnapshotStage();
     testMoveAndShutdownSafety();
     return 0;
