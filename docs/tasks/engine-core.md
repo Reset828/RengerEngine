@@ -34,7 +34,7 @@
 - [x] **EC-006 实现 Engine 公共类和 Pimpl**
 - [x] **EC-007 实现命令消费与事件溢出策略**
 - [x] **EC-008 实现原子 Snapshot 发布**
-- [ ] **EC-009 实现每帧协调骨架**
+- [x] **EC-009 实现每帧协调骨架**
 - [ ] **EC-010 实现 Dataset 替换和旧结果过滤**
 - [ ] **EC-011 实现初始化回滚与关闭编排**
 
@@ -138,15 +138,17 @@
 - **追踪**：DDD-005、6.3
 ### EC-009 实现每帧协调骨架
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-19）
 - **目标**：按详细设计 5.3 固定顺序调用可注入模块。
 - **前置任务**：EC-007, EC-008
-- **预计文件**：`src/engine/EngineCoordinator.h`、`src/engine/EngineCoordinator.cpp`、`tests/unit/EngineCoordinatorTests.cpp`
-- **实现要求**：render 不等待文件解析；模块返回错误按恢复边界转换。
-- **验收检查**：Fake 模块调用顺序稳定，失败时后续步骤符合策略。
-- **测试要求**：调用序列和错误注入测试。
+- **实际文件**：`src/engine/EngineCoordinator.h`、`src/engine/EngineCoordinator.cpp`、`src/engine/Engine.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/EngineCoordinatorTests.cpp`、`tests/unit/EnginePublicApiTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增私有 `EngineCoordinator` 及八个阶段回调：命令消费、任务完成、相机、可见性/LOD、Residency、后端无关帧描述、诊断和 Snapshot 发布。协调器严格按该顺序调用，阶段失败立即原样返回 `Error` 且不执行剩余阶段；阶段返回正常停止时成功结束本帧。未实现模块在 Engine 中配置为显式无操作成功回调。
+- **Engine 集成**：`Engine::update()` 只进行既有状态校验并委托协调器；命令阶段复用 CommandCoalescer 批量消费、FIFO 应用及 Shutdown 可达路径。Snapshot 阶段执行首次 `Ready -> Running`、递增 FrameId 并保留 EC-008 的 atomic shared_ptr Copy-on-Write 发布。Shutdown 正常停止协调帧，不执行后续阶段或发布新的帧 Snapshot；`render` 仍为非阻塞 Fake 后端路径。
+- **验收检查**：Fake 回调完整成功路径顺序稳定；对每个阶段注入失败时保留原错误、之前阶段仅执行一次、之后阶段不执行；命令阶段正常停止时跳过后续阶段；所有阶段接收同一 `FrameInput` 引用。
+- **测试要求**：新增 CTest `dzc_engine_coordinator` 覆盖调用序列、错误注入、短路和正常停止；扩展 `dzc_engine_public_api` 覆盖首次协调帧的 FrameId/Running 语义及 Shutdown 阻止 Snapshot 阶段。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_engine_coordinator`、`dzc_engine_public_api` 专项测试通过；完整 CTest 33/33 通过；`git diff --check` 通过；任务专用 `build-ec009` 已清理。
+- **后续任务**：EC-010 实现 Dataset 替换和旧结果过滤；Engine Core 模块仍为“进行中”。
 - **追踪**：5.3、NFR-PERF-003
-
 ### EC-010 实现 Dataset 替换和旧结果过滤
 
 - **状态**：未开始

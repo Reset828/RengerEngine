@@ -1,4 +1,4 @@
-add_executable(dzc_engine_types_tests
+﻿add_executable(dzc_engine_types_tests
     EngineTypesTests.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/EngineTypes.cpp
 )
@@ -249,3 +249,11 @@ target_compile_features(dzc_snapshot_publication_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_snapshot_publication_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_snapshot_publication COMMAND dzc_snapshot_publication_tests)
+add_executable(dzc_engine_coordinator_tests
+    EngineCoordinatorTests.cpp
+)
+
+target_compile_features(dzc_engine_coordinator_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_engine_coordinator_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_engine_coordinator COMMAND dzc_engine_coordinator_tests)

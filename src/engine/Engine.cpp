@@ -1,6 +1,7 @@
 ﻿#include "dzc/Engine.h"
 
 #include "compute/common/ComputeBackendFactory.h"
+#include "engine/EngineCoordinator.h"
 #include "engine/EngineQueues.h"
 #include "engine/EngineStateMachine.h"
 #include "render/common/RenderBackendFactory.h"
@@ -71,7 +72,9 @@ class FakeComputeBackend final : public IComputeBackend {};
 class Engine::Impl final {
 public:
     Impl()
-        : m_snapshot(std::make_shared<EngineSnapshot>()) {}
+        : m_snapshot(std::make_shared<EngineSnapshot>()) {
+        m_coordinator = EngineCoordinator(makeCoordinatorStages());
+    }
 
     Result<void> init(const EngineConfig& config) {
         if (m_stateMachine.state() != EngineState::Created) {
@@ -147,44 +150,10 @@ public:
     }
 
     Result<void> update(const FrameInput& input) {
-        (void)input;
-        const EngineState state = m_stateMachine.state();
-        if (!isOperationalState(state)) {
+        if (!isOperationalState(m_stateMachine.state())) {
             return Result<void>::failure(invalidStateError("Engine::update"));
         }
-
-        bool shutdownInBatch = false;
-        if (m_commandQueue != nullptr) {
-            const auto commands = m_commandQueue->popBatch(
-                static_cast<std::size_t>(m_config.commandQueueCapacity));
-            for (const EngineCommand& command : commands) {
-                if (std::holds_alternative<ShutdownCommand>(command)) {
-                    shutdownInBatch = true;
-                    break;
-                }
-                const Result<void> applied = applyCommand(command);
-                if (!applied.hasValue()) {
-                    return applied;
-                }
-            }
-        }
-
-        if (shutdownInBatch || m_shutdownRequested.load(std::memory_order_acquire)) {
-            shutdown();
-            return Result<void>::success();
-        }
-
-        if (state == EngineState::Ready) {
-            const Result<void> running =
-                m_stateMachine.transition(EngineStateTrigger::FirstValidFrame);
-            if (!running.hasValue()) {
-                return running;
-            }
-        }
-
-        ++m_snapshotFrame;
-        publishSnapshot(m_stateMachine.state());
-        return Result<void>::success();
+        return m_coordinator.run(input);
     }
 
     Result<void> render() const {
@@ -246,6 +215,63 @@ public:
     }
 
 private:
+    EngineCoordinatorStages makeCoordinatorStages() {
+        const auto noOp = [](const FrameInput&) {
+            return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Continue);
+        };
+
+        EngineCoordinatorStages stages;
+        stages.command = [this](const FrameInput& input) {
+            return consumeCommands(input);
+        };
+        stages.taskCompletion = noOp;
+        stages.camera = noOp;
+        stages.visibility = noOp;
+        stages.residency = noOp;
+        stages.frameDescription = noOp;
+        stages.diagnostics = noOp;
+        stages.snapshot = [this](const FrameInput&) {
+            if (m_stateMachine.state() == EngineState::Ready) {
+                const Result<void> running =
+                    m_stateMachine.transition(EngineStateTrigger::FirstValidFrame);
+                if (!running.hasValue()) {
+                    return Result<EngineCoordinatorControl>::failure(running.error());
+                }
+            }
+
+            ++m_snapshotFrame;
+            publishSnapshot(m_stateMachine.state());
+            return Result<EngineCoordinatorControl>::success(
+                EngineCoordinatorControl::Continue);
+        };
+        return stages;
+    }
+
+    Result<EngineCoordinatorControl> consumeCommands(const FrameInput&) {
+        if (m_commandQueue != nullptr) {
+            const auto commands = m_commandQueue->popBatch(
+                static_cast<std::size_t>(m_config.commandQueueCapacity));
+            for (const EngineCommand& command : commands) {
+                if (std::holds_alternative<ShutdownCommand>(command)) {
+                    shutdown();
+                    return Result<EngineCoordinatorControl>::success(
+                        EngineCoordinatorControl::Stop);
+                }
+                const Result<void> applied = applyCommand(command);
+                if (!applied.hasValue()) {
+                    return Result<EngineCoordinatorControl>::failure(applied.error());
+                }
+            }
+        }
+
+        if (m_shutdownRequested.load(std::memory_order_acquire)) {
+            shutdown();
+            return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Stop);
+        }
+
+        return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Continue);
+    }
+
     Result<void> applyCommand(const EngineCommand& command) {
         SceneParameters parameters = m_scene.frameInput().parameters;
         bool sceneChanged = false;
@@ -308,6 +334,7 @@ private:
     }
 
     EngineStateMachine m_stateMachine;
+    EngineCoordinator m_coordinator;
     EngineConfig m_config;
     Scene m_scene;
     std::unique_ptr<tasks::CommandCoalescer> m_commandQueue;

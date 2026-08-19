@@ -8,6 +8,7 @@ target_include_directories(dzc_engine_api INTERFACE
 
 add_library(dzc_engine_core STATIC
     Engine.cpp
+    EngineCoordinator.cpp
     EngineQueues.cpp
     EngineCommand.cpp
     EngineStateMachine.cpp

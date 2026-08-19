@@ -156,6 +156,22 @@ void testDatasetAndViewCommandsAreConsumedAsNoOps() {
     assert(snapshot->dataset.state == dzc::DatasetState::None);
 }
 
+void testShutdownStopsCoordinatorBeforeSnapshotStage() {
+    dzc::Engine engine;
+    assertSuccess(engine.init(dzc::EngineConfig{}));
+    const auto ready = engine.getSnapshot();
+    assert(ready->state == dzc::EngineState::Ready);
+    assert(ready->frameId.value == 0U);
+
+    assertSuccess(engine.enqueueCommand(dzc::ShutdownCommand{}));
+    assertSuccess(engine.update(dzc::FrameInput{}));
+
+    const auto stopped = engine.getSnapshot();
+    assert(stopped->state == dzc::EngineState::Stopped);
+    assert(stopped->frameId.value == ready->frameId.value);
+    assertInvalidState(engine.update(dzc::FrameInput{}));
+}
+
 void testMoveAndShutdownSafety() {
     dzc::Engine source;
     assertSuccess(source.init(dzc::EngineConfig{}));
@@ -179,6 +195,7 @@ int main() {
     testCommandValidationAndQueuePolicy();
     testCommandConsumptionAndCoalescing();
     testDatasetAndViewCommandsAreConsumedAsNoOps();
+    testShutdownStopsCoordinatorBeforeSnapshotStage();
     testMoveAndShutdownSafety();
     return 0;
 }
