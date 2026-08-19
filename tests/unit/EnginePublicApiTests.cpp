@@ -1,4 +1,4 @@
-#include <dzc/Engine.h>
+﻿#include <dzc/Engine.h>
 
 #include <cassert>
 #include <cmath>
@@ -17,6 +17,12 @@ void assertInvalidState(const dzc::Result<void>& result) {
 
 void assertSuccess(const dzc::Result<void>& result) {
     assert(result.hasValue());
+}
+
+void assertQueueFull(const dzc::Result<void>& result) {
+    assert(!result.hasValue());
+    assert(result.error().domain == dzc::ErrorDomain::Task);
+    assert(result.error().code == 3U);
 }
 
 void testPublicTypeContract() {
@@ -84,7 +90,7 @@ void testInvalidConfigurationPreservesCreatedState() {
     }
 }
 
-void testCommandValidationAndCapacity() {
+void testCommandValidationAndQueuePolicy() {
     dzc::Engine engine;
     dzc::EngineConfig config;
     config.commandQueueCapacity = 1U;
@@ -92,16 +98,62 @@ void testCommandValidationAndCapacity() {
     assertSuccess(engine.init(config));
 
     assertSuccess(engine.enqueueCommand(dzc::ResetViewCommand{}));
-    const auto full = engine.enqueueCommand(dzc::ShutdownCommand{});
-    assert(!full.hasValue());
-    assert(full.error().domain == dzc::ErrorDomain::Task);
-    assert(full.error().code == 3U);
+    assertQueueFull(engine.enqueueCommand(dzc::ResetViewCommand{}));
+    assertSuccess(engine.enqueueCommand(dzc::ShutdownCommand{}));
+    assertInvalidState(engine.enqueueCommand(dzc::ResetViewCommand{}));
+    assertSuccess(engine.update(dzc::FrameInput{}));
+    assert(engine.getSnapshot()->state == dzc::EngineState::Stopped);
 
     dzc::Engine second;
     assertSuccess(second.init(dzc::EngineConfig{}));
     assert(!second.enqueueCommand(dzc::LoadDatasetCommand{""}).hasValue());
     assert(!second.enqueueCommand(dzc::LoadDatasetCommand{std::string("bad\x80", 4)}).hasValue());
     assert(!second.enqueueCommand(dzc::SetPointSizeCommand{std::nanf("")}).hasValue());
+}
+
+void testCommandConsumptionAndCoalescing() {
+    dzc::Engine engine;
+    dzc::EngineConfig config;
+    config.commandQueueCapacity = 4U;
+    assertSuccess(engine.init(config));
+    assertSuccess(engine.enqueueCommand(dzc::SetPointSizeCommand{2.0F}));
+    assertSuccess(engine.enqueueCommand(dzc::SetShadingModeCommand{dzc::ShadingMode::Height}));
+    assertSuccess(engine.enqueueCommand(dzc::SetPointSizeCommand{7.0F}));
+    assertSuccess(engine.enqueueCommand(
+        dzc::SetFixedColorCommand{dzc::ColorRgba{0.2F, 0.3F, 0.4F, 1.0F}}));
+    assertSuccess(engine.update(dzc::FrameInput{}));
+
+    const auto snapshot = engine.getSnapshot();
+    assert(snapshot->state == dzc::EngineState::Running);
+    assert(snapshot->pointSize == 7.0F);
+    assert(snapshot->shadingMode == dzc::ShadingMode::Height);
+    assert(snapshot->fixedColor == (dzc::ColorRgba{0.2F, 0.3F, 0.4F, 1.0F}));
+
+    dzc::Engine barrier;
+    dzc::EngineConfig barrierConfig;
+    barrierConfig.commandQueueCapacity = 2U;
+    assertSuccess(barrier.init(barrierConfig));
+    assertSuccess(barrier.enqueueCommand(dzc::SetPointSizeCommand{2.0F}));
+    assertSuccess(barrier.enqueueCommand(dzc::LoadDatasetCommand{"dataset"}));
+    assertQueueFull(barrier.enqueueCommand(dzc::SetPointSizeCommand{6.0F}));
+    assertSuccess(barrier.update(dzc::FrameInput{}));
+    assert(barrier.getSnapshot()->pointSize == 2.0F);
+}
+
+void testDatasetAndViewCommandsAreConsumedAsNoOps() {
+    dzc::Engine engine;
+    dzc::EngineConfig config;
+    config.commandQueueCapacity = 4U;
+    assertSuccess(engine.init(config));
+    assertSuccess(engine.enqueueCommand(dzc::LoadDatasetCommand{"dataset"}));
+    assertSuccess(engine.enqueueCommand(dzc::CancelDatasetLoadCommand{dzc::DatasetId{4U}}));
+    assertSuccess(engine.enqueueCommand(dzc::UnloadDatasetCommand{dzc::DatasetId{4U}}));
+    assertSuccess(engine.enqueueCommand(dzc::ResetViewCommand{}));
+    assertSuccess(engine.update(dzc::FrameInput{}));
+
+    const auto snapshot = engine.getSnapshot();
+    assert(snapshot->state == dzc::EngineState::Running);
+    assert(snapshot->dataset.state == dzc::DatasetState::None);
 }
 
 void testMoveAndShutdownSafety() {
@@ -124,7 +176,9 @@ int main() {
     testDefaultSnapshotAndInvalidCalls();
     testInitializationAndRunningLifecycle();
     testInvalidConfigurationPreservesCreatedState();
-    testCommandValidationAndCapacity();
+    testCommandValidationAndQueuePolicy();
+    testCommandConsumptionAndCoalescing();
+    testDatasetAndViewCommandsAreConsumedAsNoOps();
     testMoveAndShutdownSafety();
     return 0;
 }

@@ -113,15 +113,17 @@
 
 ### EC-007 实现命令消费与事件溢出策略
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-19）
 - **目标**：接入 CommandCoalescer 和关键事件保留槽。
 - **前置任务**：EC-006, task-system/TS-003
-- **预计文件**：`src/engine/Engine.cpp`、`src/engine/EngineQueues.cpp`、`tests/unit/EngineQueuePolicyTests.cpp`
-- **实现要求**：关键事件队列满时写日志并在下次 poll 优先返回事件丢失错误。
-- **验收检查**：参数命令合并、QueueFull、Shutdown 可达均符合设计。
-- **测试要求**：小容量队列故障测试。
+- **实际文件**：`src/tasks/CommandCoalescer.h`、`src/engine/Engine.cpp`、`src/engine/EngineQueues.h`、`src/engine/EngineQueues.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/EnginePublicApiTests.cpp`、`tests/unit/EngineQueuePolicyTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：CommandCoalescer 复用公共 `dzc::EngineCommand` 并保留 `dzc::tasks` 兼容别名。Engine 在 `update()` 中按容量批量消费命令：合并后的点大小、着色、固定色、背景色和尺寸更新 Scene/Snapshot；CUDA 模式仅保存请求；Dataset/视图命令按 FIFO 消费为占位无操作。Shutdown 通过私有原子停止请求保证在命令队列满时仍可提交，并在当前批次后进入正常关闭。
+- **事件策略**：私有 EngineEventQueue 使用互斥保护的固定容量 FIFO；同数据集进度原位置合并，满时可替换最旧进度；普通 Message 满时丢弃；关键 Error/Loaded/Cancelled/FeatureDegraded 满时写入 stderr 并保留一个 `RecoverableError` 的 `Task/QueueFull` 事件丢失槽。下一次 `pollEvents()` 优先返回该槽，关闭后仍可排空已接受事件。
+- **验收检查**：参数命令合并、QueueFull、Shutdown 可达均符合设计；不实现 EC-008 原子 Snapshot 发布、EC-009 每帧协调、EC-010 数据集生命周期或真实 GPU 行为。
+- **测试要求**：小容量命令/事件队列、进度合并、关键事件丢失槽、关闭后排空和 Engine 公共 API 消费行为测试。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_engine_queue_policy`、`dzc_engine_public_api` 专项测试通过；完整 CTest 31/31 通过；`git diff --check` 通过；任务专用 `build-ec007` 已清理。
+- **后续任务**：EC-008 实现原子 Snapshot 发布。
 - **追踪**：DDD-005、6.4
-
 ### EC-008 实现原子 Snapshot 发布
 
 - **状态**：未开始

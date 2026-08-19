@@ -1,69 +1,28 @@
-#pragma once
+﻿#pragma once
 
-#include <dzc/EngineConfig.h>
-#include <dzc/EngineTypes.h>
+#include <dzc/EngineCommand.h>
 
 #include <cstddef>
 #include <memory>
 #include <optional>
-#include <string>
-#include <variant>
 #include <vector>
 
 namespace dzc::tasks {
 
-struct LoadDatasetCommand final {
-    std::string path;
-};
-
-struct CancelDatasetLoadCommand final {
-    DatasetId datasetId;
-};
-
-struct UnloadDatasetCommand final {
-    DatasetId datasetId;
-};
-
-struct SetPointSizeCommand final {
-    float pixels{1.0F};
-};
-
-struct SetShadingModeCommand final {
-    ShadingMode mode{ShadingMode::OriginalColor};
-};
-
-struct SetFixedColorCommand final {
-    ColorRgba color;
-};
-
-struct SetBackgroundColorCommand final {
-    ColorRgba color;
-};
-
-struct SetCudaModeCommand final {
-    OptionalFeatureMode mode{OptionalFeatureMode::Auto};
-};
-
-struct ResetViewCommand final {};
-
-struct ResizeCommand final {
-    RenderSize size;
-};
-
-struct ShutdownCommand final {};
-
-using EngineCommand = std::variant<
-    LoadDatasetCommand,
-    CancelDatasetLoadCommand,
-    UnloadDatasetCommand,
-    SetPointSizeCommand,
-    SetShadingModeCommand,
-    SetFixedColorCommand,
-    SetBackgroundColorCommand,
-    SetCudaModeCommand,
-    ResetViewCommand,
-    ResizeCommand,
-    ShutdownCommand>;
+// Compatibility aliases retain the TS-003-facing namespace while the command
+// protocol itself remains the public dzc::EngineCommand value protocol.
+using ::dzc::CancelDatasetLoadCommand;
+using ::dzc::EngineCommand;
+using ::dzc::LoadDatasetCommand;
+using ::dzc::ResetViewCommand;
+using ::dzc::ResizeCommand;
+using ::dzc::SetBackgroundColorCommand;
+using ::dzc::SetCudaModeCommand;
+using ::dzc::SetFixedColorCommand;
+using ::dzc::SetPointSizeCommand;
+using ::dzc::SetShadingModeCommand;
+using ::dzc::ShutdownCommand;
+using ::dzc::UnloadDatasetCommand;
 
 class CommandCoalescer final {
 public:
