@@ -1,4 +1,4 @@
-# Dzc-RenderEngine 任务总体进度
+﻿# Dzc-RenderEngine 任务总体进度
 
 > 文件：`docs/tasks/progress.md`  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)  
@@ -38,7 +38,7 @@
 - [x] [Project Foundation](./project-foundation.md) — 状态：完成
 - [x] [Diagnostics](./diagnostics.md) — 状态：完成（DG-001 至 DG-008 已完成）
 - [ ] [Task System](./task-system.md) — 状态：进行中（TS-001 至 TS-009 已完成）
-- [ ] [Engine Core](./engine-core.md) — 状态：进行中（EC-001 至 EC-007 已完成）
+- [ ] [Engine Core](./engine-core.md) — 状态：进行中（EC-001 至 EC-008 已完成）
 - [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：未开始
 - [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：阻塞（抽象任务可实施；整体完成等待参考源码）
 

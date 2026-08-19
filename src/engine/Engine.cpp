@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
-#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -210,8 +209,7 @@ public:
     }
 
     std::shared_ptr<const EngineSnapshot> snapshot() const {
-        std::lock_guard<std::mutex> lock(m_snapshotMutex);
-        return m_snapshot;
+        return std::atomic_load_explicit(&m_snapshot, std::memory_order_acquire);
     }
 
     std::vector<EngineEvent> pollEvents() {
@@ -284,8 +282,8 @@ private:
 
     void publishSnapshot(EngineState state, const char* diagnostic = nullptr) {
         const SceneFrameInput sceneFrame = m_scene.frameInput();
-        std::lock_guard<std::mutex> lock(m_snapshotMutex);
-        auto next = std::make_shared<EngineSnapshot>(*m_snapshot);
+        const auto current = std::atomic_load_explicit(&m_snapshot, std::memory_order_acquire);
+        auto next = std::make_shared<EngineSnapshot>(*current);
         next->frameId.value = m_snapshotFrame;
         next->state = state;
         next->backend = m_config.backend;
@@ -303,7 +301,10 @@ private:
                 diagnostic,
                 "Engine::init"};
         }
-        m_snapshot = std::move(next);
+        std::atomic_store_explicit(
+            &m_snapshot,
+            std::shared_ptr<const EngineSnapshot>(std::move(next)),
+            std::memory_order_release);
     }
 
     EngineStateMachine m_stateMachine;
@@ -315,7 +316,6 @@ private:
     std::unique_ptr<IComputeBackend> m_computeBackend;
     OptionalFeatureMode m_requestedCudaMode{OptionalFeatureMode::Auto};
     std::atomic_bool m_shutdownRequested{false};
-    mutable std::mutex m_snapshotMutex;
     std::shared_ptr<const EngineSnapshot> m_snapshot;
     std::uint64_t m_snapshotFrame{0U};
 };

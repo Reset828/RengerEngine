@@ -1,4 +1,4 @@
-# Engine Core 任务清单
+﻿# Engine Core 任务清单
 
 > 文件：`docs/tasks/engine-core.md`  
 > 所属阶段：公共基础  
@@ -31,9 +31,9 @@
 - [x] **EC-003 定义 EngineSnapshot**
 - [x] **EC-004 实现 Engine 状态机**
 - [x] **EC-005 实现 Scene 参数容器**
-- [ ] **EC-006 实现 Engine 公共类和 Pimpl**
-- [ ] **EC-007 实现命令消费与事件溢出策略**
-- [ ] **EC-008 实现原子 Snapshot 发布**
+- [x] **EC-006 实现 Engine 公共类和 Pimpl**
+- [x] **EC-007 实现命令消费与事件溢出策略**
+- [x] **EC-008 实现原子 Snapshot 发布**
 - [ ] **EC-009 实现每帧协调骨架**
 - [ ] **EC-010 实现 Dataset 替换和旧结果过滤**
 - [ ] **EC-011 实现初始化回滚与关闭编排**
@@ -126,15 +126,16 @@
 - **追踪**：DDD-005、6.4
 ### EC-008 实现原子 Snapshot 发布
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-19）
 - **目标**：使用 C++17 atomic_load/store shared_ptr release/acquire。
 - **前置任务**：EC-006
-- **预计文件**：`src/engine/Engine.cpp`、`tests/unit/SnapshotPublicationTests.cpp`
-- **实现要求**：发布后对象不可修改；UI 读取无全局共享锁。
-- **验收检查**：并发生产/读取无崩溃且 frameId 单调。
-- **测试要求**：多线程压力和 ThreadSanitizer 可用环境测试。
+- **实际文件**：`src/engine/Engine.cpp`、`tests/unit/SnapshotPublicationTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：Snapshot 发布采用 Copy-on-Write：先以 acquire 读取当前快照，构造并完整填充新的 `EngineSnapshot`，转换为 `std::shared_ptr<const EngineSnapshot>` 后通过 `std::atomic_store_explicit(..., std::memory_order_release)` 发布。`getSnapshot()` 通过 `std::atomic_load_explicit(..., std::memory_order_acquire)` 无全局共享锁读取；已发布对象不再修改。
+- **验收检查**：默认、初始化、首次更新与关闭快照均非空且状态/FrameId 正确；旧 Snapshot 在新发布后保持不变；单个生产者与多读取线程压力路径无崩溃，每个读取线程观察到的 FrameId 单调不下降。
+- **测试要求**：新增 CTest `dzc_snapshot_publication`，覆盖不可变性和多线程读写压力；本机未配置 ThreadSanitizer，因此不伪造其运行结果。
+- **验证结果**：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_snapshot_publication` 专项测试通过；完整 CTest 32/32 通过；`git diff --check` 通过；任务专用 `build-ec008` 已清理。
+- **后续任务**：EC-009 实现每帧协调骨架。
 - **追踪**：DDD-005、6.3
-
 ### EC-009 实现每帧协调骨架
 
 - **状态**：未开始

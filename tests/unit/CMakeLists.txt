@@ -240,3 +240,12 @@ target_compile_features(dzc_engine_queue_policy_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_engine_queue_policy_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_engine_queue_policy COMMAND dzc_engine_queue_policy_tests)
+
+add_executable(dzc_snapshot_publication_tests
+    SnapshotPublicationTests.cpp
+)
+
+target_compile_features(dzc_snapshot_publication_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_snapshot_publication_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_snapshot_publication COMMAND dzc_snapshot_publication_tests)
