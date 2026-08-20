@@ -326,3 +326,12 @@ target_include_directories(dzc_coordinate_localizer_tests PRIVATE ${PROJECT_SOUR
 target_link_libraries(dzc_coordinate_localizer_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_coordinate_localizer COMMAND dzc_coordinate_localizer_tests)
+add_executable(dzc_chunk_state_tests
+    ChunkStateTests.cpp
+)
+
+target_compile_features(dzc_chunk_state_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_chunk_state_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_chunk_state_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_chunk_state COMMAND dzc_chunk_state_tests)

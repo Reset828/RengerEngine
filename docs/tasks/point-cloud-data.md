@@ -31,7 +31,7 @@
 - [x] **PD-003 实现 PointBatch SoA 校验**
 - [x] **PD-004 实现 intensity 量化器**
 - [x] **PD-005 实现 Chunk 局部坐标转换**
-- [ ] **PD-006 实现 Chunk 元数据和状态机**
+- [x] **PD-006 实现 Chunk 元数据和状态机**
 - [ ] **PD-007 实现 Dataset 元数据容器**
 - [ ] **PD-008 实现相机相对原点计算工具**
 
@@ -110,13 +110,17 @@
 
 ### PD-006 实现 Chunk 元数据和状态机
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：定义 ChunkMetadata、ChunkCpuData 和允许状态迁移。
 - **前置任务**：PD-005
-- **预计文件**：`src/data/chunk/Chunk.h`、`src/data/chunk/Chunk.cpp`、`tests/unit/ChunkStateTests.cpp`
-- **实现要求**：逻辑 Chunk 不含 GPU 句柄；ChunkId 稳定；非法迁移失败。
-- **验收检查**：Metadata→CPU→Upload→GPU→Evict 路径及错误路径正确。
-- **测试要求**：状态表和 SoA 数据一致性测试。
+- **实际文件**：`src/data/chunk/Chunk.h`、`src/data/chunk/Chunk.cpp`、`tests/unit/ChunkStateTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增无 GPU 句柄的逻辑 `Chunk`；`Chunk::create(ChunkMetadata)` 先校验后创建，metadata（含稳定 `ChunkId`）只读。Chunk 保存可选 CPU SoA 数据，不暴露 GPU Buffer 或句柄。
+- **元数据与 SoA 契约**：metadata 要求 `pointCount > 0`、Position schema、有效 Bounds 与有限 origin；CPU Position 必须等于 pointCount，Color/Intensity 流按 schema 严格等长或为空。未知 schema 位允许；不校验 local `glm::vec3` 的 NaN/Inf，也不要求 origin 等于 Bounds 中心。
+- **状态机**：原子方法覆盖 `MetadataOnly → LoadingCpu → CpuResident → UploadQueued → GpuResident`；加载取消回 MetadataOnly，上传取消/失败回 CpuResident；GPU 驱逐经 EvictPending 回 CpuResident 且保留 CPU 数据，CPU 驱逐经 EvictPending 回 MetadataOnly 并清除 CPU 数据。EvictPending 内部区分 GPU/CPU 驱逐；加载失败或损坏的 CPU 数据进入 Error，`resetError()` 后回 MetadataOnly。
+- **错误语义**：metadata/SoA 结构错误为 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`）；非法状态操作为 `ErrorDomain::Internal`、错误码 `1`（`InvalidState`）。失败均提供非空用户信息、诊断信息和上下文；非法状态操作保持状态和 CPU 数据不变。
+- **验收检查**：创建、完整 Metadata→CPU→Upload→GPU→Evict 路径、取消/失败恢复、CPU 数据驻留、错误状态恢复、非法迁移不变性和 SoA 数据一致性均由断言测试覆盖。
+- **验证结果**：MSVC 19.51.36246.0 x64 / CMake NMake Makefiles Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_chunk_state` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 41/41 通过；`git diff --check` 通过。任务专用构建目录已清理。
+- **边界**：未实现 PD-007/PD-008、Dataset、Reader/PCL、磁盘缓存、GPU Buffer/句柄、异步调度、相机相对原点或渲染路径；Point Cloud Data 模块继续进行中。
 - **追踪**：FR-VIS-001、7.4
 
 ### PD-007 实现 Dataset 元数据容器
