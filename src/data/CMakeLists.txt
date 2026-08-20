@@ -6,6 +6,7 @@ add_library(dzc_data_core STATIC
     chunk/IntensityQuantizer.cpp
     chunk/CoordinateLocalizer.cpp
     chunk/Chunk.cpp
+    chunk/Dataset.cpp
 )
 
 target_compile_features(dzc_data_core PUBLIC cxx_std_17)

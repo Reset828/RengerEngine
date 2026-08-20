@@ -32,7 +32,7 @@
 - [x] **PD-004 实现 intensity 量化器**
 - [x] **PD-005 实现 Chunk 局部坐标转换**
 - [x] **PD-006 实现 Chunk 元数据和状态机**
-- [ ] **PD-007 实现 Dataset 元数据容器**
+- [x] **PD-007 实现 Dataset 元数据容器**
 - [ ] **PD-008 实现相机相对原点计算工具**
 
 ## 5. 子任务说明
@@ -125,13 +125,17 @@
 
 ### PD-007 实现 Dataset 元数据容器
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：保存源身份、schema、范围、bounds、origin 和 Chunk 索引。
 - **前置任务**：PD-006
-- **预计文件**：`src/data/chunk/Dataset.h`、`src/data/chunk/Dataset.cpp`、`tests/unit/DatasetTests.cpp`
-- **实现要求**：Dataset 拥有逻辑数据，不拥有后端资源；只暴露稳定查询。
-- **验收检查**：统计和 Chunk 查找正确；不同 DatasetId 隔离。
-- **测试要求**：创建、查询、空集、重复 ID 测试。
+- **实际文件**：`src/data/chunk/Dataset.h`、`src/data/chunk/Dataset.cpp`、`tests/unit/DatasetTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增后端无关的 `Dataset` 值容器；`Dataset::create(DatasetMetadata, std::vector<Chunk>)` 按值原子接收完整逻辑 Chunk 索引，之后仅提供 metadata、Chunk 数、总点数和 `ChunkId` 的稳定只读查询。不存在的 Chunk 查询返回 `nullptr`。
+- **元数据与索引契约**：Dataset metadata 保存非空 sourcePath、可选 sourceIdentityHash、DatasetState、schema、IntensityMetadata、全局 Bounds 和 double origin。Dataset/Chunk ID 均不得为 0，Chunk ID 必须唯一；Dataset schema 必须含 Position，所有 Chunk schema 必须完全匹配且 Bounds 位于 Dataset Bounds 内；总点数以安全的 uint64 求和计算。空 Chunk 集合法但 metadata 仍须完整有效。
+- **范围与状态语义**：全部已定义 DatasetState 值允许保存，PD-007 不实现其迁移。IntensityMetadata 可独立于 Intensity schema 保存；available=true 时全部范围有限且有序，available=false 时四个范围字段均为 0。未知 schema 位保留并参与精确匹配。
+- **错误语义**：所有 Dataset metadata、Chunk 索引和跨对象不一致均返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`），且带非空用户信息、诊断信息和上下文；失败不产生部分 Dataset。
+- **验收检查**：多 Chunk metadata/统计/查找、空集、不同 DatasetId 隔离、零/重复 ID、元数据错误、Intensity 范围错误、schema/Bounds 跨对象错误和总点数溢出均由断言测试覆盖。
+- **验证结果**：MSVC 19.51.36246.0 x64 / CMake NMake Makefiles Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_dataset` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 42/42 通过；`git diff --check` 通过。任务专用构建目录已清理。
+- **边界**：不实现 Dataset 状态迁移、Chunk 追加/删除/替换、CPU 租约、CancellationSource、Reader/PCL、缓存、GPU Buffer/句柄或渲染路径；Point Cloud Data 模块继续进行中。
 - **追踪**：FR-DATA-005、8.4
 
 ### PD-008 实现相机相对原点计算工具
