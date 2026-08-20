@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-data.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中
+> 模块状态：完成
 > 前置模块：[project-foundation](./project-foundation.md)、[engine-core](./engine-core.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -12,7 +12,7 @@
 
 ## 2. 范围边界
 
-**包含：** AttributeSchema；IntensityMetadata；Bounds3d；PointBatch；ChunkCpuData/Metadata；Dataset 元数据；坐标局部化；Chunk 状态。  
+**包含：** AttributeSchema；IntensityMetadata；Bounds3d；PointBatch；ChunkCpuData/Metadata；Dataset 元数据；坐标局部化；相机相对 Chunk 原点；Chunk 状态。
 **不包含：** PCL 读取；网格/八叉树构建；磁盘缓存；GPU Buffer。
 
 ## 3. 完成规则
@@ -33,7 +33,7 @@
 - [x] **PD-005 实现 Chunk 局部坐标转换**
 - [x] **PD-006 实现 Chunk 元数据和状态机**
 - [x] **PD-007 实现 Dataset 元数据容器**
-- [ ] **PD-008 实现相机相对原点计算工具**
+- [x] **PD-008 实现相机相对原点计算工具**
 
 ## 5. 子任务说明
 
@@ -120,7 +120,7 @@
 - **错误语义**：metadata/SoA 结构错误为 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`）；非法状态操作为 `ErrorDomain::Internal`、错误码 `1`（`InvalidState`）。失败均提供非空用户信息、诊断信息和上下文；非法状态操作保持状态和 CPU 数据不变。
 - **验收检查**：创建、完整 Metadata→CPU→Upload→GPU→Evict 路径、取消/失败恢复、CPU 数据驻留、错误状态恢复、非法迁移不变性和 SoA 数据一致性均由断言测试覆盖。
 - **验证结果**：MSVC 19.51.36246.0 x64 / CMake NMake Makefiles Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_chunk_state` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 41/41 通过；`git diff --check` 通过。任务专用构建目录已清理。
-- **边界**：未实现 PD-007/PD-008、Dataset、Reader/PCL、磁盘缓存、GPU Buffer/句柄、异步调度、相机相对原点或渲染路径；Point Cloud Data 模块继续进行中。
+- **边界**：不实现 Reader/PCL、磁盘缓存、GPU Buffer/句柄、异步调度或渲染路径。
 - **追踪**：FR-VIS-001、7.4
 
 ### PD-007 实现 Dataset 元数据容器
@@ -135,26 +135,29 @@
 - **错误语义**：所有 Dataset metadata、Chunk 索引和跨对象不一致均返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`），且带非空用户信息、诊断信息和上下文；失败不产生部分 Dataset。
 - **验收检查**：多 Chunk metadata/统计/查找、空集、不同 DatasetId 隔离、零/重复 ID、元数据错误、Intensity 范围错误、schema/Bounds 跨对象错误和总点数溢出均由断言测试覆盖。
 - **验证结果**：MSVC 19.51.36246.0 x64 / CMake NMake Makefiles Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_dataset` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 42/42 通过；`git diff --check` 通过。任务专用构建目录已清理。
-- **边界**：不实现 Dataset 状态迁移、Chunk 追加/删除/替换、CPU 租约、CancellationSource、Reader/PCL、缓存、GPU Buffer/句柄或渲染路径；Point Cloud Data 模块继续进行中。
+- **边界**：不实现 Dataset 状态迁移、Chunk 追加/删除/替换、CPU 租约、CancellationSource、Reader/PCL、缓存、GPU Buffer/句柄或渲染路径。
 - **追踪**：FR-DATA-005、8.4
 
 ### PD-008 实现相机相对原点计算工具
 
-- **状态**：未开始
-- **目标**：根据 double camera origin 生成 float relative chunk origin。
+- **状态**：已完成（2026-08-20）
+- **目标**：以 double 精度计算 `chunkOrigin - cameraOrigin`，生成有限的 float relative chunk origin。
 - **前置任务**：PD-005
-- **预计文件**：`src/data/chunk/RelativeOrigin.h`、`src/data/chunk/RelativeOrigin.cpp`、`tests/unit/RelativeOriginTests.cpp`
-- **实现要求**：只实现坐标数学，不选择 Camera 控制行为。
-- **验收检查**：大坐标下 relative origin 有限且重构一致。
-- **测试要求**：大距离、近距离和越界测试。
+- **实际文件**：`src/data/chunk/RelativeOrigin.h`、`src/data/chunk/RelativeOrigin.cpp`、`tests/unit/RelativeOriginTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增后端无关的 `RelativeOrigin`；`calculate(const glm::dvec3&, const glm::dvec3&)` 依次验证两个 double origin、double 偏移以及转换后的 `glm::vec3` 均为有限值，成功时不钳制、不归一化且不改变坐标系。
+- **数值语义**：先以 double 计算逐分量 `chunkOrigin - cameraOrigin`，再转换为 float3，因此大绝对坐标下的小相对偏移不会因预先转换绝对坐标而丢失。重构验收以每个 relative float 相邻表示间距较大一侧的半 ULP 为界。
+- **错误语义**：Chunk/camera origin 含 NaN 或正负无穷、double 减法溢出为非有限偏移、或有限 double 偏移转换 float3 后溢出时，返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`）及非空用户信息、诊断信息和上下文。
+- **验收检查**：近距离、零/正负偏移、大绝对坐标小偏移、大距离有限 float3、半 ULP 重构、NaN/正负无穷、double 减法溢出和 float 转换溢出均由断言测试覆盖。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_relative_origin` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 43/43 通过；`git diff --check` 通过；任务专用 `build-pd008` 已清理。
+- **边界**：不接入 Camera 控制、Chunk、Dataset、渲染帧、GPU Buffer/句柄、PCL、Reader 或缓存；不实现任何相机策略或渲染路径。
 - **追踪**：ADR-008、19.2
 
 ## 6. 模块级验收
 
-- [ ] 属性流和 SoA 一致性测试通过
-- [ ] 大坐标局部化测试通过
-- [ ] Chunk/Dataset 不含任何 GPU 或 PCL 类型
-- [ ] intensity uint16 量化与范围元数据符合设计
+- [x] 属性流和 SoA 一致性测试通过
+- [x] 大坐标局部化测试通过
+- [x] Chunk/Dataset 不含任何 GPU 或 PCL 类型
+- [x] intensity uint16 量化与范围元数据符合设计
 
 ## 7. 交接记录
 
@@ -177,13 +180,14 @@
 - 关联提交：未提交。
 
 
+### PD-008（2026-08-20）
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成人：Codex
+- 关键变更：新增私有 `RelativeOrigin` 数学工具，在 double 域计算 Chunk 到 camera origin 的偏移，并仅在可安全表示为有限 `glm::vec3` 时返回；新增 `dzc_relative_origin` CTest。
+- 验证结果：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 OpenGL-only Debug 全量构建成功；`dzc_relative_origin` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 43/43 通过；`git diff --check` 通过；任务专用 `build-pd008` 已清理。
+- 未解决问题：无；本模块范围内 PD-001 至 PD-008 均已完成。
+- 后续任务：Point Cloud Data 模块已完成；后续实现应进入 Point Cloud I/O、Grid Chunking、OpenGL Renderer 或其他模块任务。
+- 关联提交：未提交。
 
 ## 8. 变更约束
 

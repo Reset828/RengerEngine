@@ -39,7 +39,7 @@
 - [x] [Diagnostics](./diagnostics.md) — 状态：完成（DG-001 至 DG-008 已完成）
 - [ ] [Task System](./task-system.md) — 状态：进行中（TS-001 至 TS-009 已完成）
 - [x] [Engine Core](./engine-core.md) — 状态：完成（EC-001 至 EC-011 已完成）
-- [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：进行中（PD-001 至 PD-002 已完成）
+- [x] [Point Cloud Data](./point-cloud-data.md) — 状态：完成（PD-001 至 PD-008 已完成）
 - [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：阻塞（抽象任务可实施；整体完成等待参考源码）
 
 ## 5. Phase 1：OpenGL 基础渲染
@@ -123,11 +123,11 @@
 
 | 阶段 | 唯一模块数 | 完成 | 进行中 | 阻塞 | 未开始 |
 |---|---:|---:|---:|---:|---:|
-| 公共基础 | 6 | 1 | 0 | 1 | 4 |
+| 公共基础 | 6 | 4 | 1 | 1 | 0 |
 | Phase 1 专属 | 5 | 0 | 0 | 0 | 5 |
 | Phase 2 专属 | 5 | 0 | 0 | 0 | 5 |
 | 跨阶段/最终验收 | 2 | 0 | 0 | 0 | 2 |
-| **合计** | **18** | **1** | **0** | **1** | **16** |
+| **合计** | **18** | **4** | **1** | **1** | **12** |
 
 > 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera 当前以“整体阻塞”统计，但其抽象子任务可以推进。
 

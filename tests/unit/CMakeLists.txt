@@ -345,3 +345,13 @@ target_include_directories(dzc_dataset_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(dzc_dataset_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_dataset COMMAND dzc_dataset_tests)
+
+add_executable(dzc_relative_origin_tests
+    RelativeOriginTests.cpp
+)
+
+target_compile_features(dzc_relative_origin_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_relative_origin_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_relative_origin_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_relative_origin COMMAND dzc_relative_origin_tests)
