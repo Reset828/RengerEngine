@@ -1,6 +1,6 @@
 #pragma once
 
-#include "data/chunk/Bounds3d.h"
+#include <dzc/Bounds3d.h>
 #include <dzc/Result.h>
 
 #include <glm/glm.hpp>

@@ -364,3 +364,11 @@ target_compile_features(dzc_camera_types_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_camera_types_tests PRIVATE dzc_engine_api)
 
 add_test(NAME dzc_camera_types COMMAND dzc_camera_types_tests)
+add_executable(dzc_view_frustum_tests
+    ViewFrustumTests.cpp
+)
+
+target_compile_features(dzc_view_frustum_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_view_frustum_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_view_frustum COMMAND dzc_view_frustum_tests)

@@ -28,7 +28,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **CA-001 定义 CameraState 和 CameraMatrices**
-- [ ] **CA-002 定义 ViewFrustum 和平面工具**
+- [x] **CA-002 定义 ViewFrustum 和平面工具**
 - [ ] **CA-003 定义 InputEvent**
 - [ ] **CA-004 定义 ICameraController 和 Fake**
 - [ ] **CA-005 分析用户提供的相机参考源码** —— **阻塞：等待用户提供相机参考源码**
@@ -53,13 +53,16 @@
 
 ### CA-002 定义 ViewFrustum 和平面工具
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：实现六平面结构、规范化和有限性校验。
 - **前置任务**：CA-001
-- **预计文件**：`include/dzc/ViewFrustum.h`、`src/camera/ViewFrustum.cpp`、`tests/unit/ViewFrustumTests.cpp`
-- **实现要求**：不从具体控制方式推导，只处理输入矩阵或平面。
-- **验收检查**：有效平面可规范化，退化平面返回 Error。
-- **测试要求**：标准矩阵、退化和非有限输入测试。
+- **实际文件**：`include/dzc/Bounds3d.h`、`include/dzc/ViewFrustum.h`、`src/data/chunk/Bounds3d.cpp`、`src/camera/ViewFrustum.cpp`、`tests/unit/Bounds3dTests.cpp`、`tests/unit/ViewFrustumTests.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/CMakeLists.txt`。
+- **实现结果**：`Bounds3d` 已提升为公共值类型；新增 `FrustumPlane`、`ViewFrustum` 和 `ClipDepthRange`。平面内侧统一为 `ax + by + cz + d >= 0`，固定下标顺序为 Left、Right、Bottom、Top、Near、Far；`normalized()` 返回完整新值，不修改源对象。
+- **矩阵与可见性语义**：`fromViewProjection(const glm::mat4&, ClipDepthRange)` 显式支持 `NegativeOneToOne` 和 `ZeroToOne` 两种裁剪深度，按 GLM 列主序转换数学行后提取并规范化。`intersects(const Bounds3d&)` 使用每平面正顶点的保守 AABB 测试；接触平面视为可见，返回 `true` 表示相交或在内，`false` 表示完全在外。
+- **错误语义**：非有限矩阵/平面、零法线、规范化计算非有限、非法裁剪深度、非法 Bounds 或交集计算非有限均返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`），且用户信息、诊断信息和上下文非空；失败不返回部分结果。
+- **边界**：不实现具体控制器、相机矩阵生成、Qt、渲染后端、GPU、Chunk 调度或输入行为；零法线之外不引入任意 epsilon 退化阈值。
+- **验收检查**：平面/视锥体值语义、规范化、两种深度矩阵提取、平面顺序与符号、Bounds 全内/全外/接触/相交以及全部错误路径均由断言测试覆盖；原有 `Bounds3d` 行为测试保留并改为公共头文件包含。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 生成器 OpenGL-only Debug（本机 Ninja 不在 PATH，故未使用 Ninja），使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_view_frustum` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 45/45 通过；`git diff --check` 通过；任务专用 `build-ca002` 已清理。
 - **追踪**：FR-VIS-002、19.1
 
 ### CA-003 定义 InputEvent
@@ -125,13 +128,21 @@
 - [ ] 参考源码到来后完成用户确认和对应行为测试
 
 ## 7. 交接记录
+### CA-002（2026-08-20）
+
+- 完成人：Codex
+- 关键变更：提升 `Bounds3d` 为公共值类型；新增双精度 `FrustumPlane`/`ViewFrustum`、显式 `ClipDepthRange`、平面规范化、view-projection 平面提取与保守 Bounds 可见性测试；新增 `dzc_view_frustum` CTest。
+- 验证结果：全量构建成功；`dzc_view_frustum` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 45/45 通过；`git diff --check` 通过；任务专用 `build-ca002` 已清理。
+- 未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 后续任务：CA-003 定义 InputEvent；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
 ### CA-001（2026-08-20）
 
 - 完成人：Codex
 - 关键变更：新增 GLM-only 的 `CameraState` 与 `CameraMatrices` 公共值类型；将 GLM 配置为 `dzc_engine_api` 的传递公共依赖；新增 `dzc_camera_types` CTest。
 - 验证结果：全量构建成功；`dzc_camera_types` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 44/44 通过；`git diff --check` 通过；任务专用 `build-ca001` 已清理。测试覆盖默认值、成员精确类型、复制/移动和 double 精度字段保持。
-- 未解决问题：CA-002 至 CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
-- 后续任务：CA-002 定义 ViewFrustum 和平面工具；Camera Abstraction 模块继续进行中。
+- 未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 后续任务：CA-003 定义 InputEvent；Camera Abstraction 模块继续进行中。
 - 关联提交：未提交。
 
 ## 8. 变更约束

@@ -1,4 +1,4 @@
-#include "data/chunk/Bounds3d.h"
+#include <dzc/Bounds3d.h>
 
 #include <algorithm>
 #include <cmath>

@@ -1,6 +1,6 @@
-﻿#pragma once
+#pragma once
 
-#include "data/chunk/Bounds3d.h"
+#include <dzc/Bounds3d.h>
 #include "data/chunk/PointAttributes.h"
 
 #include <dzc/EngineTypes.h>
