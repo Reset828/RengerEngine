@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **PD-001 实现属性模式和 intensity 元数据**
-- [ ] **PD-002 实现 Bounds3d 数学工具**
+- [x] **PD-002 实现 Bounds3d 数学工具**
 - [ ] **PD-003 实现 PointBatch SoA 校验**
 - [ ] **PD-004 实现 intensity 量化器**
 - [ ] **PD-005 实现 Chunk 局部坐标转换**
@@ -51,13 +51,16 @@
 
 ### PD-002 实现 Bounds3d 数学工具
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：实现扩展、有效性、中心、尺寸和退化检查。
 - **前置任务**：PD-001
-- **预计文件**：`src/data/chunk/Bounds3d.h`、`src/data/chunk/Bounds3d.cpp`、`tests/unit/Bounds3dTests.cpp`
-- **实现要求**：只使用 GLM；double 精度；忽略或报告非有限输入。
-- **验收检查**：大 GIS 坐标和退化包围盒计算正确。
-- **测试要求**：常规、大坐标、NaN/Inf 和空包围盒测试。
+- **实际文件**：`src/data/chunk/Bounds3d.h`、`src/data/chunk/Bounds3d.cpp`、`tests/unit/Bounds3dTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增 GLM `double` 精度 `Bounds3d` 值类型；默认使用最小值正无穷、最大值负无穷表示空包围盒；支持有限点扩展、有效包围盒合并、中心、尺寸和退化查询。
+- **错误语义**：非有限点、无效输入包围盒以及对无效 Bounds 的中心/尺寸查询返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`），失败时保持目标 Bounds 不变。
+- **数值边界**：中心计算使用 `minimum + (maximum - minimum) / 2.0`，覆盖大 GIS 坐标；不新增范围校验、错误域或错误码。
+- **验收检查**：常规坐标、大坐标、空包围盒、退化包围盒、NaN/Inf 和值语义测试已覆盖。
+- **验证结果**：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_bounds3d` 专项测试通过；完整 CTest 37/37 通过；`git diff --check` 通过；任务专用 `build-pd002` 已清理。
+- **边界**：未实现 PD-003 至 PD-008、PointBatch、Intensity 量化、Chunk、Dataset 和坐标局部化。
 - **追踪**：FR-DATA-006、ADR-008
 
 ### PD-003 实现 PointBatch SoA 校验
@@ -142,6 +145,15 @@
 - 验证结果：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_point_attributes` 专项测试通过；完整 CTest 36/36 通过；`git diff --check` 通过；任务专用 `build-pd001` 已清理。
 - 未实现边界：未实现 PD-002 至 PD-008、Intensity 量化、PointBatch、Bounds3d、Chunk 或 Dataset 容器。
 - 后续任务：PD-002 实现 Bounds3d 数学工具；Point Cloud Data 模块仍为“进行中”。
+- 关联提交：未提交。
+
+### PD-002（2026-08-20）
+
+- 完成人：Codex
+- 关键变更：新增私有 `Bounds3d`，使用 GLM `double` 精度；空值哨兵为 `(+inf, +inf, +inf)` / `(-inf, -inf, -inf)`；新增点/Bounds 扩展、有效性、中心、尺寸和退化判断，并接入 `dzc_data_core` 静态库与 GLM。
+- 验证结果：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_bounds3d` 专项测试通过；完整 CTest 与 `git diff --check` 已执行；任务专用 `build-pd002` 已清理。
+- 未实现边界：未实现 PD-003 至 PD-008、PointBatch、Intensity 量化、Chunk、Dataset 或坐标局部化。
+- 后续任务：PD-003 实现 PointBatch SoA 校验；Point Cloud Data 模块仍为“进行中”。
 - 关联提交：未提交。
 
 

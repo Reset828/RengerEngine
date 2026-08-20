@@ -286,3 +286,13 @@ target_include_directories(dzc_point_attributes_tests PRIVATE ${PROJECT_SOURCE_D
 target_link_libraries(dzc_point_attributes_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_point_attributes COMMAND dzc_point_attributes_tests)
+
+add_executable(dzc_bounds3d_tests
+    Bounds3dTests.cpp
+)
+
+target_compile_features(dzc_bounds3d_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_bounds3d_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_bounds3d_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_bounds3d COMMAND dzc_bounds3d_tests)

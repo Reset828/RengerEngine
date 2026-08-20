@@ -46,7 +46,7 @@ target_include_directories(dzc_engine_api INTERFACE
 )
 
 # Core and abstraction dependency direction.
-target_link_libraries(dzc_data_core INTERFACE
+target_link_libraries(dzc_data_core PUBLIC
     dzc_engine_api
     dzc_tasks
     dzc_diagnostics

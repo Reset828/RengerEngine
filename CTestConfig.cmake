@@ -20,6 +20,12 @@ if(NOT _dzc_smoke_make_program)
         "Cannot locate the outer generator's make program: ${CMAKE_MAKE_PROGRAM}")
 endif()
 
+set(_dzc_smoke_toolchain_args)
+if(DEFINED CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_TOOLCHAIN_FILE STREQUAL "")
+    list(APPEND _dzc_smoke_toolchain_args
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+endif()
+
 add_test(
     NAME dzc_configure_smoke_default
     COMMAND ${CMAKE_COMMAND}
@@ -29,6 +35,7 @@ add_test(
         -DDZC_SMOKE_GENERATOR=${CMAKE_GENERATOR}
         -DDZC_SMOKE_MAKE_PROGRAM=${_dzc_smoke_make_program}
         -DDZC_SMOKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        ${_dzc_smoke_toolchain_args}
         -DDZC_EXPECT_OPENGL=ON
         -DDZC_EXPECT_VULKAN=OFF
         -DDZC_EXPECT_CUDA=OFF
@@ -46,6 +53,7 @@ add_test(
         -DDZC_SMOKE_GENERATOR=${CMAKE_GENERATOR}
         -DDZC_SMOKE_MAKE_PROGRAM=${_dzc_smoke_make_program}
         -DDZC_SMOKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        ${_dzc_smoke_toolchain_args}
         -DDZC_ENABLE_OPENGL=ON
         -DDZC_ENABLE_VULKAN=OFF
         -DDZC_ENABLE_CUDA=OFF
