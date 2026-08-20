@@ -1,5 +1,3 @@
-find_package(glm CONFIG REQUIRED)
-
 add_library(dzc_data_core STATIC
     chunk/Bounds3d.cpp
     chunk/PointBatch.cpp

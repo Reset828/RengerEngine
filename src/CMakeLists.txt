@@ -1,3 +1,6 @@
+# Public CameraTypes and data types use GLM in their exposed interfaces.
+find_package(glm CONFIG REQUIRED)
+
 # PF-003 creates the complete module target graph without implementation sources.
 
 function(dzc_add_interface_target targetName)
@@ -44,6 +47,8 @@ target_include_directories(dzc_engine_api INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
+
+target_link_libraries(dzc_engine_api INTERFACE glm::glm)
 
 # Core and abstraction dependency direction.
 target_link_libraries(dzc_data_core PUBLIC

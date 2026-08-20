@@ -355,3 +355,12 @@ target_include_directories(dzc_relative_origin_tests PRIVATE ${PROJECT_SOURCE_DI
 target_link_libraries(dzc_relative_origin_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_relative_origin COMMAND dzc_relative_origin_tests)
+
+add_executable(dzc_camera_types_tests
+    CameraTypesTests.cpp
+)
+
+target_compile_features(dzc_camera_types_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_camera_types_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_camera_types COMMAND dzc_camera_types_tests)

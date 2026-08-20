@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/camera-abstraction.md`  
 > 所属阶段：Phase 1（部分阻塞）  
-> 模块状态：未开始  
+> 模块状态：进行中
 > 前置模块：[project-foundation](./project-foundation.md)、[point-cloud-data](./point-cloud-data.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -27,7 +27,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **CA-001 定义 CameraState 和 CameraMatrices**
+- [x] **CA-001 定义 CameraState 和 CameraMatrices**
 - [ ] **CA-002 定义 ViewFrustum 和平面工具**
 - [ ] **CA-003 定义 InputEvent**
 - [ ] **CA-004 定义 ICameraController 和 Fake**
@@ -39,13 +39,16 @@
 
 ### CA-001 定义 CameraState 和 CameraMatrices
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：实现详细设计 19.1 的纯数据结构。
 - **前置任务**：project-foundation/PF-004, point-cloud-data/PD-002
-- **预计文件**：`include/dzc/CameraTypes.h`、`tests/unit/CameraTypesTests.cpp`
-- **实现要求**：只使用 GLM；默认值不声称是可用相机配置；不含 Qt 类型。
-- **验收检查**：类型可编译、复制并保持 double position/cameraOrigin。
-- **测试要求**：静态类型和默认值测试。
+- **实际文件**：`include/dzc/CameraTypes.h`、`tests/unit/CameraTypesTests.cpp`、`src/CMakeLists.txt`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增 `CameraState` 与 `CameraMatrices` 两个 `final` 值类型。`CameraState` 保存 double position/orientation 与 FOV、near/far 参数；`CameraMatrices` 保存 float view/projection 矩阵与 double cameraOrigin。
+- **默认值语义**：默认值严格来自详细设计 19.1（零位置/原点、单位四元数、单位矩阵、零 FOV/near/far），仅表示可复制的数据初值，不声称构成可用相机配置，也不执行有效性校验或矩阵推导。
+- **依赖边界**：公共头文件仅使用 GLM，不含 Qt、渲染后端或具体控制器行为；GLM 作为 `dzc_engine_api` 的传递公共依赖，数据目标继续复用该包。
+- **验收检查**：默认值、精确成员类型、默认/复制/移动构造和赋值，以及 double position/cameraOrigin 数据保持均由断言测试覆盖。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_camera_types` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 44/44 通过；`git diff --check` 通过；任务专用 `build-ca001` 已清理。
+- **边界**：不实现 ViewFrustum、InputEvent、ICameraController、Fake Controller、具体键位/鼠标行为、速度、初始视图、重置语义或性能运动路径。
 - **追踪**：DDD-016、FR-CAM-001
 
 ### CA-002 定义 ViewFrustum 和平面工具
@@ -122,13 +125,14 @@
 - [ ] 参考源码到来后完成用户确认和对应行为测试
 
 ## 7. 交接记录
+### CA-001（2026-08-20）
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成人：Codex
+- 关键变更：新增 GLM-only 的 `CameraState` 与 `CameraMatrices` 公共值类型；将 GLM 配置为 `dzc_engine_api` 的传递公共依赖；新增 `dzc_camera_types` CTest。
+- 验证结果：全量构建成功；`dzc_camera_types` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 44/44 通过；`git diff --check` 通过；任务专用 `build-ca001` 已清理。测试覆盖默认值、成员精确类型、复制/移动和 double 精度字段保持。
+- 未解决问题：CA-002 至 CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 后续任务：CA-002 定义 ViewFrustum 和平面工具；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
 
 ## 8. 变更约束
 
