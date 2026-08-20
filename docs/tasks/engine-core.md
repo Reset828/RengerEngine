@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/engine-core.md`  
 > 所属阶段：公共基础  
-> 模块状态：进行中
+> 模块状态：完成
 > 前置模块：[project-foundation](./project-foundation.md)、[diagnostics](./diagnostics.md)、[task-system](./task-system.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -36,7 +36,7 @@
 - [x] **EC-008 实现原子 Snapshot 发布**
 - [x] **EC-009 实现每帧协调骨架**
 - [x] **EC-010 实现 Dataset 替换和旧结果过滤**
-- [ ] **EC-011 实现初始化回滚与关闭编排**
+- [x] **EC-011 实现初始化回滚与关闭编排**
 
 ## 5. 子任务说明
 
@@ -158,26 +158,30 @@
 - **实现结果**：私有 `DatasetSession` 分离当前有效 Dataset 与候选加载 Dataset。每次 Load 分配新的 `DatasetId`；新候选会请求取消旧候选。任务完成仅在结果的 `DatasetId` 与当前候选一致时生效，过期或乱序结果被忽略，绝不写入新的 Scene。
 - **替换规则**：候选成功时才替换 Scene 的当前 Dataset 并发布 `DatasetLoadedEvent`；候选失败或取消时保留旧有效 Dataset，分别发布带 Dataset/Task 上下文的可恢复 `ErrorEvent` 或 `DatasetLoadCancelledEvent`。首次加载失败会在 Snapshot 中保留失败摘要。
 - **测试要求**：新增 CTest `dzc_dataset_replacement`，通过私有测试接缝注入可控完成结果，覆盖替换、失败、取消、乱序旧结果过滤、首次失败及事件；更新公共 API 测试以反映 Load 后的 `Loading/Opening` 状态。
-- **验证结果**：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_dataset_replacement` 与 `dzc_engine_public_api` 专项测试通过；完整 CTest 34/34 通过；`git diff --check` 通过；任务专用 `build-ec010` 待本任务验证结束后清理。
+- **验证结果**：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_dataset_replacement` 与 `dzc_engine_public_api` 专项测试通过；完整 CTest 34/34 通过；`git diff --check` 通过；任务专用 `build-ec010` 已在 EC-011 验证前清理。
 - **后续任务**：EC-011 实现初始化回滚与关闭编排；Engine Core 模块仍为“进行中”。
 - **追踪**：23.3、NFR-REL-001
 ### EC-011 实现初始化回滚与关闭编排
 
-- **状态**：未开始
-- **目标**：按详细设计 23.1/23.2 协调各模块。
+- **状态**：已完成（2026-08-20）
+- **目标**：在当前 Engine 骨架范围内实现初始化事务回滚与幂等关闭编排。
 - **前置任务**：EC-010
-- **预计文件**：`src/engine/Engine.cpp`、`tests/unit/EngineLifecycleRollbackTests.cpp`
-- **实现要求**：每阶段 RAII；关闭顺序可观察；析构兜底且不抛异常。
-- **验收检查**：任意初始化阶段失败均无线程或资源泄漏。
-- **测试要求**：逐阶段故障注入和关闭顺序测试。
+- **实际文件**：`src/engine/Engine.cpp`、`src/engine/EngineTestAccess.h`、`src/engine/DatasetSession.h`、`src/engine/DatasetSession.cpp`、`tests/unit/EngineLifecycleRollbackTests.cpp`、`tests/unit/CMakeLists.txt`
+- **初始化事务**：按命令输入队列、事件队列、Fake Render 后端、Fake Compute 后端的固定顺序，在局部 `std::unique_ptr` 所有者中创建资源；全部成功后才提交到 `Engine::Impl`。任一注入阶段失败时按逆序自动回滚，不保留半初始化资源，Engine 进入 `Failed` 并发布包含初始化错误的 Snapshot。
+- **关闭编排**：设置停止请求并关闭命令输入；请求候选 Dataset 取消；按 Compute → Render 顺序释放 Fake 后端；清理 DatasetSession 和 Scene Dataset 引用；发布空 Dataset 的 `Stopped` Snapshot；最后关闭事件队列但保留对象及已接受事件，供后续 `pollEvents()` 排空。`shutdown()` 对可关闭状态幂等，析构函数兜底且不抛异常。
+- **测试与验证**：`EngineLifecycleRollbackTests.cpp` 覆盖正常创建顺序、四阶段故障注入、逆序回滚、无残留资源、失败 Snapshot、Ready/Loading/Failed 关闭、重复关闭、析构兜底及关闭后事件排空。MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；专项测试与完整 CTest 均通过（35/35）；任务专用 `build-ec011` 已清理；未创建 Git commit。
+- **边界**：仅管理当前已存在的队列、DatasetSession/Scene 与 Fake 后端；未引入真实 Diagnostics、TaskSystem、Reader/Cache、协调线程、GPU 或 CUDA 互操作资源。
+- **验收检查**：任意初始化阶段失败均无线程或资源泄漏；关闭顺序可观察、可重复且事件可排空。
+- **测试要求**：逐阶段故障注入、事务回滚、资源状态和关闭顺序测试。
 - **追踪**：NFR-REL-002、23
 
 ## 6. 模块级验收
 
-- [ ] Engine 公共头无 Qt/PCL/GPU 类型且使用 Pimpl
-- [ ] 状态机、队列、快照和替换测试通过
-- [ ] Fake 后端可完整运行 update/render 生命周期
-- [ ] 初始化失败与 shutdown 无资源泄漏
+
+- [x] Engine 公共头无 Qt/PCL/GPU 类型且使用 Pimpl
+- [x] 状态机、队列、快照和替换测试通过
+- [x] Fake 后端可完整运行 update/render 生命周期
+- [x] 初始化失败与 shutdown 无资源泄漏
 
 ## 7. 交接记录
 
@@ -196,6 +200,14 @@
 - 关键变更：新增 `include/dzc/EngineCommand.h`、`src/engine/EngineCommand.cpp` 和 `tests/unit/EngineCommandTests.cpp`；定义 11 种命令值类型及封闭 `dzc::EngineCommand` variant；实现非空严格 UTF-8 路径校验和点大小有限数/`[1.0F, 64.0F]` 校验；已接入 `dzc_engine_api` 测试目标与 CTest。
 - 未解决问题：EC-001 无未解决问题；当时后续任务为 EC-002。Engine Core 模块仍为“进行中”。
 - 测试命令与结果：`cmake -G "NMake Makefiles" -S . -B build-ec001 -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`；`cmake --build build-ec001 --config Debug`；`ctest --test-dir build-ec001 -C Debug -R '^dzc_engine_command$' --output-on-failure`（1/1 通过）；`ctest --test-dir build-ec001 -C Debug --output-on-failure`（25/25 通过）；`git diff --check`。
+- 关联提交：未提交。
+
+### EC-011（2026-08-20）
+
+- 完成人：Codex
+- 关键变更：新增初始化阶段故障注入、生命周期记录和资源状态查询的私有 `EngineTestAccess`；初始化采用局部 RAII 事务，失败时逆序回滚并发布 `Failed` Snapshot；`shutdown()` 按固定顺序完成停止请求、命令输入关闭、候选 Dataset 取消、Fake 后端释放、DatasetSession/Scene 清理、`Stopped` Snapshot 发布和事件队列关闭。
+- 验证结果：MSVC 14.51.36231 / NMake Makefiles Debug 全量构建成功；`dzc_engine_lifecycle_rollback` 专项测试通过；完整 CTest 35/35 通过；`build-ec011` 已清理；`git diff --check` 已执行；未创建 Git commit。
+- 后续交接：Engine Core 模块已完成（EC-001 至 EC-011）；后续按项目任务清单进入其他模块。
 - 关联提交：未提交。
 
 ## 8. 变更约束

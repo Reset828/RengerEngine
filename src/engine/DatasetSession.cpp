@@ -91,6 +91,23 @@ bool DatasetSession::unload(DatasetId datasetId) noexcept {
     return false;
 }
 
+bool DatasetSession::requestShutdownCancellation() noexcept {
+    const bool cancelledCandidate = m_candidate.has_value();
+    if (cancelledCandidate) {
+        m_candidate->summary.state = DatasetState::Cancelling;
+        static_cast<void>(m_candidate->cancellation.requestCancellation());
+    }
+
+    return cancelledCandidate;
+}
+
+void DatasetSession::clearForShutdown() noexcept {
+    m_candidate.reset();
+    m_active.reset();
+    m_failed.reset();
+    m_injectedCompletions.clear();
+}
+
 DatasetSessionCompletion DatasetSession::applyCompletion(tasks::TaskCompletion completion) {
     DatasetSessionCompletion result;
     result.taskId = completion.taskId;

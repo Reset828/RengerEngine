@@ -17,6 +17,7 @@
 #include <exception>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -73,9 +74,12 @@ class FakeComputeBackend final : public IComputeBackend {};
 } // namespace
 
 class Engine::Impl final {
+    friend class EngineTestAccess;
+
 public:
     Impl()
         : m_snapshot(std::make_shared<EngineSnapshot>()),
+          m_lifecycleTrace(std::make_shared<EngineLifecycleTrace>()),
           m_coordinator(makeCoordinatorStages()) {}
 
     Result<void> init(const EngineConfig& config) {
@@ -91,45 +95,64 @@ public:
             return initializing;
         }
 
+        std::unique_ptr<tasks::CommandCoalescer> commandQueue;
+        std::unique_ptr<EngineEventQueue> eventQueue;
+        std::unique_ptr<IRenderBackend> renderBackend;
+        std::unique_ptr<IComputeBackend> computeBackend;
+        auto rollback = [&]() noexcept {
+            if (computeBackend != nullptr) {
+                computeBackend.reset();
+                recordLifecycle(EngineLifecycleRecord::ComputeBackendReleased);
+            }
+            if (renderBackend != nullptr) {
+                renderBackend.reset();
+                recordLifecycle(EngineLifecycleRecord::RenderBackendReleased);
+            }
+            if (eventQueue != nullptr) {
+                eventQueue.reset();
+                recordLifecycle(EngineLifecycleRecord::EventQueueReleased);
+            }
+            if (commandQueue != nullptr) {
+                commandQueue.reset();
+                recordLifecycle(EngineLifecycleRecord::CommandQueueReleased);
+            }
+        };
+
         try {
-            m_config = config;
-            m_commandQueue = std::make_unique<tasks::CommandCoalescer>(
+            throwIfInitializationFailureInjected(EngineInitializationStage::CommandQueue);
+            commandQueue = std::make_unique<tasks::CommandCoalescer>(
                 static_cast<std::size_t>(config.commandQueueCapacity));
-            m_eventQueue = std::make_unique<EngineEventQueue>(
+            recordLifecycle(EngineLifecycleRecord::CommandQueueCreated);
+
+            throwIfInitializationFailureInjected(EngineInitializationStage::EventQueue);
+            eventQueue = std::make_unique<EngineEventQueue>(
                 static_cast<std::size_t>(config.eventQueueCapacity));
-            m_renderBackend = std::make_unique<FakeRenderBackend>();
-            m_computeBackend = std::make_unique<FakeComputeBackend>();
-            m_shutdownRequested.store(false, std::memory_order_release);
+            recordLifecycle(EngineLifecycleRecord::EventQueueCreated);
+
+            throwIfInitializationFailureInjected(EngineInitializationStage::RenderBackend);
+            renderBackend = std::make_unique<FakeRenderBackend>();
+            recordLifecycle(EngineLifecycleRecord::RenderBackendCreated);
+
+            throwIfInitializationFailureInjected(EngineInitializationStage::ComputeBackend);
+            computeBackend = std::make_unique<FakeComputeBackend>();
+            recordLifecycle(EngineLifecycleRecord::ComputeBackendCreated);
         } catch (const std::exception& exception) {
-            static_cast<void>(m_stateMachine.transition(EngineStateTrigger::InitializationFailed));
-            publishSnapshot(EngineState::Failed, Error{
-                ErrorDomain::Resource,
-                kInvalidConfiguration,
-                "Engine initialization failed",
-                exception.what(),
-                "Engine::init"});
-            return Result<void>::failure(Error{
-                ErrorDomain::Resource,
-                kInvalidConfiguration,
-                "Engine initialization failed",
-                exception.what(),
-                "Engine::init"});
+            rollback();
+            recordLifecycle(EngineLifecycleRecord::InitializationFailed);
+            return finishInitializationFailure(exception.what());
         } catch (...) {
-            constexpr const char* kUnknownFailure = "Unknown exception during Engine initialization.";
-            static_cast<void>(m_stateMachine.transition(EngineStateTrigger::InitializationFailed));
-            publishSnapshot(EngineState::Failed, Error{
-                ErrorDomain::Resource,
-                kInvalidConfiguration,
-                "Engine initialization failed",
-                kUnknownFailure,
-                "Engine::init"});
-            return Result<void>::failure(Error{
-                ErrorDomain::Resource,
-                kInvalidConfiguration,
-                "Engine initialization failed",
-                kUnknownFailure,
-                "Engine::init"});
+            rollback();
+            recordLifecycle(EngineLifecycleRecord::InitializationFailed);
+            return finishInitializationFailure("Unknown exception during Engine initialization.");
         }
+
+        m_config = config;
+        m_commandQueue = std::move(commandQueue);
+        m_eventQueue = std::move(eventQueue);
+        m_renderBackend = std::move(renderBackend);
+        m_computeBackend = std::move(computeBackend);
+        m_shutdownRequested.store(false, std::memory_order_release);
+        m_initializationFailureStage.reset();
 
         const Result<void> ready =
             m_stateMachine.transition(EngineStateTrigger::InitializationSucceeded);
@@ -137,6 +160,7 @@ public:
             return ready;
         }
         publishSnapshot(EngineState::Ready);
+        recordLifecycle(EngineLifecycleRecord::ReadySnapshotPublished);
         return Result<void>::success();
     }
 
@@ -215,22 +239,98 @@ public:
             }
         }
 
-        if (m_stateMachine.state() == EngineState::ShuttingDown) {
-            m_shutdownRequested.store(true, std::memory_order_release);
-            if (m_commandQueue != nullptr) {
-                m_commandQueue->close();
-            }
-            if (m_eventQueue != nullptr) {
-                m_eventQueue->close();
-            }
-            m_renderBackend.reset();
+        if (m_stateMachine.state() != EngineState::ShuttingDown) {
+            return;
+        }
+
+        m_shutdownRequested.store(true, std::memory_order_release);
+        recordLifecycle(EngineLifecycleRecord::StoppingRequested);
+
+        if (m_commandQueue != nullptr) {
+            m_commandQueue->close();
+            recordLifecycle(EngineLifecycleRecord::CommandQueueClosed);
+            m_commandQueue.reset();
+            recordLifecycle(EngineLifecycleRecord::CommandQueueReleased);
+        }
+
+        if (m_datasetSession.requestShutdownCancellation()) {
+            recordLifecycle(EngineLifecycleRecord::DatasetCancellationRequested);
+        }
+
+        if (m_computeBackend != nullptr) {
             m_computeBackend.reset();
-            static_cast<void>(m_stateMachine.transition(EngineStateTrigger::ResourcesReleased));
-            publishSnapshot(EngineState::Stopped);
+            recordLifecycle(EngineLifecycleRecord::ComputeBackendReleased);
+        }
+        if (m_renderBackend != nullptr) {
+            m_renderBackend.reset();
+            recordLifecycle(EngineLifecycleRecord::RenderBackendReleased);
+        }
+
+        m_datasetSession.clearForShutdown();
+        m_scene.clearDataset();
+        recordLifecycle(EngineLifecycleRecord::DatasetSessionCleared);
+        recordLifecycle(EngineLifecycleRecord::SceneCleared);
+        m_mostRecentError.reset();
+
+        static_cast<void>(m_stateMachine.transition(EngineStateTrigger::ResourcesReleased));
+        publishSnapshot(EngineState::Stopped);
+        recordLifecycle(EngineLifecycleRecord::StoppedSnapshotPublished);
+
+        if (m_eventQueue != nullptr) {
+            m_eventQueue->close();
+            recordLifecycle(EngineLifecycleRecord::EventQueueClosed);
         }
     }
 
 private:
+    void recordLifecycle(EngineLifecycleRecord record) noexcept {
+        try {
+            m_lifecycleTrace->records.push_back(record);
+        } catch (...) {
+            // Lifecycle tracing is test-only and must never compromise noexcept cleanup.
+        }
+    }
+
+    void throwIfInitializationFailureInjected(EngineInitializationStage stage) {
+        if (m_initializationFailureStage.has_value() &&
+            m_initializationFailureStage.value() == stage) {
+            throw std::runtime_error("Injected Engine initialization failure.");
+        }
+    }
+
+    Result<void> finishInitializationFailure(const char* description) {
+        const Error error{
+            ErrorDomain::Resource,
+            kInvalidConfiguration,
+            "Engine initialization failed",
+            description,
+            "Engine::init"};
+        static_cast<void>(m_stateMachine.transition(EngineStateTrigger::InitializationFailed));
+        publishSnapshot(EngineState::Failed, error);
+        recordLifecycle(EngineLifecycleRecord::FailedSnapshotPublished);
+        return Result<void>::failure(error);
+    }
+
+    bool failInitializationAt(EngineInitializationStage stage) noexcept {
+        if (m_stateMachine.state() != EngineState::Created) {
+            return false;
+        }
+        m_initializationFailureStage = stage;
+        return true;
+    }
+
+    std::shared_ptr<const EngineLifecycleTrace> lifecycleTrace() const {
+        return m_lifecycleTrace;
+    }
+
+    EngineLifecycleResourceState resourceState() const noexcept {
+        return EngineLifecycleResourceState{
+            m_commandQueue != nullptr,
+            m_eventQueue != nullptr,
+            m_renderBackend != nullptr,
+            m_computeBackend != nullptr};
+    }
+
     EngineCoordinatorStages makeCoordinatorStages() {
         const auto noOp = [](const FrameInput&) {
             return Result<EngineCoordinatorControl>::success(EngineCoordinatorControl::Continue);
@@ -424,7 +524,7 @@ private:
         next->backgroundColor = sceneFrame.parameters.backgroundColor;
         if (error.has_value()) {
             next->mostRecentError = std::move(error);
-        } else if (m_mostRecentError.has_value()) {
+        } else {
             next->mostRecentError = m_mostRecentError;
         }
         std::atomic_store_explicit(
@@ -434,6 +534,8 @@ private:
     }
 
     EngineStateMachine m_stateMachine;
+    std::shared_ptr<const EngineSnapshot> m_snapshot;
+    std::shared_ptr<EngineLifecycleTrace> m_lifecycleTrace;
     EngineCoordinator m_coordinator;
     EngineConfig m_config;
     Scene m_scene;
@@ -444,8 +546,8 @@ private:
     std::unique_ptr<IComputeBackend> m_computeBackend;
     OptionalFeatureMode m_requestedCudaMode{OptionalFeatureMode::Auto};
     std::atomic_bool m_shutdownRequested{false};
-    std::shared_ptr<const EngineSnapshot> m_snapshot;
     std::optional<Error> m_mostRecentError;
+    std::optional<EngineInitializationStage> m_initializationFailureStage;
     std::uint64_t m_snapshotFrame{0U};
 };
 
@@ -529,6 +631,24 @@ bool EngineTestAccess::injectDatasetCompletion(
     }
     engine.m_impl->injectDatasetCompletion(std::move(completion));
     return true;
+}
+
+bool EngineTestAccess::failInitializationAt(
+    Engine& engine,
+    EngineInitializationStage stage) noexcept {
+    return engine.m_impl != nullptr && engine.m_impl->failInitializationAt(stage);
+}
+
+std::shared_ptr<const EngineLifecycleTrace> EngineTestAccess::lifecycleTrace(const Engine& engine) {
+    return engine.m_impl == nullptr
+               ? std::make_shared<const EngineLifecycleTrace>()
+               : engine.m_impl->lifecycleTrace();
+}
+
+EngineLifecycleResourceState EngineTestAccess::resourceState(const Engine& engine) noexcept {
+    return engine.m_impl == nullptr
+               ? EngineLifecycleResourceState{}
+               : engine.m_impl->resourceState();
 }
 
 } // namespace dzc

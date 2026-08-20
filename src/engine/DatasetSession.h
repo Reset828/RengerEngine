@@ -38,6 +38,14 @@ public:
     bool requestCancel(DatasetId datasetId) noexcept;
     bool unload(DatasetId datasetId) noexcept;
 
+    // Requests cancellation for the pending candidate, if any.  The caller
+    // later clears all Dataset state after dependent resources are released.
+    bool requestShutdownCancellation() noexcept;
+
+    // Releases candidate, active, failed, and test-completion state during
+    // Engine shutdown without changing Dataset identifier allocation history.
+    void clearForShutdown() noexcept;
+
     // Accepts a worker completion only when it belongs to the active candidate.
     DatasetSessionCompletion applyCompletion(tasks::TaskCompletion completion);
 
