@@ -28,7 +28,7 @@
 
 - [x] **PD-001 实现属性模式和 intensity 元数据**
 - [x] **PD-002 实现 Bounds3d 数学工具**
-- [ ] **PD-003 实现 PointBatch SoA 校验**
+- [x] **PD-003 实现 PointBatch SoA 校验**
 - [ ] **PD-004 实现 intensity 量化器**
 - [ ] **PD-005 实现 Chunk 局部坐标转换**
 - [ ] **PD-006 实现 Chunk 元数据和状态机**
@@ -65,13 +65,17 @@
 
 ### PD-003 实现 PointBatch SoA 校验
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：定义 double Position 和可选 Color/Intensity 流。
 - **前置任务**：PD-001, PD-002
-- **预计文件**：`src/data/chunk/PointBatch.h`、`src/data/chunk/PointBatch.cpp`、`tests/unit/PointBatchTests.cpp`
-- **实现要求**：存在的属性流长度必须等于点数；颜色逻辑 RGBA8。
-- **验收检查**：有效批次通过，长度错配明确失败。
-- **测试要求**：各种 schema 与流长度组合测试。
+- **实际文件**：`src/data/chunk/PointBatch.h`、`src/data/chunk/PointBatch.cpp`、`tests/unit/PointBatchTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：在 `namespace dzc` 中定义后端无关的 `PointBatch` 值类型，使用 `std::vector<glm::dvec3>`、`std::vector<std::uint32_t>` 和 `std::vector<std::uint16_t>` 连续保存 Position、RGBA8 Color 和 Intensity SoA 流；`validate()` 按 schema 对其结构进行校验。
+- **校验规则**：Position 必须声明；点数以 `positions.size()` 为准且允许为 0；声明的 Color/Intensity 流长度必须等于点数；未声明的 Color/Intensity 流必须为空；未知 schema 位保留并允许。
+- **错误语义**：结构错误返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`），且包含缺少 Position、已声明流长度不匹配或未声明流含数据的诊断信息。
+- **边界**：不检查 Position 中的 NaN/Inf；该过滤职责留给后续 Reader。仅存储 RGBA8 逻辑值，不实现通道拆装、序列化或端序处理。
+- **验收检查**：有效批次通过，长度错配、缺少 Position 和声明/流不一致均明确失败。
+- **测试要求**：assert 风格覆盖全部已知 schema 组合、空批次、短/长流、未声明流、未知位、非有限坐标不影响结构校验，以及错误域、错误码和诊断信息。
+- **验证结果**：MSVC 19.51.36246.0 / Visual Studio 18 2026 Debug 全量构建成功；`dzc_point_batch` 专项测试通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 38/38 通过；`git diff --check` 通过。
 - **追踪**：8.3、NFR-REL-001
 
 ### PD-004 实现 intensity 量化器
