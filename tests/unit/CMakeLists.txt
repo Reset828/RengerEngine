@@ -306,3 +306,13 @@ target_include_directories(dzc_point_batch_tests PRIVATE ${PROJECT_SOURCE_DIR}/s
 target_link_libraries(dzc_point_batch_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_point_batch COMMAND dzc_point_batch_tests)
+
+add_executable(dzc_intensity_quantizer_tests
+    IntensityQuantizerTests.cpp
+)
+
+target_compile_features(dzc_intensity_quantizer_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_intensity_quantizer_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_intensity_quantizer_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_intensity_quantizer COMMAND dzc_intensity_quantizer_tests)

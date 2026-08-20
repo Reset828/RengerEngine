@@ -80,13 +80,18 @@
 
 ### PD-004 实现 intensity 量化器
 
-- **状态**：未开始
-- **目标**：将有效源标量线性量化为 uint16 并保留范围。
+- **状态**：已完成（2026-08-20）
+- **目标**：将有限源标量按实际有效范围线性量化为 `uint16_t`，并保留源声明范围与实际有效范围。
 - **前置任务**：PD-003
-- **预计文件**：`src/data/chunk/IntensityQuantizer.h`、`src/data/chunk/IntensityQuantizer.cpp`、`tests/unit/IntensityQuantizerTests.cpp`
-- **实现要求**：无效值不参与范围；退化范围行为固定且可诊断。
-- **验收检查**：min/max 映射到 0/65535，中间值误差可控。
-- **测试要求**：整数、浮点、负值、退化、NaN 测试。
+- **实际文件**：`src/data/chunk/IntensityQuantizer.h`、`src/data/chunk/IntensityQuantizer.cpp`、`tests/unit/IntensityQuantizerTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增后端无关的 `IntensityQuantizer`、命名的可选 `IntensitySourceRange`、`IntensityQuantizationStatus`（`Normal`、`DegenerateRange`、`NoValidValues`）和带量化结果、`IntensityMetadata`、状态及 `invalidCount` 的结果值类型；`quantize()` 返回 `Result<IntensityQuantizationResult>`。
+- **量化语义**：仅有限 `double` 是有效样本；以实际有效范围而非可选声明源范围映射到 `[0, 65535]`，钳制后按最近整数舍入，有限 min/max 精确得到 `0/65535`。NaN 与正负无穷不参与范围统计、输出 `0` 并计入 `invalidCount`。未提供声明范围时 source 范围回退为有效范围；提供时仅原样保存，即使实际值越界仍继续量化。
+- **退化/全无效语义**：有效值全相同时返回 `DegenerateRange`，所有输出为 `0`，`available=true` 且有效范围保留相同值；空输入或全无效输入返回 `NoValidValues`，输出等长全 `0`、`available=false`、有效范围为 `0/0`，合法声明源范围仍会保留。
+- **错误语义**：声明源范围含 NaN、无穷或 `minimum > maximum` 时，不产生部分结果，返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`）及明确诊断信息。
+- **边界**：不修改 PointBatch、Reader/PCL、Chunk、Dataset、坐标局部化或 GPU 路径；不对声明范围外的有限实际值作拒绝。
+- **验收检查**：普通范围的端点映射、最近整数舍入、无效值隔离、退化/全无效状态、元数据回退与声明范围保留均已覆盖。
+- **测试要求**：assert 风格覆盖整数、浮点、负值、NaN/正负无穷、退化范围、空输入、全无效输入、声明范围越界和非法声明范围的错误域、错误码及诊断。
+- **验证结果**：使用 `D:\vcpkg\vcpkg\installed\x64-windows\share\glm` 的 GLM CMake 包配置，MSVC 19.51.36246.0 / Visual Studio 18 2026 OpenGL-only Debug 全量构建成功；`dzc_intensity_quantizer` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 39/39 通过；`git diff --check` 已通过。
 - **追踪**：DDD-009、10.2
 
 ### PD-005 实现 Chunk 局部坐标转换
