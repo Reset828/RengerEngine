@@ -316,3 +316,13 @@ target_include_directories(dzc_intensity_quantizer_tests PRIVATE ${PROJECT_SOURC
 target_link_libraries(dzc_intensity_quantizer_tests PRIVATE dzc_data_core dzc_engine_api)
 
 add_test(NAME dzc_intensity_quantizer COMMAND dzc_intensity_quantizer_tests)
+
+add_executable(dzc_coordinate_localizer_tests
+    CoordinateLocalizerTests.cpp
+)
+
+target_compile_features(dzc_coordinate_localizer_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_coordinate_localizer_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_coordinate_localizer_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_coordinate_localizer COMMAND dzc_coordinate_localizer_tests)

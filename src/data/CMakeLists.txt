@@ -4,6 +4,7 @@ add_library(dzc_data_core STATIC
     chunk/Bounds3d.cpp
     chunk/PointBatch.cpp
     chunk/IntensityQuantizer.cpp
+    chunk/CoordinateLocalizer.cpp
 )
 
 target_compile_features(dzc_data_core PUBLIC cxx_std_17)

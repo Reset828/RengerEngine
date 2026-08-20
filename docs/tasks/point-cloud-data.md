@@ -29,8 +29,8 @@
 - [x] **PD-001 实现属性模式和 intensity 元数据**
 - [x] **PD-002 实现 Bounds3d 数学工具**
 - [x] **PD-003 实现 PointBatch SoA 校验**
-- [ ] **PD-004 实现 intensity 量化器**
-- [ ] **PD-005 实现 Chunk 局部坐标转换**
+- [x] **PD-004 实现 intensity 量化器**
+- [x] **PD-005 实现 Chunk 局部坐标转换**
 - [ ] **PD-006 实现 Chunk 元数据和状态机**
 - [ ] **PD-007 实现 Dataset 元数据容器**
 - [ ] **PD-008 实现相机相对原点计算工具**
@@ -96,13 +96,16 @@
 
 ### PD-005 实现 Chunk 局部坐标转换
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-20）
 - **目标**：从 double 源坐标生成 Chunk origin 和 float3 local positions。
 - **前置任务**：PD-002, PD-003
-- **预计文件**：`src/data/chunk/CoordinateLocalizer.h`、`src/data/chunk/CoordinateLocalizer.cpp`、`tests/unit/CoordinateLocalizerTests.cpp`
-- **实现要求**：Chunk origin 取包围盒中心；所有转换检查 float 有限性。
-- **验收检查**：重构位置误差处于 float 局部坐标可接受范围。
-- **测试要求**：亿级坐标、很小局部范围和溢出测试。
+- **实际文件**：`src/data/chunk/CoordinateLocalizer.h`、`src/data/chunk/CoordinateLocalizer.cpp`、`tests/unit/CoordinateLocalizerTests.cpp`、`src/data/CMakeLists.txt`、`tests/unit/CMakeLists.txt`
+- **实现结果**：新增后端无关的 `CoordinateLocalizer` 与 `CoordinateLocalizationResult`；工具接收 `std::vector<glm::dvec3>`，内部计算源坐标 `Bounds3d`，以 Bounds 中心作为 double `origin`，生成等长且保持输入顺序的 `std::vector<glm::vec3> localPositions`。
+- **转换语义**：先验证所有源 Position 分量有限，再计算 Bounds 和中心；每个局部偏移使用 `sourcePosition - origin` 的 double 结果后转换为 float3，避免直接将大绝对坐标转换为 float。成功结果保留 double Bounds 与 origin。
+- **错误语义**：空输入、非有限源坐标、非有限 Bounds 中心、double 局部偏移溢出或 float3 转换为非有限值时整体失败；均返回 `ErrorDomain::DataFormat`、错误码 `2`（`CorruptData`）以及非空用户信息、诊断信息和上下文，不返回部分结果。
+- **数值验收**：覆盖常规/单点退化 Bounds、亿级绝对坐标、很小局部范围和 float 转换溢出；重构误差按每个局部 float 值相邻表示间距的半 ULP 验证。
+- **边界**：不接收或处理 PointBatch 属性流，不实现 Chunk、Dataset、Reader/PCL、相机相对原点或 GPU Buffer。
+- **验证结果**：MSVC 19.51.36246.0 x64 / CMake Ninja Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows\share\glm` 的 GLM CMake 包配置；全量构建成功；`dzc_coordinate_localizer` 专项测试 1/1 通过；完整 CTest 40/40 通过；`git diff --check` 通过。
 - **追踪**：FR-DATA-006、8.2
 
 ### PD-006 实现 Chunk 元数据和状态机
