@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-data.md`  
 > 所属阶段：公共基础  
-> 模块状态：未开始  
+> 模块状态：进行中
 > 前置模块：[project-foundation](./project-foundation.md)、[engine-core](./engine-core.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **PD-001 实现属性模式和 intensity 元数据**
+- [x] **PD-001 实现属性模式和 intensity 元数据**
 - [ ] **PD-002 实现 Bounds3d 数学工具**
 - [ ] **PD-003 实现 PointBatch SoA 校验**
 - [ ] **PD-004 实现 intensity 量化器**
@@ -39,13 +39,14 @@
 
 ### PD-001 实现属性模式和 intensity 元数据
 
-- **状态**：未开始
-- **目标**：定义 Position/Color/Intensity 位掩码与范围信息。
+- **状态**：已完成（2026-08-20）
+- **目标**：定义 Position/Color/Intensity 位掩码、属性存在性查询和 Intensity 范围元数据。
 - **前置任务**：project-foundation/PF-004
-- **预计文件**：`src/data/chunk/PointAttributes.h`、`tests/unit/PointAttributesTests.cpp`
-- **实现要求**：Position 必需；无属性时不创建对应流；intensity 内部 uint16。
-- **验收检查**：schema 查询和元数据默认值正确。
-- **测试要求**：位掩码组合和缺失属性测试。
+- **实际文件**：`src/data/chunk/PointAttributes.h`、`tests/unit/PointAttributesTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：在 `namespace dzc` 中定义 `PointAttribute`、`AttributeSchema` 和 `IntensityMetadata`。Schema 默认掩码为 0，查询函数只检查三个已定义属性位；未知位不会影响已定义属性查询。
+- **边界**：Position 必需性由后续 Reader/PointBatch 校验负责；本任务不新增 `isValid()`、位运算符或范围校验。Intensity 的 `uint16_t` 存储、无效值统计和线性量化留给 PD-004。
+- **验收检查**：默认值、单属性、组合属性、缺失属性、未知位和 Intensity 元数据值语义测试已覆盖。
+- **测试要求**：使用 assert 风格验证固定底层类型、掩码查询、默认元数据及复制/移动。
 - **追踪**：FR-REN-003、DDD-009
 
 ### PD-002 实现 Bounds3d 数学工具
@@ -133,6 +134,17 @@
 - [ ] intensity uint16 量化与范围元数据符合设计
 
 ## 7. 交接记录
+
+### PD-001（2026-08-20）
+
+- 完成人：Codex
+- 关键变更：新增私有 `PointAttribute` 位掩码、`AttributeSchema` 查询值类型和 `IntensityMetadata` 元数据值类型；新增 `dzc_point_attributes` CTest。
+- 验证结果：MSVC 14.44 / NMake Makefiles Debug 全量构建成功；`dzc_point_attributes` 专项测试通过；完整 CTest 36/36 通过；`git diff --check` 通过；任务专用 `build-pd001` 已清理。
+- 未实现边界：未实现 PD-002 至 PD-008、Intensity 量化、PointBatch、Bounds3d、Chunk 或 Dataset 容器。
+- 后续任务：PD-002 实现 Bounds3d 数学工具；Point Cloud Data 模块仍为“进行中”。
+- 关联提交：未提交。
+
+
 
 - 完成日期：
 - 完成人：

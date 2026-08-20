@@ -276,3 +276,13 @@ target_include_directories(dzc_engine_lifecycle_rollback_tests PRIVATE ${PROJECT
 target_link_libraries(dzc_engine_lifecycle_rollback_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_engine_lifecycle_rollback COMMAND dzc_engine_lifecycle_rollback_tests)
+
+add_executable(dzc_point_attributes_tests
+    PointAttributesTests.cpp
+)
+
+target_compile_features(dzc_point_attributes_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_point_attributes_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_point_attributes_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_point_attributes COMMAND dzc_point_attributes_tests)

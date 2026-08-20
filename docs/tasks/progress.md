@@ -39,7 +39,7 @@
 - [x] [Diagnostics](./diagnostics.md) — 状态：完成（DG-001 至 DG-008 已完成）
 - [ ] [Task System](./task-system.md) — 状态：进行中（TS-001 至 TS-009 已完成）
 - [x] [Engine Core](./engine-core.md) — 状态：完成（EC-001 至 EC-011 已完成）
-- [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：未开始
+- [ ] [Point Cloud Data](./point-cloud-data.md) — 状态：进行中（PD-001 已完成）
 - [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：阻塞（抽象任务可实施；整体完成等待参考源码）
 
 ## 5. Phase 1：OpenGL 基础渲染
