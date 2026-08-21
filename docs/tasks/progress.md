@@ -40,7 +40,7 @@
 - [ ] [Task System](./task-system.md) — 状态：进行中（TS-001 至 TS-009 已完成）
 - [x] [Engine Core](./engine-core.md) — 状态：完成（EC-001 至 EC-011 已完成）
 - [x] [Point Cloud Data](./point-cloud-data.md) — 状态：完成（PD-001 至 PD-008 已完成）
-- [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：进行中（CA-001 至 CA-003 已完成；具体控制器仍等待参考源码）
+- [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：进行中（CA-001 至 CA-004 已完成；具体控制器仍等待参考源码）
 
 ## 5. Phase 1：OpenGL 基础渲染
 

@@ -30,7 +30,7 @@
 - [x] **CA-001 定义 CameraState 和 CameraMatrices**
 - [x] **CA-002 定义 ViewFrustum 和平面工具**
 - [x] **CA-003 定义 InputEvent**
-- [ ] **CA-004 定义 ICameraController 和 Fake**
+- [x] **CA-004 定义 ICameraController 和 Fake**
 - [ ] **CA-005 分析用户提供的相机参考源码** —— **阻塞：等待用户提供相机参考源码**
 - [ ] **CA-006 实现确认后的具体 Camera Controller** —— **阻塞：等待 CA-005 完成**
 - [ ] **CA-007 定义可重复性能相机路径** —— **阻塞：等待相机源码和性能基准确认**
@@ -76,15 +76,19 @@
 - **边界**：不实现 Qt 映射、事件分发、EngineCommand 接入、矩阵更新、控制器、具体键位/鼠标语义、速度、初始视图或重置行为。
 - **验收检查**：枚举底层类型及六个固定值、精确成员类型、默认/复制/移动值语义、全部事件类型、整数与 double 边界（含 NaN、正负无穷和负零）的原样保持均由断言测试覆盖。
 - **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 开发环境下的 Ninja OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_input_event` 专项测试 1/1 通过；设置环境变量 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 46/46 通过；`git diff --check` 通过；任务专用 `build-ca003` 已清理。
-- **追踪**：FR-CAM-001`n`n### CA-004 定义 ICameraController 和 Fake
+- **追踪**：FR-CAM-001
 
-- **状态**：未开始
-- **目标**：声明 submitInput/update/state/matrices/frustum/reset，并提供测试 Fake。
+### CA-004 定义 ICameraController 和 Fake
+
+- **状态**：已完成（2026-08-21）
+- **目标**：实现详细设计 19.1 已定义的后端无关相机控制器纯抽象接口，并提供仅供测试使用的 Fake。
 - **前置任务**：CA-002, CA-003
-- **预计文件**：`include/dzc/ICameraController.h`、`tests/fakes/FakeCameraController.h`、`tests/unit/CameraControllerContractTests.cpp`
-- **实现要求**：接口不规定控制模型；Fake 只记录调用并返回预置结果。
-- **验收检查**：Engine 可通过接口注入 Fake，输入和 reset 请求可观察。
-- **测试要求**：契约和 Engine 注入测试。
+- **实际文件**：`include/dzc/ICameraController.h`、`tests/fakes/FakeCameraController.h`、`tests/unit/CameraControllerContractTests.cpp`、`tests/unit/CMakeLists.txt`。
+- **实现结果**：新增纯虚 `ICameraController`，严格声明 `submitInput`、`update`、`state`、`matrices`、`frustum`、`reset` 六项详细设计接口，并提供虚析构函数。接口使用既有 `InputEvent`、`Bounds3d`、`CameraState`、`CameraMatrices`、`RenderSize`、`ViewFrustum` 和 `Result<void>` 公共类型。
+- **Fake 契约**：`FakeCameraController` 仅记录每种调用的次数和最近一次输入参数，可预置 state、matrices、frustum 及 submit/update/reset 的成功或失败 `Result<void>`；它不推导矩阵、不改变相机状态、不定义输入或重置语义。
+- **依赖与边界**：公共接口和 Fake 均不依赖 Qt、平台、渲染后端或具体控制器。本任务按已确认边界不修改 `Engine`，不增加 Controller 注入、`SubmitInputCommand`、Reset 转发或任何所有权模型；具体键位、鼠标、速度、初始视图、near/far 策略和重置效果仍未实现。
+- **验收检查**：契约测试覆盖多态调用、完整方法签名（包括 `state()` 的 const/noexcept）、虚析构、预置成功/失败结果、返回值保持以及调用参数记录。原“Engine 可注入 Fake”的检查属于尚未确认的后续 Engine 集成任务；模块级“Fake Controller 可驱动 Engine 与剔除测试”继续保持未勾选。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 开发环境下的 Ninja OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_camera_controller_contract` 专项测试 1/1 通过；设置环境变量 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 47/47 通过；`git diff --check` 通过；任务专用 `build-ca004` 已清理。
 - **追踪**：FR-CAM-001/003、DDD-016
 
 ### CA-005 分析用户提供的相机参考源码
@@ -122,12 +126,20 @@
 
 ## 6. 模块级验收
 
-- [ ] Camera 公共类型和接口不依赖 Qt
+- [x] Camera 公共类型和接口不依赖 Qt
 - [ ] Fake Controller 可驱动 Engine 与剔除测试
-- [ ] 未确认前不存在具体控制器、键位或速度实现
+- [x] 未确认前不存在具体控制器、键位或速度实现
 - [ ] 参考源码到来后完成用户确认和对应行为测试
 
 ## 7. 交接记录
+### CA-004（2026-08-21）
+
+- 完成人：Codex
+- 关键变更：新增纯抽象公共 `ICameraController` 和仅测试使用的 `FakeCameraController`；Fake 可预置三类操作结果与相机返回值，并记录输入、更新、矩阵、视锥体和重置调用参数；新增 `dzc_camera_controller_contract` CTest。
+- 验证结果：全量构建成功；`dzc_camera_controller_contract` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 47/47 通过；`git diff --check` 通过；任务专用 `build-ca004` 已清理。
+- 未解决问题：Engine 的 Controller 注入、所有权和命令转发仍未确认且未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 后续任务：CA-005 分析用户提供的相机参考源码；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
 ### CA-003（2026-08-21）
 
 - 完成人：Codex

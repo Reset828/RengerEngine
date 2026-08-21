@@ -381,3 +381,12 @@ target_compile_features(dzc_input_event_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_input_event_tests PRIVATE dzc_engine_api)
 
 add_test(NAME dzc_input_event COMMAND dzc_input_event_tests)
+add_executable(dzc_camera_controller_contract_tests
+    CameraControllerContractTests.cpp
+)
+
+target_compile_features(dzc_camera_controller_contract_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_camera_controller_contract_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests)
+target_link_libraries(dzc_camera_controller_contract_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_camera_controller_contract COMMAND dzc_camera_controller_contract_tests)
