@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001 已完成）
+> 模块状态：进行中（IO-001、IO-002 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **IO-001 定义 Reader 公共内部契约**
-- [ ] **IO-002 实现扩展名 Reader Registry**
+- [x] **IO-002 实现扩展名 Reader Registry**
 - [ ] **IO-003 建立 PCL 私有 Target**
 - [ ] **IO-004 实现 PCD 元数据打开**
 - [ ] **IO-005 实现 PCD 批次转换**
@@ -53,13 +53,15 @@
 
 ### IO-002 实现扩展名 Reader Registry
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-21）
 - **目标**：按大小写无关的 .pcd/.ply 选择工厂。
 - **前置任务**：IO-001
-- **预计文件**：`src/data/io/PointCloudReaderRegistry.h`、`src/data/io/PointCloudReaderRegistry.cpp`、`tests/unit/ReaderRegistryTests.cpp`
-- **实现要求**：未知扩展名明确失败；不通过文件内容猜测未支持格式。
-- **验收检查**：PCD/PLY 路由正确，未知格式返回 DataFormat。
-- **测试要求**：扩展名大小写、空路径和未知格式测试。
+- **实际文件**：`src/data/io/PointCloudReaderRegistry.h`、`src/data/io/PointCloudReaderRegistry.cpp`、`src/data/CMakeLists.txt`、`tests/unit/ReaderRegistryTests.cpp`、`tests/unit/CMakeLists.txt`
+- **最终接口**：定义 `PointCloudReaderCreator = std::function<std::unique_ptr<IPointCloudReader>()>`；`PointCloudReaderRegistry` 构造时固定注入 PCD 与 PLY Creator，`create(const std::string&) const` 返回 `Result<std::unique_ptr<IPointCloudReader>>`。Registry 为不可复制、可移动的 Pimpl 类型；移动后源对象返回 Internal/1，移动目标保留 Creator。
+- **路由与错误边界**：仅以 `std::filesystem::path(path).extension()` 取得最后扩展名并作 ASCII 大小写无关 `.pcd`/`.ply` 匹配；不访问磁盘、不检查文件状态、不按内容探测格式。空路径、无扩展名、未知扩展名和 `.pcd`/`.ply` 隐藏式文件名返回 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`），且不调用 Creator。匹配 Creator 为空、返回空 Reader、抛出标准/未知异常或 Registry 已移动时返回 `ErrorDomain::Internal`、错误码 1；异常文本仅保留在诊断信息。
+- **验收检查**：Fake Creator 覆盖 PCD/PLY、混合大小写、含点目录、多点文件名和不存在但扩展名合法的路径；也覆盖所有约定失败路径及移动语义。
+- **测试结果**：2026-08-21 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，`ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过；`git diff --check` 通过。
+- **未解决问题**：真实 PCL Creator、PCD/PLY 文件打开及字段/批次转换、I/O 并发与背压、进度和错误转换留给 IO-003 至 IO-009。
 - **追踪**：FR-DATA-001
 
 ### IO-003 建立 PCL 私有 Target
@@ -150,9 +152,9 @@
 
 - 完成日期：2026-08-21
 - 完成人：Codex
-- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试；统一详细设计的 Task 错误码表；Point Cloud I/O 模块进入进行中状态。
-- 未解决问题：真实 PCD/PLY Reader、Registry、PCL 私有 Target、字段映射、I/O 并发/背压、进度和错误转换尚未实施，留给 IO-002 至 IO-009。
-- 测试命令与结果：使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过；`git diff --check` 通过。
+- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试，并完成 IO-002 固定 PCD/PLY 的构造注入式 Reader Registry、Pimpl 实现和 Fake Creator 路由/错误隔离/移动语义测试；统一详细设计的 Task 错误码表；Point Cloud I/O 模块保持进行中状态。
+- 未解决问题：真实 PCD/PLY Reader、PCL 私有 Target、字段映射、I/O 并发/背压、进度和错误转换尚未实施，留给 IO-003 至 IO-009。
+- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过；`git diff --check` 通过。
 - 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束

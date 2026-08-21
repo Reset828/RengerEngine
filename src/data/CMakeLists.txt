@@ -6,6 +6,7 @@ add_library(dzc_data_core STATIC
     chunk/Chunk.cpp
     chunk/Dataset.cpp
     chunk/RelativeOrigin.cpp
+    io/PointCloudReaderRegistry.cpp
 )
 
 target_compile_features(dzc_data_core PUBLIC cxx_std_17)

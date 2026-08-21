@@ -854,6 +854,23 @@ public:
 
 `readNext()` 只能在成功 `open()` 后调用；重复 `open()`、未打开读取和关闭后读取均返回 `ErrorDomain::Task`、`TaskErrorCode::InvalidTask`。成功的空 `optional` 表示 EOF，EOF 后继续读取仍返回成功空值。`maximumPoints` 必须大于 0，零值返回 `ErrorDomain::Configuration`、错误码 `1`（`InvalidValue`），且不推进读取位置。若 Token 已取消，`readNext()` 返回 `ErrorDomain::Task`、`TaskErrorCode::Cancelled`，且不产生新批次。`close()` 幂等；关闭后 Reader 可重新 `open()`。
 
+`PointCloudReaderRegistry` 是 IO-002 提供的固定 PCD/PLY 构造注入式路由器；它不包含 PCL 类型、格式实现或动态 `register` API：
+
+```cpp
+using PointCloudReaderCreator =
+    std::function<std::unique_ptr<IPointCloudReader>()>;
+
+class PointCloudReaderRegistry final {
+public:
+    PointCloudReaderRegistry(
+        PointCloudReaderCreator pcdCreator,
+        PointCloudReaderCreator plyCreator);
+    Result<std::unique_ptr<IPointCloudReader>> create(
+        const std::string& path) const;
+};
+```
+
+Registry 以 `std::unique_ptr<Impl>` 保存两个 Creator 和路径处理细节，不可复制、可移动。`create()` 仅用 `std::filesystem::path(path).extension()` 取得最后路径组件的最后扩展名，并按 ASCII 大小写无关规则匹配 `.pcd` 与 `.ply`；因此 `dir.v1/cloud.PCD` 与 `cloud.backup.ply` 可路由。它不访问磁盘、不检查存在性、可读性或目录，也不根据文件内容猜测格式；具体 Reader 的 `open()` 负责这些工作。空路径、无扩展名、未知扩展名以及仅名为 `.pcd`/`.ply` 的隐藏式文件名都返回 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`），且不调用 Creator。选中格式的 Creator 为空、返回空 Reader、抛出标准或未知异常，或对移动后源对象调用 `create()` 时，均返回 `ErrorDomain::Internal`、错误码 1；标准异常文本仅进入诊断信息，不穿透 Registry 接口。移动目标保留原 Creator。
 `dzc_data_pcl` 内部包含 PCL 头文件并实现 PCD/PLY Reader。适配器立刻把 PCL 字段转换到标准类型和 GLM；任何 PCL 类型不得离开该 Target 的私有接口。
 
 ### 10.2 字段映射和校验
