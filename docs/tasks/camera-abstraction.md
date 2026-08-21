@@ -29,7 +29,7 @@
 
 - [x] **CA-001 定义 CameraState 和 CameraMatrices**
 - [x] **CA-002 定义 ViewFrustum 和平面工具**
-- [ ] **CA-003 定义 InputEvent**
+- [x] **CA-003 定义 InputEvent**
 - [ ] **CA-004 定义 ICameraController 和 Fake**
 - [ ] **CA-005 分析用户提供的相机参考源码** —— **阻塞：等待用户提供相机参考源码**
 - [ ] **CA-006 实现确认后的具体 Camera Controller** —— **阻塞：等待 CA-005 完成**
@@ -67,16 +67,16 @@
 
 ### CA-003 定义 InputEvent
 
-- **状态**：未开始
-- **目标**：实现 PointerMove/Button/Wheel/Key/Focus/ResetRequest 值类型。
+- **状态**：已完成（2026-08-21）
+- **目标**：实现详细设计 19.1 已定义的后端无关输入事件值类型。
 - **前置任务**：CA-001
-- **预计文件**：`include/dzc/InputEvent.h`、`tests/unit/InputEventTests.cpp`
-- **实现要求**：code/modifiers 只作为抽象数值，不在 Engine 固定 Qt key 或鼠标键。
-- **验收检查**：全部事件类型可表达且无 Qt 依赖。
-- **测试要求**：构造、移动和数值边界测试。
-- **追踪**：FR-CAM-001
-
-### CA-004 定义 ICameraController 和 Fake
+- **实际文件**：`include/dzc/InputEvent.h`、`tests/unit/InputEventTests.cpp`、`tests/unit/CMakeLists.txt`。
+- **实现结果**：新增底层类型为 `std::uint8_t` 的 `InputEventType`，固定顺序为 `PointerMove`、`PointerButton`、`Wheel`、`Key`、`Focus`、`ResetRequest`；新增 `InputEvent final`，字段严格为 `type`、`code`、`valueX`、`valueY`、`pressed`、`modifiers`，并保持详细设计规定的默认值。
+- **数值与依赖边界**：`code`、`modifiers` 仅为抽象 `uint32_t` 数值，`valueX/valueY` 仅为原样保存的 `double`。类型不验证、拒绝或规范化 NaN、无穷、负零、数值范围或字段组合；公共头仅包含 `<cstdint>`，不依赖 Qt、GLM、平台或引擎实现。
+- **边界**：不实现 Qt 映射、事件分发、EngineCommand 接入、矩阵更新、控制器、具体键位/鼠标语义、速度、初始视图或重置行为。
+- **验收检查**：枚举底层类型及六个固定值、精确成员类型、默认/复制/移动值语义、全部事件类型、整数与 double 边界（含 NaN、正负无穷和负零）的原样保持均由断言测试覆盖。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 开发环境下的 Ninja OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包配置；全量构建成功；`dzc_input_event` 专项测试 1/1 通过；设置环境变量 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 46/46 通过；`git diff --check` 通过；任务专用 `build-ca003` 已清理。
+- **追踪**：FR-CAM-001`n`n### CA-004 定义 ICameraController 和 Fake
 
 - **状态**：未开始
 - **目标**：声明 submitInput/update/state/matrices/frustum/reset，并提供测试 Fake。
@@ -128,6 +128,14 @@
 - [ ] 参考源码到来后完成用户确认和对应行为测试
 
 ## 7. 交接记录
+### CA-003（2026-08-21）
+
+- 完成人：Codex
+- 关键变更：新增无 Qt/GLM 依赖的公共 `InputEventType` 与 `InputEvent` 值类型；六种抽象输入事件按详细设计的固定顺序表达，新增 `dzc_input_event` CTest。
+- 验证结果：全量构建成功；`dzc_input_event` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 46/46 通过；`git diff --check` 通过；任务专用 `build-ca003` 已清理。
+- 未解决问题：CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 后续任务：CA-004 定义 ICameraController 和 Fake；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
 ### CA-002（2026-08-20）
 
 - 完成人：Codex

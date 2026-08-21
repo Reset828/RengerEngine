@@ -372,3 +372,12 @@ target_compile_features(dzc_view_frustum_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_view_frustum_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_view_frustum COMMAND dzc_view_frustum_tests)
+
+add_executable(dzc_input_event_tests
+    InputEventTests.cpp
+)
+
+target_compile_features(dzc_input_event_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_input_event_tests PRIVATE dzc_engine_api)
+
+add_test(NAME dzc_input_event COMMAND dzc_input_event_tests)
