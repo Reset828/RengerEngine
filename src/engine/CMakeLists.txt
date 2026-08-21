@@ -15,6 +15,7 @@ add_library(dzc_engine_core STATIC
     EngineStateMachine.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/Scene.cpp
     ${PROJECT_SOURCE_DIR}/src/camera/ViewFrustum.cpp
+    ${PROJECT_SOURCE_DIR}/src/camera/OrbitCameraController.cpp
 )
 
 target_compile_features(dzc_engine_core PUBLIC cxx_std_17)

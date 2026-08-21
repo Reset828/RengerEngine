@@ -1393,9 +1393,11 @@ public:
 };
 ```
 
-### 19.2 明确待定边界
+### 19.2 已确认的透视轨道边界
 
-本设计不选择任何具体相机控制模型；不定义鼠标键位、键盘映射、移动/旋转/缩放速度、初始视图、重置语义、near/far 自动规则及 UI 参数。上述内容必须等用户提供参考源码后另行设计，并更新需求、概要设计和本节。当前测试仅验证输入透传、接口替换、矩阵有限性和视锥体数学工具，不验证具体交互结果。
+具体相机控制模型已由 CA-005 确认：后端无关的透视轨道球、右手坐标、世界 `+Y` 向上、相机本地 `-Z` 指向 orbit target。完整算法和输入契约以 `cameraInteractionDesign.md` 为准：左键受约束轨迹球旋转，右键沿屏幕平面平移，滚轮按固定倍率缩放，reset 按场景 Bounds 自动框选，`update()` 刷新动态 near/far 并处理延迟的 `ResetRequest`。
+
+CA-006 才实现 Controller 和 Golden/行为测试；本节现有公共接口不因 CA-005 改动。未确认或未实现的边界包括 Qt 输入映射、Engine 对 Controller 的注入/所有权/命令转发、具体渲染后端的 `ClipDepthRange` 选择，以及 CA-007 的可重复性能运动路径。不得以参考源码的 Vulkan/渲染器接口替代当前公共接口。
 
 
 ## 20. Qt 应用层与 Engine 通信
@@ -1433,7 +1435,7 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 - 渲染参数：点大小、着色模式、固定色、背景色、CUDA 模式；
 - 状态栏：后端、FPS、帧时间、可见点/块、CPU/GPU 驻留；
 - 日志面板：Info/Warning/Error；
-- View Reset：只发送 `ResetViewCommand`，具体效果待 Camera 设计；
+- View Reset：后续集成时发送 reset 请求；具体轨道重置规则见 `cameraInteractionDesign.md`，Engine 转发方式仍待确认；
 - 输入事件：Qt 事件转换为 `InputEvent`，不把 `QKeyEvent` 等传入 Engine。
 
 ## 21. 配置、日志与性能报告

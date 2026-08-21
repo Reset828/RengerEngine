@@ -29,9 +29,9 @@
 
 ## 3. 推荐执行顺序
 
-`project-foundation` → `diagnostics` / `task-system` → `engine-core` / `point-cloud-data` / `camera-abstraction（抽象）` → Phase 1 数据与 OpenGL/Qt → Phase 1 验收 → Phase 2 缓存/LOD/显存 → Vulkan/CUDA-Vulkan → Phase 2 验收 → 打包与最终验收。
+`project-foundation` → `diagnostics` / `task-system` → `engine-core` / `point-cloud-data` / `camera-abstraction（CA-007）` → Phase 1 数据与 OpenGL/Qt → Phase 1 验收 → Phase 2 缓存/LOD/显存 → Vulkan/CUDA-Vulkan → Phase 2 验收 → 打包与最终验收。
 
-> Camera 抽象可先实施，但具体控制器、键位、速度、初始视图、重置语义、裁剪面和性能运动路径必须等待用户提供参考源码。
+> Camera 的透视轨道交互、输入、reset 和裁剪规则已由 CA-005 确认，并由 CA-006 `OrbitCameraController` 实现；深度约定固定为 OpenGL `[-1,1]`。CA-007 性能路径及 Engine/Qt 集成仍必须按后续任务实施。
 
 ## 4. 公共基础
 
@@ -40,7 +40,7 @@
 - [ ] [Task System](./task-system.md) — 状态：进行中（TS-001 至 TS-009 已完成）
 - [x] [Engine Core](./engine-core.md) — 状态：完成（EC-001 至 EC-011 已完成）
 - [x] [Point Cloud Data](./point-cloud-data.md) — 状态：完成（PD-001 至 PD-008 已完成）
-- [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：进行中（CA-001 至 CA-004 已完成；具体控制器仍等待参考源码）
+- [ ] [Camera Abstraction](./camera-abstraction.md) — 状态：进行中（CA-001 至 CA-006 已完成；CA-007 性能路径及 Engine/Qt 集成未完成）
 
 ## 5. Phase 1：OpenGL 基础渲染
 
@@ -113,8 +113,7 @@
 
 | 编号 | 阻塞事项 | 影响范围 | 解除条件 |
 |---|---|---|---|
-| BLK-001 | Camera 参考源码未提供 | CA-005、CA-006、Camera 整体完成、最终交互验收 | 用户提供参考源码并确认以其交互方式为准 |
-| BLK-002 | Camera 性能运动路径未确定 | CA-007、IT-014、IT-016、AC-P2-011 | 根据参考源码确定可复现的持续运动路径 |
+| BLK-002 | Camera 性能运动路径未确定 | CA-007、IT-014、IT-016、AC-P2-011 | 完成 CA-007 并结合正式基准环境确认可复现路径 |
 | BLK-003 | 正式基准硬件/软件环境未确定 | Phase 1/2 正式性能结论 | 确认 CPU、GPU、显存、内存、存储、Windows、驱动和 CUDA 版本 |
 | BLK-004 | 正式性能数据集未确定 | Phase 1/2 性能可比性 | 确认千万点和亿级正式数据集及身份信息 |
 | BLK-005 | 低帧率百分位阈值未确定 | Phase 2 性能报告的低帧率判定 | 用户确认百分位类型和门槛；此前只报告原始数据和已确认平均 FPS |
@@ -129,12 +128,14 @@
 | 跨阶段/最终验收 | 2 | 0 | 0 | 0 | 2 |
 | **合计** | **18** | **4** | **2** | **0** | **12** |
 
-> 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera 当前以“整体阻塞”统计，但其抽象子任务可以推进。
+> 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera 为进行中，CA-001 至 CA-006 已完成，尚待 CA-007 与 Engine/Qt 集成完成。
 
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-08-21 | CA-006 完成 | 已新增 GLM-only `OrbitCameraController`，实现轨迹球、防翻转、平移、缩放、延迟 reset、动态裁剪面、相机相对矩阵和全局世界空间视锥；固定 OpenGL `[-1,1]` 深度约定；未实现 CA-007、Engine 注入或 Qt 映射 |
+| 2026-08-21 | CA-005 完成 | 已基于用户提供参考源码确认透视轨道球、输入、reset、动态裁剪面及错误语义；新增相机交互设计并同步 FR-CAM-002/003、概要/详细设计与任务状态；未实现具体 Controller、Engine/Qt 集成或性能路径 |
 | 2026-08-14 | PF-008 完成 / Project Foundation 完成 | 已注册默认与显式 OpenGL-only 的 configure;smoke CTest 用例；默认配置、构建和完整 CTest 7/7 通过，configure 标签 2/2 通过；Project Foundation 全部必需任务和模块级验收已满足 |
 | 2026-08-14 | PF-007 完成 | 已定义注入式 Render/Compute 后端工厂契约和 ApplicationComposition；Render/Compute 显式失败语义明确，CUDA Off/On/Auto 语义符合确认方案；Fake 工厂与装配测试通过，默认 OpenGL 配置下 5/5 CTest 通过 |
 | 2026-08-14 | PF-006 完成 | 已实现公共 Engine 配置类型和默认值；队列容量规则按主人确认通过 hasValidQueueCapacities() 校验；默认 OpenGL 配置下 4/4 CTest 通过 |

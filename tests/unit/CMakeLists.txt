@@ -390,3 +390,11 @@ target_include_directories(dzc_camera_controller_contract_tests PRIVATE ${PROJEC
 target_link_libraries(dzc_camera_controller_contract_tests PRIVATE dzc_engine_api)
 
 add_test(NAME dzc_camera_controller_contract COMMAND dzc_camera_controller_contract_tests)
+add_executable(dzc_orbit_camera_controller_tests
+    OrbitCameraControllerTests.cpp
+)
+
+target_compile_features(dzc_orbit_camera_controller_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_orbit_camera_controller_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_orbit_camera_controller COMMAND dzc_orbit_camera_controller_tests)

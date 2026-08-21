@@ -8,12 +8,12 @@
 
 ## 1. 模块目标
 
-建立 CameraState、CameraMatrices、ViewFrustum、InputEvent 和 ICameraController 抽象；在参考源码到来前不实现具体交互模型。
+建立 CameraState、CameraMatrices、ViewFrustum、InputEvent 和 ICameraController 抽象，并实现已确认交互规则的 GLM-only 透视轨道控制器；Engine/Qt 集成和性能路径继续独立推进。
 
 ## 2. 范围边界
 
-**包含：** 相机数据结构；抽象输入事件；控制器接口；矩阵/视锥体验证工具；Fake Controller；Qt 输入映射契约。  
-**不包含：** 具体键位；鼠标行为；速度；初始视图；重置语义；最终性能运动路径。
+**包含：** 相机数据结构；抽象输入事件；控制器接口；矩阵/视锥体验证工具；Fake Controller；`OrbitCameraController` 透视轨道交互与相机相对矩阵。
+**不包含：** Engine Controller 注入/命令转发；Qt 到抽象输入事件映射；GPU/渲染器集成；键盘交互；惯性/速度模型；最终可重复性能运动路径。
 
 ## 3. 完成规则
 
@@ -23,7 +23,7 @@
 - 所有自动化测试通过，能力缺失用例只能明确标记为 Skipped，不能伪造通过；
 - 对应公共接口和私有实现符合 `agent.md` 的命名、Pimpl、RAII 和依赖边界；
 - 相关需求、设计和测试文档已经同步；
-- CA-005 及其后续具体控制器任务在用户提供参考源码前保持未勾选；因此本模块只能标记“抽象完成”，不能标记“整体完成”。
+- CA-006 已完成确认的具体 Controller 与 Golden/行为测试；CA-007 性能路径以及 Engine Controller 注入、命令转发和 Qt 映射仍未完成，因此本模块继续保持“进行中”。
 
 ## 4. 子任务 Checklist
 
@@ -31,9 +31,9 @@
 - [x] **CA-002 定义 ViewFrustum 和平面工具**
 - [x] **CA-003 定义 InputEvent**
 - [x] **CA-004 定义 ICameraController 和 Fake**
-- [ ] **CA-005 分析用户提供的相机参考源码** —— **阻塞：等待用户提供相机参考源码**
-- [ ] **CA-006 实现确认后的具体 Camera Controller** —— **阻塞：等待 CA-005 完成**
-- [ ] **CA-007 定义可重复性能相机路径** —— **阻塞：等待相机源码和性能基准确认**
+- [x] **CA-005 分析用户提供的相机参考源码**
+- [x] **CA-006 实现确认后的具体 Camera Controller**
+- [ ] **CA-007 定义可重复性能相机路径** —— **阻塞：等待正式性能基准环境确认**
 
 ## 5. 子任务说明
 
@@ -93,26 +93,28 @@
 
 ### CA-005 分析用户提供的相机参考源码
 
-- **状态**：阻塞/未开始
-- **目标**：提取控制模型、事件映射、速度、初始视图、重置和裁剪面规则。
-- **前置任务**：用户提供参考源码
-- **预计文件**：`docs/design/cameraInteractionDesign.md`
-- **实现要求**：必须先展示分析结果并向用户确认；不得从现有文档猜测。
-- **验收检查**：用户明确确认相机详细决策，需求/概要/详细设计同步更新。
-- **测试要求**：文档审查；本任务不写控制器代码。
-- **追踪**：TBD-001、TBD-004
+- **状态**：已完成（2026-08-21）
+- **目标**：仅从用户提供的 `camera.cpp` 提取透视轨道球交互、旋转限制、平移、缩放、reset 和裁剪面规则，并适配当前公共接口。
+- **实际文件**：`docs/design/cameraInteractionDesign.md`、`docs/requirements/spec.md`、`docs/design/architectureDesign.md`、`docs/design/detailDesign.md`、本任务清单和 `progress.md`。
+- **确认结果**：采用右手、世界 `+Y` 向上的透视轨道相机；左键轨迹球、右键屏幕平面平移、滚轮 0.9/1.1 固定倍率、45° FOV、`[0.1, 1000]` 仅滚轮距离限制、`worldZ.y >= -1e-6` 与 16 次二分防翻转、Bounds 包围球 1.05 倍自动框选、动态 near/far 均已记录。`ResetRequest` 在下一次 `update()` 延迟执行；首次无有效尺寸的 reset 失败；resize 保持当前视角。
+- **边界**：不复用参考 Vulkan/渲染器/模型变换接口。CA-006 已独立实现 Controller、矩阵/视锥和固定 OpenGL `NegativeOneToOne` 深度约定；Engine 注入或命令转发、Qt 映射、GPU/渲染器集成及性能路径仍不在范围内。
+- **验收检查**：用户已明确确认交互细节；FR-CAM-002/003、概要设计和详细设计已同步；文档交叉审查与 `git diff --check` 见本任务交接记录。
+- **测试要求**：文档审查已完成；其 Golden/行为测试已由 CA-006 `dzc_orbit_camera_controller` 覆盖。
+- **追踪**：FR-CAM-002、FR-CAM-003、TBD-004
 
 ### CA-006 实现确认后的具体 Camera Controller
 
-- **状态**：阻塞/未开始
-- **目标**：按 CA-005 的确认文档实现具体控制器。
+- **状态**：已完成（2026-08-21）
+- **目标**：将 CA-005 已确认的轨迹球规则实现为后端无关的 `OrbitCameraController`。
 - **前置任务**：CA-005
-- **预计文件**：`src/camera/<ConfirmedController>.h`、`src/camera/<ConfirmedController>.cpp`、`tests/unit/<ConfirmedController>Tests.cpp`
-- **实现要求**：类名、文件和行为以用户确认结果为准；当前不得预创建具体方案。
-- **验收检查**：确认的输入、速度、reset 和矩阵行为逐项通过。
-- **测试要求**：基于参考源码的 Golden/行为测试。
-- **追踪**：FR-CAM-002/003
-
+- **实际文件**：`include/dzc/OrbitCameraController.h`、`src/camera/OrbitCameraController.cpp`、`src/engine/CMakeLists.txt`、`tests/unit/OrbitCameraControllerTests.cpp`、`tests/unit/CMakeLists.txt`。
+- **实现结果**：新增 GLM-only、Pimpl 封装、不可复制可移动的 `OrbitCameraController final`，并仅通过既有 `ICameraController` 提供输入、更新、状态、矩阵、视锥和 reset。默认 target 为零、distance 为 3、单位方向、45° 垂直 FOV、near/far 为 0.001/1000；相机局部 `-Z` 指向 target。
+- **交互与错误语义**：实现左键虚拟球 270° 灵敏度、`world +Z.y >= -1e-6` 的固定 16 次二分防翻转、右键屏幕 right/up 平移、滚轮 0.9/1.1 与 `[0.1,1000]` 交互限制、Focus 取消拖拽及延迟 `ResetRequest`。无效抽象输入返回 `General/1`；非法 Bounds、尺寸前置条件或数值计算返回 `DataFormat/2`；失败均保留原状态。
+- **矩阵、视锥与 reset**：使用 OpenGL `glm::perspectiveRH_NO`/`ClipDepthRange::NegativeOneToOne`。view 只保存 orientation 的逆旋转且不窄化绝对位置；`cameraOrigin` 保持 double。相机相对视锥转换为全局世界空间，因此可直接测试全局 `Bounds3d`。reset 使用 Bounds 包围球、45° FOV 与当前 aspect 同时框选，自动距离允许超过 1000；update 无动画并刷新动态 near/far。
+- **验收检查**：Golden/行为测试覆盖默认姿态、矩阵/视锥、旋转限制、平移、释放/失焦、滚轮与原子失败、reset/pending reset、动态裁剪面、尺寸缓存、resize 保持视角和全局 Bounds 剔除。
+- **验证结果**：MSVC 19.51.36246.0 x64 / Visual Studio 18 2026 开发环境下的 Ninja OpenGL-only Debug，使用 `D:\vcpkg\vcpkg\installed\x64-windows` 的 GLM CMake 包与 `CMAKE_PREFIX_PATH` 配置；全量构建成功；`dzc_orbit_camera_controller` 专项测试 1/1 通过；完整 CTest 48/48 通过；`git diff --check` 通过；任务专用 `build-ca006` 已清理。
+- **边界**：不改 Engine Controller 注入、所有权或命令转发；不实现 Qt 输入映射、GPU/渲染器、键盘控制、惯性/时间驱动运动或 CA-007 性能路径。
+- **追踪**：FR-CAM-002/003、DDD-016
 ### CA-007 定义可重复性能相机路径
 
 - **状态**：阻塞/未开始
@@ -128,24 +130,41 @@
 
 - [x] Camera 公共类型和接口不依赖 Qt
 - [ ] Fake Controller 可驱动 Engine 与剔除测试
-- [x] 未确认前不存在具体控制器、键位或速度实现
-- [ ] 参考源码到来后完成用户确认和对应行为测试
+- [x] 已确认的 GLM-only `OrbitCameraController` 实现左/右键交互、滚轮、reset、动态裁剪面与防翻转限制；未引入未确认键位或速度模型
+- [x] 参考源码规则已确认并由 CA-006 Golden/行为测试覆盖
 
 ## 7. 交接记录
+### CA-006（2026-08-21）
+
+- 完成人：Codex
+- 关键变更：新增 GLM-only `OrbitCameraController`（Pimpl），实现已确认的轨迹球旋转、防翻转二分限制、右键平移、滚轮缩放、延迟 reset、动态裁剪面，以及相机相对矩阵和全局世界空间视锥；新增 `dzc_orbit_camera_controller` CTest。
+- 验证结果：MSVC 19.51.36246.0 x64 / Ninja OpenGL-only Debug 全量构建成功；`dzc_orbit_camera_controller` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 48/48 通过；`git diff --check` 通过；任务专用 `build-ca006` 已清理。
+- 未解决问题：CA-007 可重复性能路径尚未实现；Engine 的 Controller 注入/所有权/命令转发及 Qt 输入映射仍是后续集成工作。
+- 后续任务：CA-007 定义可重复性能相机路径；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
+### CA-005（2026-08-21）
+
+- 完成人：Codex
+- 关键变更：新增 `docs/design/cameraInteractionDesign.md`，仅基于用户提供的未跟踪 `camera.cpp` 固化透视轨道球交互：左键虚拟球旋转及防翻转二分限制、右键屏幕平面平移、滚轮距离倍率、Bounds 自动框选、动态裁剪面、Focus/ResetRequest 和异常输入处理。
+- 验证结果：完成 FR-CAM-002/003、概要设计、详细设计、任务清单和进度文档的交叉审查；`git diff --check` 通过。CA-005 是设计任务，不新增构建或 C++ 行为测试。
+- 后续状态：CA-006 已实现具体 Controller、矩阵/视锥和 Golden/行为测试，固定采用 OpenGL `NegativeOneToOne`；Engine 的 Controller 注入/所有权/命令转发、Qt 映射和 CA-007 性能路径仍未实现。
+- 后续任务：CA-007 定义可重复性能相机路径；Camera Abstraction 模块继续进行中。
+- 关联提交：未提交。
+
 ### CA-004（2026-08-21）
 
 - 完成人：Codex
 - 关键变更：新增纯抽象公共 `ICameraController` 和仅测试使用的 `FakeCameraController`；Fake 可预置三类操作结果与相机返回值，并记录输入、更新、矩阵、视锥体和重置调用参数；新增 `dzc_camera_controller_contract` CTest。
 - 验证结果：全量构建成功；`dzc_camera_controller_contract` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 47/47 通过；`git diff --check` 通过；任务专用 `build-ca004` 已清理。
-- 未解决问题：Engine 的 Controller 注入、所有权和命令转发仍未确认且未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
-- 后续任务：CA-005 分析用户提供的相机参考源码；Camera Abstraction 模块继续进行中。
+- 后续状态：CA-005 的交互规则已随后确认，CA-006 已实现；Engine 的 Controller 注入、所有权和命令转发、Qt 映射及 CA-007 性能路径仍未实现。
+- 后续任务：CA-005 的已确认规则由 CA-006 实现具体 Camera Controller；Camera Abstraction 模块继续进行中。
 - 关联提交：未提交。
 ### CA-003（2026-08-21）
 
 - 完成人：Codex
 - 关键变更：新增无 Qt/GLM 依赖的公共 `InputEventType` 与 `InputEvent` 值类型；六种抽象输入事件按详细设计的固定顺序表达，新增 `dzc_input_event` CTest。
 - 验证结果：全量构建成功；`dzc_input_event` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 46/46 通过；`git diff --check` 通过；任务专用 `build-ca003` 已清理。
-- 未解决问题：CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 当时未解决问题：CA-004 尚未实现；CA-005 至 CA-007 当时仍等待参考源码。现状以 CA-006 交接记录为准：CA-006 已实现，CA-007 尚未实现。
 - 后续任务：CA-004 定义 ICameraController 和 Fake；Camera Abstraction 模块继续进行中。
 - 关联提交：未提交。
 ### CA-002（2026-08-20）
@@ -153,7 +172,7 @@
 - 完成人：Codex
 - 关键变更：提升 `Bounds3d` 为公共值类型；新增双精度 `FrustumPlane`/`ViewFrustum`、显式 `ClipDepthRange`、平面规范化、view-projection 平面提取与保守 Bounds 可见性测试；新增 `dzc_view_frustum` CTest。
 - 验证结果：全量构建成功；`dzc_view_frustum` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 45/45 通过；`git diff --check` 通过；任务专用 `build-ca002` 已清理。
-- 未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 当时未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 当时仍等待参考源码。现状以 CA-006 交接记录为准：CA-006 已实现，CA-007 尚未实现。
 - 后续任务：CA-003 定义 InputEvent；Camera Abstraction 模块继续进行中。
 - 关联提交：未提交。
 ### CA-001（2026-08-20）
@@ -161,7 +180,7 @@
 - 完成人：Codex
 - 关键变更：新增 GLM-only 的 `CameraState` 与 `CameraMatrices` 公共值类型；将 GLM 配置为 `dzc_engine_api` 的传递公共依赖；新增 `dzc_camera_types` CTest。
 - 验证结果：全量构建成功；`dzc_camera_types` 专项测试 1/1 通过；设置 `CMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows` 后完整 CTest 44/44 通过；`git diff --check` 通过；任务专用 `build-ca001` 已清理。测试覆盖默认值、成员精确类型、复制/移动和 double 精度字段保持。
-- 未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 仍等待用户提供相机参考源码和后续确认。
+- 当时未解决问题：CA-003、CA-004 尚未实现；CA-005 至 CA-007 当时仍等待参考源码。现状以 CA-006 交接记录为准：CA-006 已实现，CA-007 尚未实现。
 - 后续任务：CA-003 定义 InputEvent；Camera Abstraction 模块继续进行中。
 - 关联提交：未提交。
 
