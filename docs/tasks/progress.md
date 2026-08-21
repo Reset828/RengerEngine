@@ -44,7 +44,7 @@
 
 ## 5. Phase 1：OpenGL 基础渲染
 
-- [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001、IO-002、IO-003 已完成；IO-004 至 IO-009 与模块级验收未完成）
+- [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001、IO-002、IO-003、IO-004 已完成；IO-005 至 IO-009 与模块级验收未完成）
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：未开始
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）

@@ -13,6 +13,7 @@ add_subdirectory(src)
 if(DZC_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/unit)
+    add_subdirectory(tests/integration)
     add_subdirectory(tests/performance)
     add_test(
         NAME dzc_target_boundary
