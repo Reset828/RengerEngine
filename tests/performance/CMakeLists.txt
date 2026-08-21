@@ -1,0 +1,10 @@
+add_executable(dzc_camera_path_replay_tests
+    CameraPath.cpp
+    CameraPathTests.cpp
+)
+
+target_compile_features(dzc_camera_path_replay_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_camera_path_replay_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(dzc_camera_path_replay_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_camera_path_replay COMMAND dzc_camera_path_replay_tests)

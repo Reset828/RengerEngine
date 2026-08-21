@@ -1,7 +1,7 @@
 # 轨道相机交互设计
 
-> 状态：CA-006 已实现；CA-007 与 Engine/Qt 集成未完成
-> 追踪：FR-CAM-002、FR-CAM-003、CA-005、CA-006
+> 状态：CA-001 至 CA-007 已实现；Engine/Qt 集成与正式性能验收未完成
+> 追踪：FR-CAM-002、FR-CAM-003、CA-005、CA-006、CA-007
 > 参考来源：用户提供的未跟踪 `camera.cpp`；仅提取其透视轨道球交互、旋转限制、平移和缩放规则，不复用其 Vulkan、渲染器或模型矩阵框架。
 
 ## 1. 目标与边界
@@ -73,4 +73,9 @@ far  = max(near * 2, 1.1 * (s + r))
 
 `frustum(size)` 从相机相对空间中的 `projection * view` 用 `NegativeOneToOne` 提取规范化六平面，然后以 double `cameraOrigin` 平移为全局世界空间平面。因此返回的 `ViewFrustum` 可直接传给全局 `Bounds3d` 的 `intersects()`，而不要求调用方自行转换 Bounds。无法得到完整有效输出时遵从尺寸缓存回退契约。
 
-专项 `dzc_orbit_camera_controller` Golden/行为测试覆盖默认姿态、OpenGL 投影及世界空间视锥、轨迹球映射与防翻转、平移、释放与失焦、滚轮边界、原子失败、reset/pending reset、动态裁剪面、尺寸缓存、resize 保持视角和大坐标场景。CA-007 仍负责可重复性能路径；Engine Controller 注入和 Qt 映射仍未实现。
+专项 `dzc_orbit_camera_controller` Golden/行为测试覆盖默认姿态、OpenGL 投影及世界空间视锥、轨迹球映射与防翻转、平移、释放与失焦、滚轮边界、原子失败、reset/pending reset、动态裁剪面、尺寸缓存、resize 保持视角和大坐标场景。Engine Controller 注入和 Qt 映射仍未实现。
+
+
+## 7. CA-007 确定性路径回放
+
+`tests/performance/CameraPath.*` 仅定义内存 C++ 路径：有效 `RenderSize`、有效 `Bounds3d` 和按非递减绝对时间排列的可选 `InputEvent`。回放从默认 `OrbitCameraController` 开始，先调用 `matrices(size)` 与 `update(0, bounds)`，每一步先提交事件、以当前时间减前一步时间调用 `update`，再采样 state/matrices。`ResetRequest` 因此由同一步 update 正常执行。两次回放逐帧以 double `1e-12`、float `1e-5` 的绝对+相对容差比较；该测试不采集 FPS，也不代表 `AC-P2-011`。
