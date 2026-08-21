@@ -30,15 +30,24 @@ foreach(targetName IN LISTS _expected_targets)
 endforeach()
 
 foreach(targetName IN LISTS DZC_CONFIGURED_TARGETS)
-    if(targetName MATCHES "^(dzc_data_pcl|dzc_app)$")
-        continue()
+    set(linkText
+        "${DZC_TARGET_LINKS_${targetName}}|${DZC_TARGET_DIRECT_LINKS_${targetName}}")
+
+    if(NOT targetName STREQUAL "dzc_data_pcl" AND linkText MATCHES "PCL|pcl_")
+        message(FATAL_ERROR
+            "Only dzc_data_pcl may have a PCL dependency; ${targetName}: ${linkText}")
     endif()
-    if(DEFINED DZC_TARGET_LINKS_${targetName})
-        if(DZC_TARGET_LINKS_${targetName} MATCHES "PCL|Qt5::Widgets|Qt6::Widgets")
-            message(FATAL_ERROR "Forbidden external UI/data dependency on ${targetName}: ${DZC_TARGET_LINKS_${targetName}}")
-        endif()
+
+    if(NOT targetName STREQUAL "dzc_app" AND linkText MATCHES "Qt5::Widgets|Qt6::Widgets")
+        message(FATAL_ERROR "Forbidden external UI dependency on ${targetName}: ${linkText}")
     endif()
 endforeach()
+
+set(_pcl_direct_links "${DZC_TARGET_DIRECT_LINKS_dzc_data_pcl}")
+if(NOT _pcl_direct_links MATCHES "(^|\\|)pcl_io($|\\|)")
+    message(FATAL_ERROR
+        "dzc_data_pcl must directly link the PCL io target; got: ${_pcl_direct_links}")
+endif()
 
 set(_required_dependencies_dzc_engine_core "dzc_engine_api;dzc_data_core;dzc_render_api;dzc_compute_api;dzc_tasks;dzc_diagnostics")
 set(_required_dependencies_dzc_data_core "dzc_engine_api;dzc_tasks;dzc_diagnostics")
@@ -56,7 +65,7 @@ foreach(targetName IN ITEMS
         dzc_engine_core dzc_data_core dzc_data_pcl dzc_render_api
         dzc_render_opengl dzc_render_vulkan dzc_compute_api dzc_compute_cuda
         dzc_interop_gl dzc_interop_vk dzc_app)
-    set(linkText "${DZC_TARGET_LINKS_${targetName}}")
+    set(linkText "${DZC_TARGET_LINKS_${targetName}}|${DZC_TARGET_DIRECT_LINKS_${targetName}}")
     foreach(dependencyName IN LISTS _required_dependencies_${targetName})
         if(NOT linkText MATCHES "(^|\\|)${dependencyName}($|\\|)")
             message(FATAL_ERROR "Missing dependency ${targetName} -> ${dependencyName}: ${linkText}")
@@ -65,10 +74,10 @@ foreach(targetName IN ITEMS
 endforeach()
 
 foreach(targetName IN LISTS DZC_CONFIGURED_TARGETS)
-    if(DEFINED DZC_TARGET_LINKS_${targetName})
-        if(DZC_TARGET_LINKS_${targetName} MATCHES "dzc_app")
-            message(FATAL_ERROR "Backend or library target must not depend on UI target ${targetName}")
-        endif()
+    set(linkText "${DZC_TARGET_LINKS_${targetName}}|${DZC_TARGET_DIRECT_LINKS_${targetName}}")
+    if(linkText MATCHES "dzc_app")
+        message(FATAL_ERROR "Backend or library target must not depend on UI target ${targetName}")
     endif()
 endforeach()
+
 message(STATUS "PF-003 target and dependency boundary check passed")

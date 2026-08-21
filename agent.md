@@ -63,6 +63,7 @@
 - **MSVC 工具链**：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64`；开发环境脚本位于 `D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat`。
 - **Windows SDK**：安装在 `D:\Windows Kits\10`（而非默认 C 盘）。当前 VS 初始化脚本未正确注入 `INCLUDE`/`LIB`；使用 CMake/NMake 前须显式设置 MSVC Include/Lib、`D:\Windows Kits\10\Include\10.0.26100.0` 的 `ucrt/shared/um/winrt/cppwinrt`、及相应 x64 Lib/工具路径。
 - **GLM（vcpkg）**：`D:\vcpkg\vcpkg\installed\x64-windows`。CMake 配置须传递 `-DCMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows`；运行会启动子 CMake 的 CTest 配置冒烟测试时，也须将同一路径设置为环境变量 `CMAKE_PREFIX_PATH`。
+- **PCL 1.15.1**：安装根目录为 `D:\PCL\PCL 1.15.1`，CMake 配置目录为 `D:\PCL\PCL 1.15.1\cmake`。配置时必须通过 `-DPCL_DIR=...` 注入该目录；项目 CMake 禁止硬编码本机 PCL 路径。当前项目仅允许 `dzc_data_pcl` 私有 Target 使用 PCL。
 ## 5. 功能边界
 *   **包含**：点云加载、相机漫游、视锥体剔除、FPS 统计、CUDA 简单预处理。
 *   **不包含**：深度学习、复杂的 GIS 坐标系转换、网络下载、通用图像处理。

@@ -26,6 +26,11 @@ if(DEFINED CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_TOOLCHAIN_FILE STREQUAL "")
         -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
 endif()
 
+set(_dzc_smoke_pcl_args)
+if(DEFINED PCL_DIR AND NOT PCL_DIR STREQUAL "")
+    list(APPEND _dzc_smoke_pcl_args -DPCL_DIR=${PCL_DIR})
+endif()
+
 add_test(
     NAME dzc_configure_smoke_default
     COMMAND ${CMAKE_COMMAND}
@@ -36,6 +41,7 @@ add_test(
         -DDZC_SMOKE_MAKE_PROGRAM=${_dzc_smoke_make_program}
         -DDZC_SMOKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         ${_dzc_smoke_toolchain_args}
+        ${_dzc_smoke_pcl_args}
         -DDZC_EXPECT_OPENGL=ON
         -DDZC_EXPECT_VULKAN=OFF
         -DDZC_EXPECT_CUDA=OFF
@@ -54,6 +60,7 @@ add_test(
         -DDZC_SMOKE_MAKE_PROGRAM=${_dzc_smoke_make_program}
         -DDZC_SMOKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         ${_dzc_smoke_toolchain_args}
+        ${_dzc_smoke_pcl_args}
         -DDZC_ENABLE_OPENGL=ON
         -DDZC_ENABLE_VULKAN=OFF
         -DDZC_ENABLE_CUDA=OFF

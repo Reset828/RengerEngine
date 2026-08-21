@@ -871,7 +871,7 @@ public:
 ```
 
 Registry 以 `std::unique_ptr<Impl>` 保存两个 Creator 和路径处理细节，不可复制、可移动。`create()` 仅用 `std::filesystem::path(path).extension()` 取得最后路径组件的最后扩展名，并按 ASCII 大小写无关规则匹配 `.pcd` 与 `.ply`；因此 `dir.v1/cloud.PCD` 与 `cloud.backup.ply` 可路由。它不访问磁盘、不检查存在性、可读性或目录，也不根据文件内容猜测格式；具体 Reader 的 `open()` 负责这些工作。空路径、无扩展名、未知扩展名以及仅名为 `.pcd`/`.ply` 的隐藏式文件名都返回 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`），且不调用 Creator。选中格式的 Creator 为空、返回空 Reader、抛出标准或未知异常，或对移动后源对象调用 `create()` 时，均返回 `ErrorDomain::Internal`、错误码 1；标准异常文本仅进入诊断信息，不穿透 Registry 接口。移动目标保留原 Creator。
-`dzc_data_pcl` 内部包含 PCL 头文件并实现 PCD/PLY Reader。适配器立刻把 PCL 字段转换到标准类型和 GLM；任何 PCL 类型不得离开该 Target 的私有接口。
+IO-003 建立唯一的 PCL 私有实现 Target `dzc_data_pcl`。其 CMake 子目录执行 `find_package(PCL CONFIG REQUIRED COMPONENTS io)`，并只在该 STATIC Target 中以 `PRIVATE` 形式添加 PCL 的 include directories、compile definitions 和 `pcl_io` 链接依赖；它以 `PUBLIC` 项目依赖连接 `dzc_data_core`，但 `dzc_data_core` 不依赖 PCL。`PclTargetAnchor.cpp` 仅包含 PCL I/O 头并引用 PCL I/O 类型，作为编译/链接边界验证，不提供 Reader、Factory 或任何运行时读取逻辑。`PCL_DIR` 必须由外部 CMake 配置参数注入，项目 CMake 不得硬编码机器安装路径；缺失可用 PCL CONFIG 时配置直接失败。PCL 类型、PCL 包含和 PCL 链接依赖不得出现在公共项目头、`dzc_data_core`、渲染/计算/任务/诊断/应用 Target 或其源码中。真实 PCD/PLY Reader、Creator/Factory 和字段转换留给 IO-004 至 IO-009，IO-003 不创建 Factory API。
 
 ### 10.2 字段映射和校验
 

@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001、IO-002 已完成）
+> 模块状态：进行中（IO-001、IO-002、IO-003 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -28,7 +28,7 @@
 
 - [x] **IO-001 定义 Reader 公共内部契约**
 - [x] **IO-002 实现扩展名 Reader Registry**
-- [ ] **IO-003 建立 PCL 私有 Target**
+- [x] **IO-003 建立 PCL 私有 Target**
 - [ ] **IO-004 实现 PCD 元数据打开**
 - [ ] **IO-005 实现 PCD 批次转换**
 - [ ] **IO-006 实现 PLY 元数据打开**
@@ -66,15 +66,16 @@
 
 ### IO-003 建立 PCL 私有 Target
 
-- **状态**：未开始
-- **目标**：配置 dzc_data_pcl 并限制 PCL 头/链接可见性。
+- **状态**：已完成（2026-08-21）
+- **目标**：建立真实 `dzc_data_pcl` STATIC 实现 Target，并将 PCL 头、编译属性和链接边界限制在其中。
 - **前置任务**：project-foundation/PF-003
-- **预计文件**：`src/data/io/pcl/CMakeLists.txt`、`src/data/io/pcl/PclReaderFactory.h`
-- **实现要求**：PCL 只以 PRIVATE 依赖链接；导出头不得出现 pcl:: 类型。
-- **验收检查**：其他 Target 不需要包含 PCL 即可编译。
-- **测试要求**：CMake 依赖边界检查。
+- **实际文件**：`src/data/CMakeLists.txt`、`src/data/io/pcl/CMakeLists.txt`、`src/data/io/pcl/PclTargetAnchor.cpp`、`src/CMakeLists.txt`、`CTestConfig.cmake`、`tests/cmake/ConfigureSmoke.cmake`、`tests/cmake/TargetBoundaryCheck.cmake`、`docs/design/detailDesign.md`、`agent.md`
+- **实现结果**：`src/data/io/pcl/CMakeLists.txt` 使用 `find_package(PCL CONFIG REQUIRED COMPONENTS io)` 创建 `dzc_data_pcl`，C++17 编译；PCL include directories、compile definitions 与 `pcl_io` 均为 `PRIVATE`，而 `dzc_data_core` 是其 `PUBLIC` 项目依赖。锚定源文件只包含 `<pcl/io/pcd_io.h>` 并引用 `pcl::PCDReader`，不提供 Reader、Creator/Factory 或运行时 I/O。
+- **依赖与配置边界**：PCL 1.15.1 的 `io` 组件由外部 `-DPCL_DIR=...` 注入；未提供可用 PCL CONFIG 时配置失败，项目 CMake 不硬编码本机 PCL 路径。Target manifest 与边界检查验证 `dzc_data_pcl` 直接链接 `pcl_io` 并保留 `dzc_data_core` 依赖，其他项目 Target 不得具有 PCL 依赖；CTest 的嵌套配置会转发外层 `PCL_DIR`。
+- **验收检查**：`dzc_data_pcl` 可在不向公共头或非 PCL Target 泄露 PCL 类型的前提下配置、编译并链接 PCL I/O。
+- **测试结果**：2026-08-21 使用 MSVC 19.51.36246.0、NMake Makefiles、PCL 1.15.1（`io` 组件）、OpenGL-only Debug 干净配置完成全量构建；`cmake --build build-io003-clean --target dzc_data_pcl` 通过，`dzc_target_boundary` 1/1 通过，`dzc_reader_contract` 与 `dzc_reader_registry` 2/2 通过，完整 `ctest --test-dir build-io003-clean --output-on-failure` 为 51/51 通过；公共头及非 PCL Target 源码的 PCL 扫描、`git diff --check` 均通过。
+- **未解决问题**：真实 PCD/PLY Reader、Creator/Factory、文件打开、字段/批次转换、I/O 并发与背压、进度和错误转换留给 IO-004 至 IO-009。
 - **追踪**：ADR-003、PCL 仅 I/O
-
 ### IO-004 实现 PCD 元数据打开
 
 - **状态**：未开始
@@ -152,9 +153,9 @@
 
 - 完成日期：2026-08-21
 - 完成人：Codex
-- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试，并完成 IO-002 固定 PCD/PLY 的构造注入式 Reader Registry、Pimpl 实现和 Fake Creator 路由/错误隔离/移动语义测试；统一详细设计的 Task 错误码表；Point Cloud I/O 模块保持进行中状态。
-- 未解决问题：真实 PCD/PLY Reader、PCL 私有 Target、字段映射、I/O 并发/背压、进度和错误转换尚未实施，留给 IO-003 至 IO-009。
-- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过；`git diff --check` 通过。
+- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试，完成 IO-002 固定 PCD/PLY 的构造注入式 Reader Registry、Pimpl 实现和 Fake Creator 路由/错误隔离/移动语义测试，并完成 IO-003 的真实 `dzc_data_pcl` 私有 PCL Target、PCL CONFIG/io 组件隔离、配置冒烟参数转发与 Target 边界检查；统一详细设计的 Task 错误码表；Point Cloud I/O 模块保持进行中状态。
+- 未解决问题：真实 PCD/PLY Reader、Creator/Factory、文件打开、字段映射、I/O 并发/背压、进度和错误转换尚未实施，留给 IO-004 至 IO-009。
+- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。
 - 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束

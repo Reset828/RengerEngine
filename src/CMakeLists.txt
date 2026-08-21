@@ -56,7 +56,7 @@ target_link_libraries(dzc_data_core PUBLIC
     dzc_tasks
     dzc_diagnostics
 )
-target_link_libraries(dzc_data_pcl INTERFACE dzc_data_core)
+target_link_libraries(dzc_data_pcl PUBLIC dzc_data_core)
 
 target_link_libraries(dzc_render_api INTERFACE
     dzc_engine_api
@@ -108,9 +108,7 @@ if(DZC_ENABLE_VULKAN)
     endif()
 endif()
 
-# PF-003 intentionally defers Qt/PCL discovery. When concrete application or
-# point-cloud I/O sources are implemented, only dzc_app may link Qt Widgets and
-# only dzc_data_pcl may link PCL.
+# dzc_app is the only Target allowed to link Qt Widgets; dzc_data_pcl is the`r`n# only Target allowed to link PCL. The latter discovers PCL in src/data/io/pcl.
 if(DZC_ENABLE_OPENGL)
     target_link_libraries(dzc_render_opengl INTERFACE OpenGL::GL)
 endif()
@@ -129,11 +127,14 @@ foreach(targetName IN LISTS DZC_FOUNDATION_TARGETS)
         set(targetLinks "")
     endif()
     string(REPLACE ";" "|" targetLinksText "${targetLinks}")
+    get_target_property(targetDirectLinks ${targetName} LINK_LIBRARIES)
+    if(targetDirectLinks STREQUAL "targetDirectLinks-NOTFOUND")
+        set(targetDirectLinks "")
+    endif()
+    string(REPLACE ";" "|" targetDirectLinksText "${targetDirectLinks}")
     string(APPEND _dzc_manifest
         "set(DZC_TARGET_LINKS_${targetName} \"${targetLinksText}\")\n"
+        "set(DZC_TARGET_DIRECT_LINKS_${targetName} \"${targetDirectLinksText}\")\n"
     )
 endforeach()
-file(GENERATE
-    OUTPUT "${CMAKE_BINARY_DIR}/DzcTargetManifest.cmake"
-    CONTENT "${_dzc_manifest}"
-)
+file(WRITE "${CMAKE_BINARY_DIR}/DzcTargetManifest.cmake" "${_dzc_manifest}")
