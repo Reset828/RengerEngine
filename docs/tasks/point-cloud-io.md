@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：未开始  
+> 模块状态：进行中（IO-001 已完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **IO-001 定义 Reader 公共内部契约**
+- [x] **IO-001 定义 Reader 公共内部契约**
 - [ ] **IO-002 实现扩展名 Reader Registry**
 - [ ] **IO-003 建立 PCL 私有 Target**
 - [ ] **IO-004 实现 PCD 元数据打开**
@@ -40,13 +40,15 @@
 
 ### IO-001 定义 Reader 公共内部契约
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-21）
 - **目标**：实现 open/readNext/close 和 PointCloudSourceInfo。
 - **前置任务**：point-cloud-data/PD-003, task-system/TS-001
-- **预计文件**：`src/data/io/IPointCloudReader.h`、`src/data/io/PointCloudSourceInfo.h`、`tests/unit/ReaderContractTests.cpp`
-- **实现要求**：接口只使用标准类型和 GLM 数据；readNext 返回可选批次。
-- **验收检查**：Fake Reader 可按批次读取并响应取消。
-- **测试要求**：契约测试正常结束、空数据、取消、重复 close。
+- **实际文件**：`src/data/io/IPointCloudReader.h`、`src/data/io/PointCloudSourceInfo.h`、`tests/unit/ReaderContractTests.cpp`、`tests/unit/CMakeLists.txt`
+- **实现结果**：在 `namespace dzc` 中定义仅使用标准类型、既有数据值类型和 GLM（经 `PointBatch`）的 Reader 抽象及源元数据值类型；不引入 PCL、格式探测或工厂接口。Reader 不可复制、不可移动；后续工厂可用 `std::unique_ptr<IPointCloudReader>` 管理具体实现。
+- **生命周期与错误语义**：成功 `open()` 后才允许读取；重复 `open()`、未打开读取和关闭后读取使用 `ErrorDomain::Task`、`TaskErrorCode::InvalidTask`（1）。成功空 `optional` 表示 EOF，EOF 后可重复读取空值；`close()` 幂等且关闭后可重新打开。零 `maximumPoints` 使用 `ErrorDomain::Configuration`、错误码 1（`InvalidValue`），不推进读取；取消使用 `ErrorDomain::Task`、`TaskErrorCode::Cancelled`（7），不产生新批次。
+- **验收检查**：Fake Reader 可按最大点数读取并响应取消；每个返回批次通过 `PointBatch::validate()`。
+- **测试结果**：2026-08-21 以 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置完成全量构建；`dzc_reader_contract` 专项测试 1/1 通过，完整 CTest 50/50 通过；`git diff --check` 通过。
+- **未解决问题**：真实 PCD/PLY 读取、Registry、PCL 隔离、字段映射、进度、并发与背压留给 IO-002 至 IO-009。
 - **追踪**：FR-DATA-001、10.1
 
 ### IO-002 实现扩展名 Reader Registry
@@ -146,12 +148,12 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成日期：2026-08-21
+- 完成人：Codex
+- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试；统一详细设计的 Task 错误码表；Point Cloud I/O 模块进入进行中状态。
+- 未解决问题：真实 PCD/PLY Reader、Registry、PCL 私有 Target、字段映射、I/O 并发/背压、进度和错误转换尚未实施，留给 IO-002 至 IO-009。
+- 测试命令与结果：使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过；`git diff --check` 通过。
+- 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束
 

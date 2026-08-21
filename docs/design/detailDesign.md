@@ -852,6 +852,8 @@ public:
 };
 ```
 
+`readNext()` 只能在成功 `open()` 后调用；重复 `open()`、未打开读取和关闭后读取均返回 `ErrorDomain::Task`、`TaskErrorCode::InvalidTask`。成功的空 `optional` 表示 EOF，EOF 后继续读取仍返回成功空值。`maximumPoints` 必须大于 0，零值返回 `ErrorDomain::Configuration`、错误码 `1`（`InvalidValue`），且不推进读取位置。若 Token 已取消，`readNext()` 返回 `ErrorDomain::Task`、`TaskErrorCode::Cancelled`，且不产生新批次。`close()` 幂等；关闭后 Reader 可重新 `open()`。
+
 `dzc_data_pcl` 内部包含 PCL 头文件并实现 PCD/PLY Reader。适配器立刻把 PCL 字段转换到标准类型和 GLM；任何 PCL 类型不得离开该 Target 的私有接口。
 
 ### 10.2 字段映射和校验
@@ -1595,9 +1597,13 @@ public:
 | DataFormat | 1 | MissingPosition | 拒绝数据集 |
 | DataFormat | 2 | CorruptData | 拒绝数据集或缓存重建 |
 | DataFormat | 3 | NumericOverflow | 拒绝对应输入 |
-| Task | 1 | Cancelled | 正常取消事件 |
-| Task | 2 | QueueFull | 调用方稍后重试/合并 |
-| Task | 3 | QueueClosed | 忽略新任务并关闭 |
+| Task | 1 | InvalidTask | 拒绝无效任务或非法生命周期调用 |
+| Task | 2 | NotAccepting | 停止接收后拒绝新任务 |
+| Task | 3 | QueueFull | 调用方稍后重试/合并 |
+| Task | 4 | TaskIdExhausted | 拒绝新任务 |
+| Task | 5 | UnhandledException | 记录并继续后续任务 |
+| Task | 6 | UnknownException | 记录并继续后续任务 |
+| Task | 7 | Cancelled | 正常取消事件 |
 | OpenGL | 1 | UnsupportedVersion | Phase 1 初始化失败 |
 | OpenGL | 2 | ShaderCompileFailed | 初始化/绘制配置失败 |
 | OpenGL | 3 | ResourceCreationFailed | 淘汰后重试或报错 |

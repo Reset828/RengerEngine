@@ -398,3 +398,13 @@ target_compile_features(dzc_orbit_camera_controller_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_orbit_camera_controller_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_orbit_camera_controller COMMAND dzc_orbit_camera_controller_tests)
+
+add_executable(dzc_reader_contract_tests
+    ReaderContractTests.cpp
+)
+
+target_compile_features(dzc_reader_contract_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_reader_contract_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_reader_contract_tests PRIVATE dzc_data_core dzc_tasks dzc_engine_api)
+
+add_test(NAME dzc_reader_contract COMMAND dzc_reader_contract_tests)
