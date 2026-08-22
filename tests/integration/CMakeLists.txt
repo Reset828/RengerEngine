@@ -40,3 +40,17 @@ target_link_libraries(dzc_ply_reader_tests PRIVATE
 )
 
 add_test(NAME dzc_ply_reader COMMAND dzc_ply_reader_tests)
+add_executable(dzc_ply_batch_tests
+    PlyBatchTests.cpp
+)
+
+target_compile_features(dzc_ply_batch_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_ply_batch_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_ply_batch_tests PRIVATE
+    dzc_data_pcl
+    dzc_data_core
+    dzc_tasks
+    dzc_engine_api
+)
+
+add_test(NAME dzc_ply_batch COMMAND dzc_ply_batch_tests)

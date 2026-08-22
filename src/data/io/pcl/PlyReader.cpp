@@ -1,5 +1,7 @@
 #include "data/io/pcl/PlyReader.h"
 
+#include "data/chunk/IntensityQuantizer.h"
+
 #include <dzc/Error.h>
 
 #include <pcl/PCLPointCloud2.h>
@@ -8,11 +10,14 @@
 
 #include <Eigen/Geometry>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -345,12 +350,171 @@ bool declaredPointCount(
     return true;
 }
 
+Error corruptPlyDataError(std::string diagnosticMessage) {
+    return makeError(
+        ErrorDomain::DataFormat,
+        kCorruptDataCode,
+        "The PLY source data is invalid or cannot be read.",
+        std::move(diagnosticMessage),
+        "PlyReader::readNext");
+}
+
+Error cancelledError() {
+    return makeError(
+        ErrorDomain::Task,
+        kCancelledCode,
+        "Point cloud read cancelled.",
+        "PlyReader::readNext() observed a requested cancellation.",
+        "PlyReader::readNext");
+}
+
+std::size_t datatypeSize(std::uint8_t datatype) noexcept {
+    switch (datatype) {
+    case pcl::PCLPointField::INT8:
+    case pcl::PCLPointField::UINT8:
+        return 1U;
+    case pcl::PCLPointField::INT16:
+    case pcl::PCLPointField::UINT16:
+        return 2U;
+    case pcl::PCLPointField::INT32:
+    case pcl::PCLPointField::UINT32:
+    case pcl::PCLPointField::FLOAT32:
+        return 4U;
+    case pcl::PCLPointField::INT64:
+    case pcl::PCLPointField::UINT64:
+    case pcl::PCLPointField::FLOAT64:
+        return 8U;
+    default:
+        return 0U;
+    }
+}
+
+bool validateFieldFitsPoint(
+    const pcl::PCLPointField& field,
+    std::size_t pointStep,
+    std::string& diagnosticMessage) {
+    const std::size_t size = datatypeSize(field.datatype);
+    std::uint64_t offset = 0U;
+    if (size == 0U || !convertToUint64(field.offset, offset) ||
+        offset > pointStep || size > pointStep - static_cast<std::size_t>(offset)) {
+        diagnosticMessage = "PLY field offset or datatype exceeds the point record size.";
+        return false;
+    }
+    return true;
+}
+
+bool validateReadableCloud(
+    const pcl::PCLPointCloud2& cloud,
+    std::uint64_t expectedPointCount,
+    bool hasColor,
+    bool colorHasAlpha,
+    bool hasIntensity,
+    AttributeSchema& schema,
+    const pcl::PCLPointField*& x,
+    const pcl::PCLPointField*& y,
+    const pcl::PCLPointField*& z,
+    const pcl::PCLPointField*& color,
+    const pcl::PCLPointField*& intensity,
+    std::string& diagnosticMessage) {
+    std::uint64_t actualPointCount = 0U;
+    if (!declaredPointCount(cloud, actualPointCount) || actualPointCount != expectedPointCount) {
+        diagnosticMessage = "PLY body dimensions do not match the point count declared by its header.";
+        return false;
+    }
+    if (!validatePclMetadata(cloud, hasColor, colorHasAlpha, hasIntensity, schema, diagnosticMessage)) {
+        return false;
+    }
+
+    x = findUniqueField(cloud, "x");
+    y = findUniqueField(cloud, "y");
+    z = findUniqueField(cloud, "z");
+    color = hasColor ? findUniqueField(cloud, colorHasAlpha ? "rgba" : "rgb") : nullptr;
+    intensity = hasIntensity ? findUniqueField(cloud, "intensity") : nullptr;
+    if (x == nullptr || y == nullptr || z == nullptr ||
+        (hasColor && color == nullptr) || (hasIntensity && intensity == nullptr)) {
+        diagnosticMessage = "PLY body field definitions are incomplete or invalid.";
+        return false;
+    }
+
+    std::uint64_t pointStepValue = 0U;
+    if (!convertToUint64(cloud.point_step, pointStepValue) || pointStepValue == 0U ||
+        pointStepValue > std::numeric_limits<std::size_t>::max()) {
+        diagnosticMessage = "PLY point record size is invalid.";
+        return false;
+    }
+    const std::size_t pointStep = static_cast<std::size_t>(pointStepValue);
+    if (!validateFieldFitsPoint(*x, pointStep, diagnosticMessage) ||
+        !validateFieldFitsPoint(*y, pointStep, diagnosticMessage) ||
+        !validateFieldFitsPoint(*z, pointStep, diagnosticMessage) ||
+        (color != nullptr && !validateFieldFitsPoint(*color, pointStep, diagnosticMessage)) ||
+        (intensity != nullptr && !validateFieldFitsPoint(*intensity, pointStep, diagnosticMessage))) {
+        return false;
+    }
+
+    std::uint64_t width = 0U;
+    std::uint64_t height = 0U;
+    std::uint64_t rowStep = 0U;
+    if (!convertToUint64(cloud.width, width) || !convertToUint64(cloud.height, height) ||
+        !convertToUint64(cloud.row_step, rowStep) ||
+        width > std::numeric_limits<std::size_t>::max() / pointStep ||
+        rowStep != width * pointStep ||
+        height > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(rowStep) ||
+        cloud.data.size() != static_cast<std::size_t>(height) * static_cast<std::size_t>(rowStep)) {
+        diagnosticMessage = "PLY point data length or row layout does not match its dimensions and point record size.";
+        return false;
+    }
+    return true;
+}
+
+template <typename Value>
+Value readValue(const std::uint8_t* source) noexcept {
+    Value value{};
+    std::memcpy(&value, source, sizeof(Value));
+    return value;
+}
+
+bool readNumericScalar(const std::uint8_t* source, std::uint8_t datatype, double& value) noexcept {
+    switch (datatype) {
+    case pcl::PCLPointField::INT8: value = static_cast<double>(readValue<std::int8_t>(source)); return true;
+    case pcl::PCLPointField::UINT8: value = static_cast<double>(readValue<std::uint8_t>(source)); return true;
+    case pcl::PCLPointField::INT16: value = static_cast<double>(readValue<std::int16_t>(source)); return true;
+    case pcl::PCLPointField::UINT16: value = static_cast<double>(readValue<std::uint16_t>(source)); return true;
+    case pcl::PCLPointField::INT32: value = static_cast<double>(readValue<std::int32_t>(source)); return true;
+    case pcl::PCLPointField::UINT32: value = static_cast<double>(readValue<std::uint32_t>(source)); return true;
+    case pcl::PCLPointField::INT64: value = static_cast<double>(readValue<std::int64_t>(source)); return true;
+    case pcl::PCLPointField::UINT64: value = static_cast<double>(readValue<std::uint64_t>(source)); return true;
+    case pcl::PCLPointField::FLOAT32: value = static_cast<double>(readValue<float>(source)); return true;
+    case pcl::PCLPointField::FLOAT64: value = readValue<double>(source); return true;
+    default: return false;
+    }
+}
+
+std::uint32_t normalizePackedColor(std::uint32_t packed, bool hasAlpha) noexcept {
+    const std::uint32_t red = (packed >> 16U) & 0xFFU;
+    const std::uint32_t green = (packed >> 8U) & 0xFFU;
+    const std::uint32_t blue = packed & 0xFFU;
+    const std::uint32_t alpha = hasAlpha ? ((packed >> 24U) & 0xFFU) : 0xFFU;
+    return (red << 24U) | (green << 16U) | (blue << 8U) | alpha;
+}
+
 } // namespace
 
 class PlyReader::Impl final {
 public:
     pcl::PLYReader reader;
+    std::string sourcePath;
+    AttributeSchema schema;
+    std::uint64_t declaredPointCount{0U};
+    std::vector<glm::dvec3> positions;
+    std::vector<std::uint32_t> colors;
+    std::vector<std::uint16_t> intensities;
+    std::optional<Error> terminalError;
+    std::size_t nextPoint{0U};
+    bool hasColor{false};
+    bool colorHasAlpha{false};
+    bool hasIntensity{false};
     bool isOpen{false};
+    bool isConverted{false};
 };
 
 PlyReader::PlyReader()
@@ -415,6 +579,12 @@ Result<PointCloudSourceInfo> PlyReader::open(const std::string& path) {
                 "PLY header width and height cannot be represented as a uint64 point count."));
         }
 
+        m_impl->sourcePath = path;
+        m_impl->schema = sourceInfo.schema;
+        m_impl->declaredPointCount = sourceInfo.declaredPointCount;
+        m_impl->hasColor = hasColor;
+        m_impl->colorHasAlpha = hasAlpha;
+        m_impl->hasIntensity = hasIntensity;
         m_impl->isOpen = true;
         return Result<PointCloudSourceInfo>::success(std::move(sourceInfo));
     } catch (const std::exception& exception) {
@@ -446,23 +616,190 @@ Result<std::optional<PointBatch>> PlyReader::readNext(
             "PlyReader::readNext"));
     }
     if (token.isCancellationRequested()) {
-        return Result<std::optional<PointBatch>>::failure(makeError(
-            ErrorDomain::Task,
-            kCancelledCode,
-            "Point cloud read cancelled.",
-            "readNext() observed a requested cancellation.",
-            "PlyReader::readNext"));
+        return Result<std::optional<PointBatch>>::failure(cancelledError());
     }
-    return Result<std::optional<PointBatch>>::failure(makeError(
-        ErrorDomain::Internal,
-        kInternalErrorCode,
-        "PLY batch reading is not available yet.",
-        "PlyReader metadata opening is implemented; point batch conversion is deferred to IO-007.",
-        "PlyReader::readNext"));
+    if (!m_impl->isConverted && m_impl->declaredPointCount == 0U) {
+        m_impl->isConverted = true;
+        return Result<std::optional<PointBatch>>::success(std::nullopt);
+    }
+    if (m_impl->terminalError.has_value()) {
+        return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+    }
+
+    if (!m_impl->isConverted) {
+        try {
+            pcl::PCLPointCloud2 cloud;
+            const int readResult = m_impl->reader.read(m_impl->sourcePath, cloud);
+            if (readResult < 0) {
+                m_impl->terminalError = corruptPlyDataError(
+                    "pcl::PLYReader::read() returned " + std::to_string(readResult) + ".");
+                return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+            }
+            if (token.isCancellationRequested()) {
+                return Result<std::optional<PointBatch>>::failure(cancelledError());
+            }
+
+            AttributeSchema schema;
+            const pcl::PCLPointField* x = nullptr;
+            const pcl::PCLPointField* y = nullptr;
+            const pcl::PCLPointField* z = nullptr;
+            const pcl::PCLPointField* color = nullptr;
+            const pcl::PCLPointField* intensity = nullptr;
+            std::string validationDiagnostic;
+            if (!validateReadableCloud(
+                    cloud,
+                    m_impl->declaredPointCount,
+                    m_impl->hasColor,
+                    m_impl->colorHasAlpha,
+                    m_impl->hasIntensity,
+                    schema,
+                    x,
+                    y,
+                    z,
+                    color,
+                    intensity,
+                    validationDiagnostic)) {
+                m_impl->terminalError = corruptPlyDataError(std::move(validationDiagnostic));
+                return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+            }
+            if (schema.mask != m_impl->schema.mask) {
+                m_impl->terminalError = corruptPlyDataError(
+                    "PLY body fields do not match the attribute schema declared by its header.");
+                return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+            }
+
+            const std::size_t pointCount = static_cast<std::size_t>(m_impl->declaredPointCount);
+            const std::size_t pointStep = static_cast<std::size_t>(cloud.point_step);
+            std::vector<glm::dvec3> positions;
+            std::vector<std::uint32_t> colors;
+            std::vector<double> intensityValues;
+            positions.reserve(pointCount);
+            if (color != nullptr) {
+                colors.reserve(pointCount);
+            }
+            if (intensity != nullptr) {
+                intensityValues.reserve(pointCount);
+            }
+
+            for (std::size_t index = 0U; index < pointCount; ++index) {
+                if (token.isCancellationRequested()) {
+                    return Result<std::optional<PointBatch>>::failure(cancelledError());
+                }
+                const std::uint8_t* point = cloud.data.data() + index * pointStep;
+                double xValue = 0.0;
+                double yValue = 0.0;
+                double zValue = 0.0;
+                if (!readNumericScalar(point + static_cast<std::size_t>(x->offset), x->datatype, xValue) ||
+                    !readNumericScalar(point + static_cast<std::size_t>(y->offset), y->datatype, yValue) ||
+                    !readNumericScalar(point + static_cast<std::size_t>(z->offset), z->datatype, zValue)) {
+                    m_impl->terminalError = corruptPlyDataError("PLY coordinate field datatype cannot be decoded.");
+                    return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+                }
+                if (!std::isfinite(xValue) || !std::isfinite(yValue) || !std::isfinite(zValue)) {
+                    continue;
+                }
+
+                positions.emplace_back(xValue, yValue, zValue);
+                if (color != nullptr) {
+                    colors.push_back(normalizePackedColor(
+                        readValue<std::uint32_t>(point + static_cast<std::size_t>(color->offset)),
+                        m_impl->colorHasAlpha));
+                }
+                if (intensity != nullptr) {
+                    double intensityValue = 0.0;
+                    if (!readNumericScalar(
+                            point + static_cast<std::size_t>(intensity->offset),
+                            intensity->datatype,
+                            intensityValue)) {
+                        m_impl->terminalError = corruptPlyDataError(
+                            "PLY intensity field datatype cannot be decoded.");
+                        return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+                    }
+                    intensityValues.push_back(intensityValue);
+                }
+            }
+
+            if (m_impl->declaredPointCount != 0U && positions.empty()) {
+                m_impl->terminalError = corruptPlyDataError(
+                    "All declared PLY points have non-finite coordinates.");
+                return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+            }
+
+            std::vector<std::uint16_t> intensities;
+            if (intensity != nullptr) {
+                const Result<IntensityQuantizationResult> quantized =
+                    IntensityQuantizer::quantize(intensityValues);
+                if (!quantized.hasValue()) {
+                    m_impl->terminalError = corruptPlyDataError(
+                        "PLY intensity quantization failed: " + quantized.error().diagnosticMessage);
+                    return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+                }
+                intensities = quantized.value().values;
+            }
+            if (token.isCancellationRequested()) {
+                return Result<std::optional<PointBatch>>::failure(cancelledError());
+            }
+
+            m_impl->positions = std::move(positions);
+            m_impl->colors = std::move(colors);
+            m_impl->intensities = std::move(intensities);
+            m_impl->isConverted = true;
+        } catch (const std::exception& exception) {
+            m_impl->terminalError = corruptPlyDataError(
+                std::string("PLY data loading or conversion threw: ") + exception.what());
+            return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+        } catch (...) {
+            m_impl->terminalError = corruptPlyDataError("PLY data loading or conversion threw an unknown exception.");
+            return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+        }
+    }
+
+    if (m_impl->nextPoint >= m_impl->positions.size()) {
+        return Result<std::optional<PointBatch>>::success(std::nullopt);
+    }
+
+    const std::size_t remaining = m_impl->positions.size() - m_impl->nextPoint;
+    const std::size_t count = remaining < maximumPoints ? remaining : maximumPoints;
+    const std::size_t end = m_impl->nextPoint + count;
+    PointBatch batch{};
+    batch.schema = m_impl->schema;
+    batch.positions.assign(
+        m_impl->positions.begin() + static_cast<std::ptrdiff_t>(m_impl->nextPoint),
+        m_impl->positions.begin() + static_cast<std::ptrdiff_t>(end));
+    if (batch.schema.hasColor()) {
+        batch.colorsRgba8.assign(
+            m_impl->colors.begin() + static_cast<std::ptrdiff_t>(m_impl->nextPoint),
+            m_impl->colors.begin() + static_cast<std::ptrdiff_t>(end));
+    }
+    if (batch.schema.hasIntensity()) {
+        batch.intensities.assign(
+            m_impl->intensities.begin() + static_cast<std::ptrdiff_t>(m_impl->nextPoint),
+            m_impl->intensities.begin() + static_cast<std::ptrdiff_t>(end));
+    }
+    const Result<void> validation = batch.validate();
+    if (!validation.hasValue()) {
+        m_impl->terminalError = corruptPlyDataError(
+            "PlyReader produced an invalid batch: " + validation.error().diagnosticMessage);
+        return Result<std::optional<PointBatch>>::failure(*m_impl->terminalError);
+    }
+    m_impl->nextPoint = end;
+    return Result<std::optional<PointBatch>>::success(std::optional<PointBatch>{std::move(batch)});
 }
 
 void PlyReader::close() noexcept {
+    m_impl->sourcePath.clear();
+    m_impl->schema = {};
+    m_impl->declaredPointCount = 0U;
+    m_impl->positions.clear();
+    m_impl->colors.clear();
+    m_impl->intensities.clear();
+    m_impl->terminalError.reset();
+    m_impl->nextPoint = 0U;
+    m_impl->hasColor = false;
+    m_impl->colorHasAlpha = false;
+    m_impl->hasIntensity = false;
     m_impl->isOpen = false;
+    m_impl->isConverted = false;
 }
 
 } // namespace dzc

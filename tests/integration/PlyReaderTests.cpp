@@ -268,7 +268,11 @@ void testLifecycleAndDeferredReadErrors(const TemporaryDirectory& directory) {
     assertError(reader.open(secondPath.string()), dzc::ErrorDomain::Task, kInvalidTaskCode);
     assertError(reader.readNext(0U, cancellationSource.token()), dzc::ErrorDomain::Configuration, kInvalidValueCode);
     assertError(reader.readNext(1U, cancellationSource.token()), dzc::ErrorDomain::Task, kCancelledCode);
-    assertError(reader.readNext(1U, {}), dzc::ErrorDomain::Internal, kInternalErrorCode);
+    const auto batch = reader.readNext(1U, {});
+    assert(batch.hasValue());
+    assert(batch.value().has_value());
+    assert(batch.value()->positions.size() == 1U);
+    assert((batch.value()->positions[0] == glm::dvec3{1.0, 2.0, 3.0}));
 
     reader.close();
     reader.close();

@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001 至 IO-006 已完成；IO-007 至 IO-009 与模块级验收未完成）
+> 模块状态：进行中（IO-001 至 IO-007 已完成；IO-008 至 IO-009 与模块级验收未完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -32,7 +32,7 @@
 - [x] **IO-004 实现 PCD 元数据打开**
 - [x] **IO-005 实现 PCD 批次转换**
 - [x] **IO-006 实现 PLY 元数据打开**
-- [ ] **IO-007 实现 PLY 批次转换**
+- [x] **IO-007 实现 PLY 批次转换**
 - [ ] **IO-008 接入 I/O 并发与背压**
 - [ ] **IO-009 实现 Reader 错误与进度转换**
 
@@ -104,21 +104,22 @@
 - **前置任务**：IO-003, IO-001
 - **实际文件**：`src/data/io/pcl/PlyReader.h`、`src/data/io/pcl/PlyReader.cpp`、`src/data/io/pcl/CMakeLists.txt`、`tests/integration/PlyReaderTests.cpp`、`tests/integration/CMakeLists.txt`、`docs/design/detailDesign.md`、`docs/tasks/progress.md`、`上下文.md`
 - **实现结果**：新增 Pimpl 封装的 Header-only `PlyReader`。`open()` 调用 `pcl::PLYReader::readHeader()`，支持 ASCII 与 binary_little_endian，仅读取头部并保持源文件不变；同时扫描至 `end_header` 的原始声明，严格校验唯一数值标量 x/y/z，完整 uint8 red/green/blue 与可选 uint8 alpha，以及唯一数值标量 intensity。未知顶点标量属性和非顶点元素不进入 schema；PCL 归并后的 `rgb`/`rgba` 仅在原始组件校验成功后映射为 Color。声明点数安全计算，Bounds 和 IntensityMetadata 保持默认值；批次读取留给 IO-007。
-- **错误与生命周期**：文件、PLY 解析、格式、字段、PCL 或点数溢出错误统一为 `ErrorDomain::DataFormat`、错误码 2；重复 `open()` 返回 `Task/1`；`close()` 幂等并支持重新打开；IO-007 前 `readNext()` 保持未打开 `Task/1`、零上限 `Configuration/1`、取消 `Task/7` 的优先级，其他已打开调用返回 `Internal/1`。
+- **错误与生命周期**：文件、PLY 解析、格式、字段、PCL 或点数溢出错误统一为 `ErrorDomain::DataFormat`、错误码 2；重复 `open()` 返回 `Task/1`；`close()` 幂等并支持重新打开；IO-007 前 `readNext()` 的过渡 `Internal/1` 行为已由 IO-007 的真实批次转换替换。
 - **集成测试**：新增无 PCL include 的 `dzc_ply_reader`，覆盖 ASCII XYZ、ASCII RGB/intensity/未知属性/face、binary_little_endian RGBA、零点、损坏/缺坐标/重复/大小写/部分颜色/非法类型/不支持格式、生命周期和源文件不修改。
 - **验证结果**：2026-08-22 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug、PCL 1.15.1/io 完成 `build-io006-clean` 干净全量构建；设置测试进程 PATH 为 PCL bin、VTK bin 和 OpenNI2 Redist 后，`dzc_ply_reader` 及 Reader/PCL 专项通过；完整 CTest 与隔离扫描待最终验证。
 - **追踪**：FR-DATA-001、10.2
 
 ### IO-007 实现 PLY 批次转换
 
-- **状态**：未开始
-- **目标**：输出规范化 PointBatch 并支持取消。
+- **状态**：已完成（2026-08-22）
+- **目标**：输出规范化 `PointBatch` 并支持取消。
 - **前置任务**：IO-006, point-cloud-data/PD-004
-- **预计文件**：`src/data/io/pcl/PlyReader.cpp`、`tests/integration/PlyBatchTests.cpp`
-- **实现要求**：转换规则与 PCD 一致；第三方类型不得逃逸。
-- **验收检查**：批次长度、属性和结束语义正确。
-- **测试要求**：跨批次、颜色、intensity、无效点、取消测试。
-- **追踪**：FR-DATA-003/004、NFR-PORT-003
+- **实际文件**：`src/data/io/pcl/PlyReader.cpp`、`tests/integration/PlyReaderTests.cpp`、`tests/integration/PlyBatchTests.cpp`、`tests/integration/CMakeLists.txt`、`docs/design/detailDesign.md`、`docs/tasks/point-cloud-io.md`、`docs/tasks/progress.md`、`上下文.md`
+- **实现结果**：`PlyReader` 在首次有效 `readNext()` 惰性调用 `pcl::PLYReader::read()`，私有转换并缓存 SoA，随后按 `maximumPoints` 返回 `PointBatch`；公共接口和公共头不暴露 PCL。读取后严格对照 `open()` 的原始 PLY Header 语义和声明点数，校验 PCL 输出的字段、步长、偏移及数据长度。XYZ 转为 `glm::dvec3` 并跳过 NaN/Inf；非空云全部坐标无效时返回稳定 `DataFormat/2`。已预校验的 RGB/RGBA 输出 `0xRRGGBBAA`（RGB alpha 固定 `0xFF`）；intensity 只对有效坐标点用整份数据的统一范围量化，非有限值输出 0。数据、字段、布局、转换或 PCL 异常均在关闭前稳定返回 `DataFormat/2`。`readNext()` 优先级为未打开 `Task/1`、零上限 `Configuration/1`、已取消 `Task/7`、零点 EOF、稳定格式错误、首次转换、批次和重复 EOF；取消不产生部分批次、不推进游标，未取消调用可从未提交的转换或当前批次继续。
+- **集成测试**：新增无 PCL include 的 `dzc_ply_batch`，覆盖 ASCII 多批次/EOF/源文件不修改、little-endian Binary RGB/RGBA、全文件 intensity 量化、NaN/Inf 坐标过滤、全无效/空云、ASCII/Binary 截断、稳定错误、读取前后取消、零上限和关闭后重新打开；更新 `dzc_ply_reader` 的生命周期断言以验证真实读取。
+- **验证结果**：2026-08-22 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug、PCL 1.15.1/io 和外部 DLL PATH 完成干净构建；专项、回归、Target 边界、完整 CTest、隔离扫描与 `git diff --check` 的最终记录见本次交接记录。
+- **未解决问题**：Creator/Factory、I/O 并发与背压（IO-008）、进度与错误事件转换（IO-009）及模块级验收仍未完成。
+- **追踪**：FR-DATA-003/004、NFR-PORT-003、10.2
 
 ### IO-008 接入 I/O 并发与背压
 
