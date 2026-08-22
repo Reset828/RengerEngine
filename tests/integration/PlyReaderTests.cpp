@@ -280,6 +280,35 @@ void testLifecycleAndDeferredReadErrors(const TemporaryDirectory& directory) {
     assert(reader.open(secondPath.string()).hasValue());
 }
 
+void testReaderProgressTracksSourceConsumption(const TemporaryDirectory& directory) {
+    const std::filesystem::path path = directory.path() / "progress.ply";
+    writeTextFile(path, xyzHeader(2U) + "1 2 3\n4 5 6\n");
+
+    dzc::PlyReader reader;
+    assert(reader.open(path.string()).hasValue());
+    const auto initial = reader.readProgress();
+    assert(initial.hasValue());
+    assert(initial.value().consumedSourcePoints == 0U);
+    assert(initial.value().totalSourcePoints.has_value());
+    assert(*initial.value().totalSourcePoints == 2U);
+
+    const auto firstBatch = reader.readNext(1U, {});
+    assert(firstBatch.hasValue());
+    assert(firstBatch.value().has_value());
+    const auto converted = reader.readProgress();
+    assert(converted.hasValue());
+    assert(converted.value().consumedSourcePoints == 2U);
+    assert(converted.value().totalSourcePoints == initial.value().totalSourcePoints);
+
+    reader.close();
+    assertError(reader.readProgress(), dzc::ErrorDomain::Task, kInvalidTaskCode);
+    assert(reader.open(path.string()).hasValue());
+    const auto reopened = reader.readProgress();
+    assert(reopened.hasValue());
+    assert(reopened.value().consumedSourcePoints == 0U);
+    assert(reopened.value().totalSourcePoints == initial.value().totalSourcePoints);
+}
+
 } // namespace
 
 int main() {
@@ -290,5 +319,6 @@ int main() {
     testAllowsZeroPointHeader(directory);
     testReportsInvalidHeadersAsCorruptData(directory);
     testLifecycleAndDeferredReadErrors(directory);
+    testReaderProgressTracksSourceConsumption(directory);
     return 0;
 }

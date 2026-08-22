@@ -21,6 +21,7 @@ public:
     Result<std::optional<PointBatch>> readNext(
         std::size_t maximumPoints,
         tasks::CancellationToken token) override;
+    Result<PointCloudReadProgress> readProgress() const override;
     void close() noexcept override;
 
 private:

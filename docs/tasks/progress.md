@@ -44,7 +44,7 @@
 
 ## 5. Phase 1：OpenGL 基础渲染
 
-- [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-008 已完成；IO-009 与模块级验收未完成）
+- [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：未开始
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
@@ -135,6 +135,7 @@
 | 日期 | 变更 | 说明 |
 |---|---|---|
 
+| 2026-08-22 | IO-009 完成 | 已为公共 Reader 增加以“已消费源点数”为单位的 PointCloudReadProgress；Pcd/PLY 成功打开后报告 0/声明总量，首次完整读体转换后推进到源总量。PointCloudLoadTask 在 worker 使用公共 EngineEvent 交付打开/读取阶段、已知总量进度、Loaded、Cancelled 和 RecoverableError，并验证进度不倒退、总量稳定、EOF 达总量；未知总量不伪造百分比，异常稳定映射 Internal/1，错误事件不会递归重试。干净构建、专项、非 PCL 聚合 CTest 53/53 和 PCL 边界扫描通过；完整 CTest 53/57，4 个既有 PCL CTest 仍为 Windows 0xc0000135，而显式 DLL PATH 下逐个可执行文件通过。未接入 Engine、DatasetSession、UI、Factory/Registry 或 Dataset 写入；模块级验收仍未完成。 |
 | 2026-08-22 | IO-008 完成 | 已新增无 PCL 的 PointCloudLoadTask：Reader 独占交由 TaskSystem::submitForDataset() 后台执行，Gate 仅覆盖 open/readNext，背压等待发生在每次读取前；回调在 worker 交付元数据与已验证批次，取消、流控关闭和业务错误保持既有 Result 语义。IO-009、Engine/Factory/Dataset 写入和模块级验收仍未完成；干净构建与专项回归通过，完整聚合 CTest 仍有四项既有 PCL 0xc0000135 DLL 装载失败。 |
 | 2026-08-21 | CA-007 完成 | 已新增仅测试/性能路径验证使用的内存 CameraPath/CameraPathReplayer：从默认 OrbitCameraController 通过 InputEvent 回放，按绝对时间戳生成 delta 并逐步采样状态/矩阵；确定性 CTest 覆盖重复回放和错误路径。Engine/Qt 集成以及正式 Renderer FPS 采集仍未完成 || 2026-08-21 | CA-006 完成 | 已新增 GLM-only `OrbitCameraController`，实现轨迹球、防翻转、平移、缩放、延迟 reset、动态裁剪面、相机相对矩阵和全局世界空间视锥；固定 OpenGL `[-1,1]` 深度约定；未实现 CA-007、Engine 注入或 Qt 映射 |
 | 2026-08-21 | CA-005 完成 | 已基于用户提供参考源码确认透视轨道球、输入、reset、动态裁剪面及错误语义；新增相机交互设计并同步 FR-CAM-002/003、概要/详细设计与任务状态；未实现具体 Controller、Engine/Qt 集成或性能路径 |

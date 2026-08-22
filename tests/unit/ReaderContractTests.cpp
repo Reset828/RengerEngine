@@ -1,4 +1,4 @@
-﻿#include "data/io/IPointCloudReader.h"
+#include "data/io/IPointCloudReader.h"
 
 #include <dzc/Error.h>
 
@@ -91,6 +91,20 @@ public:
         m_nextPosition += pointCount;
         return dzc::Result<std::optional<dzc::PointBatch>>::success(
             makePointBatch(std::move(positions)));
+    }
+
+    dzc::Result<dzc::PointCloudReadProgress> readProgress() const override {
+        if (!m_isOpen) {
+            return dzc::Result<dzc::PointCloudReadProgress>::failure(makeError(
+                dzc::ErrorDomain::Task,
+                kInvalidTaskCode,
+                "Point cloud reader is not open.",
+                "readProgress() requires a successfully opened source."));
+        }
+        dzc::PointCloudReadProgress progress;
+        progress.consumedSourcePoints = static_cast<std::uint64_t>(m_nextPosition);
+        progress.totalSourcePoints = m_sourceInfo.declaredPointCount;
+        return dzc::Result<dzc::PointCloudReadProgress>::success(std::move(progress));
     }
 
     void close() noexcept override {

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "data/chunk/PointBatch.h"
 #include "data/io/PointCloudSourceInfo.h"
@@ -7,10 +7,16 @@
 #include <dzc/Result.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 
 namespace dzc {
+
+struct PointCloudReadProgress final {
+    std::uint64_t consumedSourcePoints{0U};
+    std::optional<std::uint64_t> totalSourcePoints;
+};
 
 class IPointCloudReader {
 public:
@@ -23,6 +29,9 @@ public:
     virtual Result<std::optional<PointBatch>> readNext(
         std::size_t maximumPoints,
         tasks::CancellationToken token) = 0;
+
+    // Reports consumed source points for the currently opened source.
+    virtual Result<PointCloudReadProgress> readProgress() const = 0;
 
     // Releases the opened source and resets the reader state.
     virtual void close() noexcept = 0;

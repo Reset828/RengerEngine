@@ -5,6 +5,7 @@
 #include "tasks/ConcurrencyGate.h"
 #include "tasks/TaskSystem.h"
 
+#include <dzc/EngineEvent.h>
 #include <dzc/EngineTypes.h>
 #include <dzc/Result.h>
 
@@ -19,6 +20,8 @@ using PointCloudLoadOpenedCallback =
     std::function<Result<void>(PointCloudSourceInfo, tasks::CancellationToken)>;
 using PointCloudLoadBatchCallback =
     std::function<Result<void>(PointBatch&&, tasks::CancellationToken)>;
+using PointCloudLoadEventCallback =
+    std::function<Result<void>(EngineEvent, tasks::CancellationToken)>;
 
 struct PointCloudLoadRequest final {
     DatasetId datasetId;
@@ -29,6 +32,7 @@ struct PointCloudLoadRequest final {
     std::shared_ptr<tasks::BackpressureController> backpressureController;
     PointCloudLoadOpenedCallback onOpened;
     PointCloudLoadBatchCallback onBatch;
+    PointCloudLoadEventCallback onEvent;
     tasks::CancellationToken cancellationToken;
     tasks::TaskPriority priority{tasks::TaskPriority::Normal};
 };

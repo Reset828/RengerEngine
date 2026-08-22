@@ -28,6 +28,10 @@ public:
         return dzc::Result<std::optional<dzc::PointBatch>>::success(std::nullopt);
     }
 
+    dzc::Result<dzc::PointCloudReadProgress> readProgress() const override {
+        return dzc::Result<dzc::PointCloudReadProgress>::success({});
+    }
+
     void close() noexcept override {}
 };
 

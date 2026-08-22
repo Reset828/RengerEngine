@@ -841,6 +841,11 @@ struct PointCloudSourceInfo final {
     IntensityMetadata intensity;
 };
 
+struct PointCloudReadProgress final {
+    std::uint64_t consumedSourcePoints{0};
+    std::optional<std::uint64_t> totalSourcePoints;
+};
+
 class IPointCloudReader {
 public:
     virtual ~IPointCloudReader() = default;
@@ -848,11 +853,12 @@ public:
     virtual Result<std::optional<PointBatch>> readNext(
         std::size_t maximumPoints,
         CancellationToken token) = 0;
+    virtual Result<PointCloudReadProgress> readProgress() const = 0;
     virtual void close() noexcept = 0;
 };
 ```
 
-`readNext()` 只能在成功 `open()` 后调用；重复 `open()`、未打开读取和关闭后读取均返回 `ErrorDomain::Task`、`TaskErrorCode::InvalidTask`。成功的空 `optional` 表示 EOF，EOF 后继续读取仍返回成功空值。`maximumPoints` 必须大于 0，零值返回 `ErrorDomain::Configuration`、错误码 `1`（`InvalidValue`），且不推进读取位置。若 Token 已取消，`readNext()` 返回 `ErrorDomain::Task`、`TaskErrorCode::Cancelled`，且不产生新批次。`close()` 幂等；关闭后 Reader 可重新 `open()`。
+`readNext()` 只能在成功 `open()` 后调用；重复 `open()`、未打开读取和关闭后读取均返回 `ErrorDomain::Task`、`TaskErrorCode::InvalidTask`。成功的空 `optional` 表示 EOF，EOF 后继续读取仍返回成功空值。`maximumPoints` 必须大于 0，零值返回 `ErrorDomain::Configuration`、错误码 `1`（`InvalidValue`），且不推进读取位置。若 Token 已取消，`readNext()` 返回 `ErrorDomain::Task`、`TaskErrorCode::Cancelled`，且不产生新批次。`close()` 幂等；关闭后 Reader 可重新 `open()`。`readProgress()` 只在打开期间可查询，报告已消费的**源点数**而非已输出的有效点数；成功 `open()` 后初始消费数必须为 0，总量未知时仅以 `totalSourcePoints == nullopt` 表示。
 
 `PointCloudReaderRegistry` 是 IO-002 提供的固定 PCD/PLY 构造注入式路由器；它不包含 PCL 类型、格式实现或动态 `register` API：
 
@@ -893,15 +899,17 @@ PLY XYZ 接受数值标量并转为 `glm::dvec3`；任一坐标为 NaN/Infinity 
 - PLY 属性名映射只限标准 x/y/z、red/green/blue/alpha、intensity，不猜测其他业务字段；
 - Reader 不修改源文件。
 
-### 10.3 `PointCloudLoadTask` 的并发与背压
+### 10.3 `PointCloudLoadTask` 的并发、背压、进度与事件
 
-IO-008 在 `dzc_data_core` 中提供无 PCL 依赖的 `PointCloudLoadTask`。调用方用可移动的 `PointCloudLoadRequest` 独占交付 `DatasetId`、非空源路径、`std::unique_ptr<IPointCloudReader>`、正的单批最大点数、`std::shared_ptr<ConcurrencyGate>`、`std::shared_ptr<BackpressureController>`，以及 `onOpened(PointCloudSourceInfo, CancellationToken)` 和 `onBatch(PointBatch&&, CancellationToken)` 回调；可选外部 Token 与优先级默认 Normal。`submit()` 在调用线程只校验请求并以 `TaskSystem::submitForDataset()` 入队，不读取文件或调用回调。路径为空、批次上限为零、Reader/流控对象/任一回调为空均返回 `Configuration/1` 且不入队。
+IO-008/IO-009 在 `dzc_data_core` 中提供无 PCL 依赖的 `PointCloudLoadTask`。调用方用可移动的 `PointCloudLoadRequest` 独占交付 `DatasetId`、非空源路径、`std::unique_ptr<IPointCloudReader>`、正的单批最大点数、共享 Gate/背压器、`onOpened(PointCloudSourceInfo, CancellationToken)`、`onBatch(PointBatch&&, CancellationToken)` 与必填 `onEvent(EngineEvent, CancellationToken)`；可选外部 Token 与优先级默认 Normal。`submit()` 在调用线程只校验请求并以 `TaskSystem::submitForDataset()` 入队，不读取文件或调用任何回调。路径为空、批次上限为零、Reader/流控对象/任一回调为空均返回 `Configuration/1` 且不入队。
 
-后台 worker 独占 Reader 并以 RAII 保证所有退出路径调用 `close()`。它先检查组合 Token、仅在取得 Gate 的 RAII `Lease` 期间调用一次 `reader.open(path)`，释放许可后再次检查取消并调用一次 `onOpened`。随后每次循环先等待 `BackpressureController::waitUntilResumed(token)`，仅在恢复后取得新的 Gate 许可执行一次 `readNext(maximumPoints, token)`；空 optional 正常结束。成功批次在 Reader 返回后重新检查取消、经 `PointBatch::validate()` 校验，并在回调前再次检查取消后交给 `onBatch`。因此 Gate 绝不覆盖背压等待或下游回调，拥塞不会长期占用 I/O 许可；两个回调始终在 TaskSystem worker 上执行，调用方不得在其中访问仅限 UI 线程的对象。
+后台 worker 独占 Reader 并以 RAII 保证所有退出路径调用 `close()`。它先检查组合 Token、发送 Info `MessageEvent`（打开阶段），仅在 Gate 的 RAII `Lease` 期间调用 `reader.open(path)`；释放许可后查询并验证初始 `readProgress()`，检查取消，调用 `onOpened`，再发送读取阶段的 Info `MessageEvent`。事件和两个数据回调始终在 TaskSystem worker 上运行；事件上下文填写 DatasetId、TaskId 保持默认值，最终 TaskId 仍由 `TaskCompletion` 提供。
 
-调用方拥有并保持共享 Gate 与背压器的生命周期，加载任务既不创建、关闭，也不调用 `BackpressureController::updateUsage()`。背压用量单位完全由下游约定；典型做法是在 `onBatch` 入队后增加“已接收未消费批次数”，消费者取走后减少，达到高水位后暂停并在低水位恢复。
+总量已知时，初始发送 `DatasetProgressEvent{0,total}`，并且只在 `consumedSourcePoints` 增加后发送新的进度事件；总量未知时不发送数值进度，只保留打开/读取阶段消息。每次成功 `readNext()`（包括 EOF）后任务查询并验证进度：初始已消费数必须为 0，消费数单调不减，已知/未知状态与已知总量在同次打开内不可改变，已知时消费数不得超过总量，EOF 时必须恰等于总量。违反协议统一为 `Internal/1`，不会发送误导性进度或 Loaded 事件。PcdReader/PlyReader 在 `open()` 后报告 `0/declaredPointCount`，首次成功的完整 PCL 读体与转换后一次性推进到声明源点数；缓存批次仅移动输出游标，`close()` 重置进度。
 
-取消在打开前、等待 Gate/背压后、Reader 返回后及各回调前后检查。Token 已取消时不再发起新的 Reader I/O 或交付元数据/批次，并以 `Task/7` 完成；不可中断的单次 Reader 调用若在取消后返回，其结果不得交付。Gate 或背压器在等待期间关闭且 Token 未取消时完成为 `Internal/1`；若 Token 同时已取消则仍为 `Task/7`。Reader、批次校验和回调返回的业务错误原样作为带 DatasetId 的 TaskCompletion 结果发布。IO-008 不实现 IO-009 的进度/错误事件转换，也不改造 Engine、Factory/Registry、Dataset 写入或 PCL Reader。
+每次读取前先等待 `BackpressureController::waitUntilResumed(token)`，恢复后才取得新的 Gate 许可执行 `readNext(maximumPoints, token)`；EOF 在进度校验后发送 `DatasetLoadedEvent`。成功批次在 Reader 返回后重新检查取消、经 `PointBatch::validate()` 校验，并在回调前再次检查取消后交给 `onBatch`。Gate 不覆盖背压等待、事件或下游回调；调用方拥有共享流控对象并自行约定/维护背压用量，加载任务不创建、关闭或更新它们。
+
+取消优先于新的元数据、批次、阶段或进度交付：打开前、等待 Gate/背压后、Reader 返回后和回调前后均检查 Token。取消后不再发起新 I/O 或交付元数据/批次；关闭 Reader 后尝试发送一次 `DatasetLoadCancelledEvent`，任务完成为 `Task/7`，不发送 Loaded/Error。非取消失败（Reader、进度、批次校验或任一回调）停止读取、关闭 Reader，并尝试发送一次携带原始 `Error` 的 `RecoverableError` `ErrorEvent`；该终态事件回调失败或抛异常不递归重试，也不替换原始 TaskCompletion 致因。Reader 或回调抛出的标准/未知 C++ 异常统一映射为 `Internal/1`。IO-009 仅转换公共 `EngineEvent`，不访问私有队列，也不接入 Engine、DatasetSession、UI、Factory/Registry 或 Dataset 写入。
 ## 11. `.dzcpc` V1 文件格式
 
 ### 11.1 通用规则

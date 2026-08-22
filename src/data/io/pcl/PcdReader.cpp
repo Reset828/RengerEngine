@@ -333,6 +333,7 @@ public:
     std::string sourcePath;
     AttributeSchema schema;
     std::uint64_t declaredPointCount{0U};
+    std::uint64_t consumedSourcePoints{0U};
     std::vector<glm::dvec3> positions;
     std::vector<std::uint32_t> colors;
     std::vector<std::uint16_t> intensities;
@@ -547,6 +548,7 @@ Result<std::optional<PointBatch>> PcdReader::readNext(
             m_impl->positions = std::move(positions);
             m_impl->colors = std::move(colors);
             m_impl->intensities = std::move(intensities);
+            m_impl->consumedSourcePoints = m_impl->declaredPointCount;
             m_impl->isConverted = true;
         } catch (const std::exception& exception) {
             m_impl->terminalError = corruptPcdDataError(
@@ -590,11 +592,28 @@ Result<std::optional<PointBatch>> PcdReader::readNext(
     return Result<std::optional<PointBatch>>::success(std::optional<PointBatch>{std::move(batch)});
 }
 
+Result<PointCloudReadProgress> PcdReader::readProgress() const {
+    if (!m_impl->isOpen) {
+        return Result<PointCloudReadProgress>::failure(makeError(
+            ErrorDomain::Task,
+            kInvalidTaskCode,
+            "Point cloud reader is not open.",
+            "readProgress() requires a successfully opened PCD source.",
+            "PcdReader::readProgress"));
+    }
+
+    PointCloudReadProgress progress;
+    progress.consumedSourcePoints = m_impl->consumedSourcePoints;
+    progress.totalSourcePoints = m_impl->declaredPointCount;
+    return Result<PointCloudReadProgress>::success(std::move(progress));
+}
+
 void PcdReader::close() noexcept {
     m_impl->headerCloud = pcl::PCLPointCloud2{};
     m_impl->sourcePath.clear();
     m_impl->schema = {};
     m_impl->declaredPointCount = 0U;
+    m_impl->consumedSourcePoints = 0U;
     m_impl->positions.clear();
     m_impl->colors.clear();
     m_impl->intensities.clear();

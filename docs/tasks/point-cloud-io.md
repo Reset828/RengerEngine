@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001 至 IO-008 已完成；IO-009 与模块级验收未完成）
+> 模块状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -34,7 +34,7 @@
 - [x] **IO-006 实现 PLY 元数据打开**
 - [x] **IO-007 实现 PLY 批次转换**
 - [x] **IO-008 接入 I/O 并发与背压**
-- [ ] **IO-009 实现 Reader 错误与进度转换**
+- [x] **IO-009 实现 Reader 错误与进度转换**
 
 ## 5. 子任务说明
 
@@ -136,15 +136,13 @@
 
 ### IO-009 实现 Reader 错误与进度转换
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-22）
 - **目标**：生成稳定进度单位和可恢复 Error/Event 输入。
-- **前置任务**：IO-008, diagnostics/DG-001
-- **预计文件**：`src/data/io/PointCloudLoadTask.cpp`、`tests/integration/ReaderProgressTests.cpp`
-- **实现要求**：声明总量不可用时报告阶段状态，不伪造百分比。
-- **验收检查**：有效文件进度单调；失败可继续加载其他文件。
-- **测试要求**：进度单调、读取失败和后续重试测试。
+- **实际文件**：`src/data/io/IPointCloudReader.h`、`src/data/io/PointCloudLoadTask.h/.cpp`、`src/data/io/pcl/PcdReader.h/.cpp`、`src/data/io/pcl/PlyReader.h/.cpp`、`tests/integration/ReaderProgressTests.cpp`、Reader/加载任务回归测试与相关 CMake。
+- **实现结果**：Reader 以 `PointCloudReadProgress` 公开已消费源点数和可选总量；Pcd/PLY 成功打开后为 `0/声明源点数`，首次完整读体转换后推进到总源点数。加载任务在 worker 以公共 `EngineEvent` 转换阶段、已知总量进度、成功、取消和可恢复错误；未知总量不发送百分比。它验证进度协议，并将 Reader/回调异常统一为 `Internal/1`；取消在关闭 Reader 后只发送取消终态，非取消失败只尝试一次错误终态。PCL 未离开 `dzc_data_pcl`，未接入 Engine、DatasetSession、UI、Factory/Registry 或 Dataset 写入。
+- **测试结果**：见本次 IO-009 交接记录；覆盖已知/未知/零总量、单调性与协议违例、Reader 与回调失败/异常、无效批次、取消、错误隔离及 PCD/PLY 进度回归。
+- **未解决问题**：模块级验收仍未完成；PCD/PLY 当前采用首次读体全量缓存后分批，不是严格意义的流式解码；Engine 侧消费与队列策略不属于本任务。
 - **追踪**：FR-DATA-003、NFR-REL-001/003
-
 ## 6. 模块级验收
 
 - [ ] PCD 和 PLY 的 XYZ 文件均可流式读取
@@ -156,11 +154,10 @@
 
 - 完成日期：2026-08-22
 - 完成人：Codex
-- 关键变更：完成 IO-008。新增无 PCL 依赖的 `PointCloudLoadTask`，用 DatasetId 经 `TaskSystem::submitForDataset()` 交付最终完成结果；worker 回调交付 Reader 元数据和已验证批次。Gate 仅保护实际 `open()`/`readNext()`，背压等待和下游回调不占 I/O 许可；调用方拥有共享流控对象并自行维护用量。PCL 类型、include 和链接依赖继续限制在 `dzc_data_pcl`，模块保持进行中状态。
-- 未解决问题：Creator/Factory、IO-009 的进度和错误事件转换以及模块级验收仍未完成；Engine、DatasetSession 和 UI 尚未接入加载任务。
-- 测试命令与结果：IO-008 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 在 `build-io008-clean` 完成干净全量构建；`dzc_point_cloud_load_task`、`dzc_task_system`、`dzc_concurrency_gate`、`dzc_backpressure`、`dzc_task_system_shutdown`、`dzc_reader_contract`、`dzc_reader_registry` 和 `dzc_target_boundary` 专项通过。前置 `D:\PCL\PCL 1.15.1\bin`、VTK bin 与 OpenNI2 Redist 后，`dzc_pcd_reader_tests.exe`、`dzc_pcd_batch_tests.exe`、`dzc_ply_reader_tests.exe`、`dzc_ply_batch_tests.exe` 逐个运行通过；完整聚合 CTest 为 52/56 通过，四项 PCL CTest（51 至 54）仍以 Windows `0xc0000135` 失败，不能表述为全绿。最终 `git diff --check` 通过；验证后 `build-io008-clean` 已安全删除。历史记录：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。 IO-006 使用相同工具链完成 `build-io006-clean` 干净全量构建；`dzc_ply_reader` 1/1 通过，Reader/PCL 专项在显式前置 PCL/VTK/OpenNI2 DLL PATH 后通过；最终完整 CTest、隔离扫描和 `git diff --check` 待完成。
+- 关键变更：完成 IO-009。公共 Reader 新增 `PointCloudReadProgress`，以已消费源点数和可选总量表达读取进度；PcdReader/PlyReader 打开后报告 `0/声明总量`，首次成功完整读体与转换后推进到声明源点数，关闭/重开重置。`PointCloudLoadTask` 增加必填 worker `onEvent(EngineEvent, CancellationToken)`，依序转换打开/读取阶段、已知总量进度、Loaded、Cancelled 与 RecoverableError；验证进度协议，取消优先，异常统一为 `Internal/1`。PCL 仍只在 `dzc_data_pcl`，不接入 Engine、DatasetSession、UI、Factory/Registry 或 Dataset 写入。
+- 未解决问题：模块级验收保持未完成。任务清单中的“流式读取”若要求真正的逐点流式解码，当前首次 PCL 读体全量缓存后分批的已确认 IO-005/IO-007 策略不能自动视为满足，须后续明确确认；Engine 侧消费和事件队列策略不属于本任务。
+- 测试命令与结果：使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 在 `build-io009-clean` 完成干净全量构建。`dzc_target_boundary`、Reader Contract/Registry、PCD/PLY Reader/Batch、`dzc_point_cloud_load_task` 与新增 `dzc_reader_progress` 专项均通过；PCL、VTK、OpenNI2 DLL PATH 前置后四个 PCL 测试可执行文件逐个直接运行通过。排除四个 PCL CTest 的聚合 CTest 为 53/53 通过；完整聚合 CTest 为 53/57 通过，PCL CTest #51 至 #54 仍以 Windows `0xc0000135` 失败，和此前现象一致，不能表述为完整全绿。PCL 隔离扫描通过（`src/data/io/pcl/` 外及全部测试源码无 PCL include 或 `pcl::`），`git diff --check` 通过；验证后删除临时目录，不创建 Git commit。
 - 关联提交：未提交（按用户要求不创建提交）。
-
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。

@@ -176,6 +176,14 @@ public:
         return Result<std::optional<PointBatch>>::success(std::move(batch));
     }
 
+    Result<dzc::PointCloudReadProgress> readProgress() const override {
+        std::lock_guard<std::mutex> lock(m_state->mutex);
+        dzc::PointCloudReadProgress progress;
+        progress.consumedSourcePoints = static_cast<std::uint64_t>(m_state->nextBatch);
+        progress.totalSourcePoints = static_cast<std::uint64_t>(m_state->batches.size());
+        return Result<dzc::PointCloudReadProgress>::success(std::move(progress));
+    }
+
     void close() noexcept override {
         std::lock_guard<std::mutex> lock(m_state->mutex);
         ++m_state->closeCalls;
@@ -212,6 +220,9 @@ PointCloudLoadRequest makeRequest(
     request.backpressureController = std::move(backpressure);
     request.onOpened = std::move(onOpened);
     request.onBatch = std::move(onBatch);
+    request.onEvent = [](dzc::EngineEvent, CancellationToken) {
+        return Result<void>::success();
+    };
     request.cancellationToken = std::move(token);
     request.priority = TaskPriority::Normal;
     return request;
@@ -771,6 +782,9 @@ void testInvalidRequestsDoNotSubmit() {
     nullReader.backpressureController = backpressure;
     nullReader.onOpened = opened;
     nullReader.onBatch = batch;
+    nullReader.onEvent = [](dzc::EngineEvent, CancellationToken) {
+        return Result<void>::success();
+    };
     const auto invalidReader = PointCloudLoadTask::submit(taskSystem, std::move(nullReader));
     assert(!invalidReader.hasValue());
     assert(invalidReader.error().domain == ErrorDomain::Configuration);
@@ -801,6 +815,12 @@ void testInvalidRequestsDoNotSubmit() {
     assert(!invalidBatch.hasValue());
     assert(invalidBatch.error().domain == ErrorDomain::Configuration);
     assert(invalidBatch.error().code == kInvalidValueCode);
+    PointCloudLoadRequest nullEvent = makeRequest(reader, gate, backpressure, dzc::DatasetId{607U}, opened, batch);
+    nullEvent.onEvent = {};
+    const auto invalidEvent = PointCloudLoadTask::submit(taskSystem, std::move(nullEvent));
+    assert(!invalidEvent.hasValue());
+    assert(invalidEvent.error().domain == ErrorDomain::Configuration);
+    assert(invalidEvent.error().code == kInvalidValueCode);
 
     assert(!taskSystem.tryPopCompletion().has_value());
 }
