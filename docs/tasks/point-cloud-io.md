@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001、IO-002、IO-003、IO-004 已完成；IO-005 至 IO-009 与模块级验收未完成）
+> 模块状态：进行中（IO-001 至 IO-005 已完成；IO-006 至 IO-009 与模块级验收未完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -30,7 +30,7 @@
 - [x] **IO-002 实现扩展名 Reader Registry**
 - [x] **IO-003 建立 PCL 私有 Target**
 - [x] **IO-004 实现 PCD 元数据打开**
-- [ ] **IO-005 实现 PCD 批次转换**
+- [x] **IO-005 实现 PCD 批次转换**
 - [ ] **IO-006 实现 PLY 元数据打开**
 - [ ] **IO-007 实现 PLY 批次转换**
 - [ ] **IO-008 接入 I/O 并发与背压**
@@ -88,15 +88,15 @@
 - **追踪**：FR-DATA-001、FR-DATA-005、NFR-REL-001
 ### IO-005 实现 PCD 批次转换
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-22）
 - **目标**：将 PCL 数据转换为 PointBatch 并过滤无效坐标。
 - **前置任务**：IO-004, point-cloud-data/PD-004
-- **预计文件**：`src/data/io/pcl/PcdReader.cpp`、`tests/integration/PcdBatchTests.cpp`
-- **实现要求**：颜色优先 rgba 后 rgb；alpha 缛失为 255；NaN/Inf 跳过并计数。
-- **验收检查**：批次不超过 maximumPoints，schema 与流长度一致。
-- **测试要求**：跨批次、颜色、intensity、无效点和取消测试。
+- **实际文件**：`src/data/io/pcl/PcdReader.cpp`、`src/data/io/pcl/CMakeLists.txt`、`tests/integration/CMakeLists.txt`、`tests/integration/PcdReaderTests.cpp`、`tests/integration/PcdBatchTests.cpp`、`docs/design/detailDesign.md`、`docs/tasks/point-cloud-io.md`、`docs/tasks/progress.md`、`agent.md`
+- **实现结果**：`open()` 保持 Header-only，并只接受 ASCII/Binary PCD；首次有效 `readNext()` 以 PCL 全量读取数据体后私有转换为 SoA，再按上限返回 `PointBatch`。严格校验读体后的点数、记录步长、字段偏移和数据长度；格式或转换失败统一为稳定 `DataFormat/2`，直到 `close()`。XYZ 数值标量转换为 double，NaN/Inf 坐标跳过；非空文件若全部无效失败，0 点直接 EOF。`rgba` 优先 `rgb`，合法 packed FLOAT32/UINT32 颜色输出 `0xRRGGBBAA`，rgb 补 alpha 255；intensity 对所有有效坐标点按统一全文件范围量化，非有限值写 0。`readNext()` 保持 Task/1、Configuration/1、Task/7 的既定优先级；取消不产生部分批次且可用未取消 Token 从首批重试。`open()` 返回的 intensity metadata 仍保持默认值。
+- **集成测试**：新增无 PCL include 的 `dzc_pcd_batch`，覆盖 ASCII 跨批次/EOF、Binary rgb+rgba 优先级和全文件 intensity、NaN/Inf 过滤、全无效、空云、截断数据、无效可选字段、压缩 PCD 拒绝、取消/重开以及源文件不修改；更新 `dzc_pcd_reader` 的 IO-004 回归读取断言。
+- **验证结果**：2026-08-22 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug、PCL 1.15.1/io 和显式 `CMAKE_MAKE_PROGRAM=D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\nmake.exe` 完成干净全量构建。PCL/VTK/OpenNI2 DLL 路径仅在测试进程 PATH 前置；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；`git diff --check` 通过。
+- **未解决问题**：PLY Reader（IO-006、IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度与错误事件转换（IO-009）及模块级验收仍未完成。
 - **追踪**：10.2、FR-DATA-003/004
-
 ### IO-006 实现 PLY 元数据打开
 
 - **状态**：未开始
@@ -150,11 +150,11 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-21
+- 完成日期：2026-08-22
 - 完成人：Codex
-- 关键变更：完成 IO-001 Reader 公共内部契约、PointCloudSourceInfo 与 Fake Reader 契约测试，完成 IO-002 固定 PCD/PLY 的构造注入式 Reader Registry、Pimpl 实现和 Fake Creator 路由/错误隔离/移动语义测试，并完成 IO-003 的真实 `dzc_data_pcl` 私有 PCL Target、PCL CONFIG/io 组件隔离、配置冒烟参数转发与 Target 边界检查；完成 IO-004 的 Pimpl 隔离 Header-only `PcdReader`、无 PCL include 的集成测试以及嵌套配置对 `CMAKE_PREFIX_PATH` 的转发，PCL Debug 运行时仅在测试进程 PATH 中使用 PCL、VTK 和 OpenNI2 DLL 目录；统一详细设计的 Task 错误码表；Point Cloud I/O 模块保持进行中状态。
-- 未解决问题：真实 PCD 批次转换、PLY Reader、Creator/Factory、字段转换、I/O 并发/背压、进度和错误转换仍留给 IO-005 至 IO-009。
-- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。
+- 关键变更：完成 IO-001 至 IO-004 的 Reader 公共契约、Registry、PCL 私有 Target 和 Header-only PCD 元数据打开；完成 IO-005 的 PCD 惰性全量数据体读取、严格字段/长度校验、私有 SoA 批次转换、坐标有效性过滤、RGBA 规范化和全文件 intensity 量化。PCL 类型、include 与链接依赖仍限制在 `dzc_data_pcl`；Reader 不修改源文件，Point Cloud I/O 模块保持进行中状态。
+- 未解决问题：PLY Reader（IO-006、IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度和错误事件转换（IO-009）以及模块级验收仍未完成。
+- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。
 - 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束

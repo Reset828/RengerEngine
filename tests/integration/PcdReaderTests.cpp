@@ -1,4 +1,4 @@
-#include "data/io/pcl/PcdReader.h"
+﻿#include "data/io/pcl/PcdReader.h"
 
 #include <dzc/Error.h>
 
@@ -242,7 +242,10 @@ void testLifecycleAndDeferredReadErrors(const TemporaryDirectory& directory) {
     assertError(reader.open(secondPath.string()), dzc::ErrorDomain::Task, kInvalidTaskCode);
     assertError(reader.readNext(0U, cancellationSource.token()), dzc::ErrorDomain::Configuration, kInvalidValueCode);
     assertError(reader.readNext(1U, cancellationSource.token()), dzc::ErrorDomain::Task, kCancelledCode);
-    assertError(reader.readNext(1U, {}), dzc::ErrorDomain::Internal, kInternalErrorCode);
+    const auto firstBatch = reader.readNext(1U, {});
+    assert(firstBatch.hasValue());
+    assert(firstBatch.value().has_value());
+    assert(firstBatch.value()->validate().hasValue());
 
     reader.close();
     reader.close();

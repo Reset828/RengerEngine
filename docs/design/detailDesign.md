@@ -872,15 +872,20 @@ public:
 
 Registry 以 `std::unique_ptr<Impl>` 保存两个 Creator 和路径处理细节，不可复制、可移动。`create()` 仅用 `std::filesystem::path(path).extension()` 取得最后路径组件的最后扩展名，并按 ASCII 大小写无关规则匹配 `.pcd` 与 `.ply`；因此 `dir.v1/cloud.PCD` 与 `cloud.backup.ply` 可路由。它不访问磁盘、不检查存在性、可读性或目录，也不根据文件内容猜测格式；具体 Reader 的 `open()` 负责这些工作。空路径、无扩展名、未知扩展名以及仅名为 `.pcd`/`.ply` 的隐藏式文件名都返回 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`），且不调用 Creator。选中格式的 Creator 为空、返回空 Reader、抛出标准或未知异常，或对移动后源对象调用 `create()` 时，均返回 `ErrorDomain::Internal`、错误码 1；标准异常文本仅进入诊断信息，不穿透 Registry 接口。移动目标保留原 Creator。
 IO-003 建立唯一的 PCL 私有实现 Target `dzc_data_pcl`。其 CMake 子目录执行 `find_package(PCL CONFIG REQUIRED COMPONENTS io)`，并只在该 STATIC Target 中以 `PRIVATE` 形式添加 PCL 的 include directories、compile definitions 和 `pcl_io` 链接依赖；它以 `PUBLIC` 项目依赖连接 `dzc_data_core`，但 `dzc_data_core` 不依赖 PCL。`PclTargetAnchor.cpp` 仅包含 PCL I/O 头并引用 PCL I/O 类型，作为编译/链接边界验证，不提供 Reader、Factory 或任何运行时读取逻辑。`PCL_DIR` 必须由外部 CMake 配置参数注入，项目 CMake 不得硬编码机器安装路径；缺失可用 PCL CONFIG 时配置直接失败。PCL 类型、PCL 包含和 PCL 链接依赖不得出现在公共项目头、`dzc_data_core`、渲染/计算/任务/诊断/应用 Target 或其源码中。真实 PCD/PLY Reader、Creator/Factory 和字段转换留给 IO-004 至 IO-009，IO-003 不创建 Factory API。
-IO-004 的 `PcdReader final` 仅实现 Header-only `open()`：实现位于 `dzc_data_pcl`，公共头只包含既有 dzc 类型并通过 Pimpl 隔离 `pcl::PCDReader` 与 `pcl::PCLPointCloud2`。`open()` 调用 `PCDReader::readHeader()`，不读取点数据也不修改源文件；它以安全的 `width × height` 计算 `declaredPointCount`，允许 0 点。字段名严格区分大小写，且必须恰有一个 `x`、`y`、`z`，每项 `COUNT == 1` 并使用 PCL 支持的数值标量；缺失、重复或无效定义，以及文件/解析/溢出/PCL 异常，统一转为 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`）。成功的 schema 总含 Position，精确 `rgb` 或 `rgba` 增加 Color，精确 `intensity` 增加 Intensity；Bounds 与全部 `IntensityMetadata` 仍保留默认值（包括 `available == false`），不预扫描数据。重复 `open()` 返回 `Task/1`；`close()` 无异常、幂等并允许后续重新打开。IO-005 前 `readNext()` 的错误优先级固定为：未打开 `Task/1`，零 `maximumPoints` 为 `Configuration/1`，已取消 Token 为 `Task/7`，其他已打开调用为 `Internal/1`，不得伪造 EOF。PCL 类型和 include 仍只存在于 `src/data/io/pcl`。
+IO-004 的 `PcdReader final` 实现位于 `dzc_data_pcl`，公共头只包含既有 dzc 类型并通过 Pimpl 隔离 `pcl::PCDReader` 与 `pcl::PCLPointCloud2`。`open()` 始终是 Header-only：它调用 `PCDReader::readHeader()`，不读取点数据也不修改源文件；安全计算 `width × height`，允许 0 点，并只接受 `DATA ascii` 与 `DATA binary`，`binary_compressed` 返回 `ErrorDomain::DataFormat`、错误码 2（`CorruptData`）。字段名严格区分大小写，且必须恰有一个 `x`、`y`、`z`，每项 `COUNT == 1` 并使用 PCL 支持的数值标量；缺失、重复或无效定义，以及文件/解析/溢出/PCL 异常统一转换为 `DataFormat/2`。成功的 schema 总含 Position，精确 `rgb` 或 `rgba` 增加 Color，精确 `intensity` 增加 Intensity；Bounds 与 `open()` 返回的全部 `IntensityMetadata` 仍保持默认值（包括 `available == false`），不预扫描数据。重复 `open()` 返回 `Task/1`；`close()` 无异常、幂等并允许后续重新打开。PCL 类型和 include 仍只存在于 `src/data/io/pcl`。
+
+IO-005 为 `readNext()` 实现首次有效调用时的惰性、全量 PCD 数据体读取和私有 SoA 转换；它不是流式 PCL 读取。读取优先级固定为：未打开 `Task/1`，零 `maximumPoints` 为 `Configuration/1`，已取消 Token 为 `Task/7`，然后才处理已缓存的格式失败或数据体加载。PCL 的单次读体调用不可中断，因此在其前后与逐点转换中检查取消；取消不返回部分批次、不推进已对外可见的游标，后续使用未取消 Token 可从首批重新读取/转换。
+
+转换严格验证读体后的点数、字段偏移、记录步长和数据长度；读体、字段、长度、转换和 PCL 异常均转换为稳定的 `DataFormat/2`，并在关闭前重复返回同一错误。XYZ 接受数值标量，任一坐标为 NaN/Infinity 的点被跳过；非空声明云的全部坐标无效时失败，0 点云则立即 EOF。颜色字段必须唯一、`COUNT == 1` 且为 packed `FLOAT32` 或 `UINT32`；`rgba` 优先于 `rgb`，输出值统一为 `0xRRGGBBAA`，`rgb` 的 alpha 补 `0xFF`。Intensity 必须唯一、`COUNT == 1` 且为数值标量；仅对有效坐标点收集，使用一次全文件有效范围量化，确保批次之间的 `uint16_t` 值可比较；非有限 intensity 写 0 但不剔除该点。转换成功后，Reader 以至多 `maximumPoints` 的 `PointBatch` 返回缓存数据，每批调用 `validate()`，EOF 后持续成功返回空 `optional`。
 
 ### 10.2 字段映射和校验
 
-- 必须识别 x/y/z，缺任一字段即拒绝；
-- color 优先读取 rgba，其次 rgb；无 alpha 时写 255；
-- intensity 接受可转换的整数或浮点标量，使用 double 收集范围后量化；
-- NaN/Infinity 坐标点跳过并计数，若全部无效则失败；
-- 声明点数、实际点数和数据长度不一致时返回 DataFormat 错误；
+- 必须识别唯一且数值标量的 x/y/z，缺任一字段即拒绝；
+- PCD 仅支持 `DATA ascii` 与 `DATA binary`；`binary_compressed` 返回 `DataFormat/2`；
+- color 优先读取 rgba，其次 rgb；字段须唯一、`COUNT == 1` 且为 packed `FLOAT32` 或 `UINT32`，输出 `0xRRGGBBAA`，无 alpha 时写 255；
+- intensity 字段须唯一、`COUNT == 1` 且为数值标量；对有效坐标点以 double 收集一次全文件范围后量化；
+- NaN/Infinity 坐标点跳过并计数，非空声明云若全部无效则返回 `DataFormat/2`；
+- 声明点数、实际点数和数据长度不一致时返回 `DataFormat/2`；
 - PLY 属性名映射只限标准 x/y/z、red/green/blue/alpha、intensity，不猜测其他业务字段；
 - Reader 不修改源文件。
 

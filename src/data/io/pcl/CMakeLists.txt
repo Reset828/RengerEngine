@@ -15,4 +15,7 @@ target_include_directories(dzc_data_pcl PRIVATE
     ${PCL_INCLUDE_DIRS}
 )
 target_compile_definitions(dzc_data_pcl PRIVATE ${PCL_DEFINITIONS})
-target_link_libraries(dzc_data_pcl PRIVATE pcl_io)
+target_link_libraries(dzc_data_pcl
+    PUBLIC dzc_data_core
+    PRIVATE pcl_io
+)

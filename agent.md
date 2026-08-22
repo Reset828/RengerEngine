@@ -61,6 +61,7 @@
 
 - **Qt 5.15.19 MSVC 2022 x64 Kit**：`D:\qt_2\5.15.19\msvc2022_64`。其 `bin` 目录包含 `qmake.exe` 和运行/测试可能需要的 Qt DLL；涉及 Qt 构建、运行或测试时，应置于 `PATH` 前部。
 - **MSVC 工具链**：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\bin\Hostx64\x64`；开发环境脚本位于 `D:\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat`。
+- **NMake（已确认路径）**：`D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\nmake.exe`。使用 NMake Makefiles 配置时显式传入 `-DCMAKE_MAKE_PROGRAM="D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\nmake.exe"`，避免开发环境 PATH 缺失或版本不一致。
 - **Windows SDK**：安装在 `D:\Windows Kits\10`（而非默认 C 盘）。当前 VS 初始化脚本未正确注入 `INCLUDE`/`LIB`；使用 CMake/NMake 前须显式设置 MSVC Include/Lib、`D:\Windows Kits\10\Include\10.0.26100.0` 的 `ucrt/shared/um/winrt/cppwinrt`、及相应 x64 Lib/工具路径。
 - **GLM（vcpkg）**：`D:\vcpkg\vcpkg\installed\x64-windows`。CMake 配置须传递 `-DCMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows`；运行会启动子 CMake 的 CTest 配置冒烟测试时，也须将同一路径设置为环境变量 `CMAKE_PREFIX_PATH`。
 - **PCL 1.15.1**：安装根目录为 `D:\PCL\PCL 1.15.1`，CMake 配置目录为 `D:\PCL\PCL 1.15.1\cmake`。配置时必须通过 `-DPCL_DIR=...` 注入该目录；项目 CMake 禁止硬编码本机 PCL 路径。当前项目仅允许 `dzc_data_pcl` 私有 Target 使用 PCL。
