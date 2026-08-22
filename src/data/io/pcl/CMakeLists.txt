@@ -7,6 +7,7 @@ endif()
 add_library(dzc_data_pcl STATIC
     PclTargetAnchor.cpp
     PcdReader.cpp
+    PlyReader.cpp
 )
 
 target_compile_features(dzc_data_pcl PUBLIC cxx_std_17)

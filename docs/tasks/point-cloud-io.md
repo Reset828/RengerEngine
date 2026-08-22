@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001 至 IO-005 已完成；IO-006 至 IO-009 与模块级验收未完成）
+> 模块状态：进行中（IO-001 至 IO-006 已完成；IO-007 至 IO-009 与模块级验收未完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -31,7 +31,7 @@
 - [x] **IO-003 建立 PCL 私有 Target**
 - [x] **IO-004 实现 PCD 元数据打开**
 - [x] **IO-005 实现 PCD 批次转换**
-- [ ] **IO-006 实现 PLY 元数据打开**
+- [x] **IO-006 实现 PLY 元数据打开**
 - [ ] **IO-007 实现 PLY 批次转换**
 - [ ] **IO-008 接入 I/O 并发与背压**
 - [ ] **IO-009 实现 Reader 错误与进度转换**
@@ -95,17 +95,18 @@
 - **实现结果**：`open()` 保持 Header-only，并只接受 ASCII/Binary PCD；首次有效 `readNext()` 以 PCL 全量读取数据体后私有转换为 SoA，再按上限返回 `PointBatch`。严格校验读体后的点数、记录步长、字段偏移和数据长度；格式或转换失败统一为稳定 `DataFormat/2`，直到 `close()`。XYZ 数值标量转换为 double，NaN/Inf 坐标跳过；非空文件若全部无效失败，0 点直接 EOF。`rgba` 优先 `rgb`，合法 packed FLOAT32/UINT32 颜色输出 `0xRRGGBBAA`，rgb 补 alpha 255；intensity 对所有有效坐标点按统一全文件范围量化，非有限值写 0。`readNext()` 保持 Task/1、Configuration/1、Task/7 的既定优先级；取消不产生部分批次且可用未取消 Token 从首批重试。`open()` 返回的 intensity metadata 仍保持默认值。
 - **集成测试**：新增无 PCL include 的 `dzc_pcd_batch`，覆盖 ASCII 跨批次/EOF、Binary rgb+rgba 优先级和全文件 intensity、NaN/Inf 过滤、全无效、空云、截断数据、无效可选字段、压缩 PCD 拒绝、取消/重开以及源文件不修改；更新 `dzc_pcd_reader` 的 IO-004 回归读取断言。
 - **验证结果**：2026-08-22 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug、PCL 1.15.1/io 和显式 `CMAKE_MAKE_PROGRAM=D:\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\nmake.exe` 完成干净全量构建。PCL/VTK/OpenNI2 DLL 路径仅在测试进程 PATH 前置；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；`git diff --check` 通过。
-- **未解决问题**：PLY Reader（IO-006、IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度与错误事件转换（IO-009）及模块级验收仍未完成。
+- **未解决问题**：PLY 批次转换（IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度与错误事件转换（IO-009）及模块级验收仍未完成。
 - **追踪**：10.2、FR-DATA-003/004
 ### IO-006 实现 PLY 元数据打开
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-22）
 - **目标**：使用 PCL 读取标准 PLY 字段并校验。
 - **前置任务**：IO-003, IO-001
-- **预计文件**：`src/data/io/pcl/PlyReader.h`、`src/data/io/pcl/PlyReader.cpp`、`tests/integration/PlyReaderTests.cpp`
-- **实现要求**：只映射标准字段，不猜测其他业务属性。
-- **验收检查**：有效 XYZ/RGB/intensity PLY 可打开；损坏和缺坐标失败。
-- **测试要求**：ASCII/binary fixture、未知属性和损坏测试。
+- **实际文件**：`src/data/io/pcl/PlyReader.h`、`src/data/io/pcl/PlyReader.cpp`、`src/data/io/pcl/CMakeLists.txt`、`tests/integration/PlyReaderTests.cpp`、`tests/integration/CMakeLists.txt`、`docs/design/detailDesign.md`、`docs/tasks/progress.md`、`上下文.md`
+- **实现结果**：新增 Pimpl 封装的 Header-only `PlyReader`。`open()` 调用 `pcl::PLYReader::readHeader()`，支持 ASCII 与 binary_little_endian，仅读取头部并保持源文件不变；同时扫描至 `end_header` 的原始声明，严格校验唯一数值标量 x/y/z，完整 uint8 red/green/blue 与可选 uint8 alpha，以及唯一数值标量 intensity。未知顶点标量属性和非顶点元素不进入 schema；PCL 归并后的 `rgb`/`rgba` 仅在原始组件校验成功后映射为 Color。声明点数安全计算，Bounds 和 IntensityMetadata 保持默认值；批次读取留给 IO-007。
+- **错误与生命周期**：文件、PLY 解析、格式、字段、PCL 或点数溢出错误统一为 `ErrorDomain::DataFormat`、错误码 2；重复 `open()` 返回 `Task/1`；`close()` 幂等并支持重新打开；IO-007 前 `readNext()` 保持未打开 `Task/1`、零上限 `Configuration/1`、取消 `Task/7` 的优先级，其他已打开调用返回 `Internal/1`。
+- **集成测试**：新增无 PCL include 的 `dzc_ply_reader`，覆盖 ASCII XYZ、ASCII RGB/intensity/未知属性/face、binary_little_endian RGBA、零点、损坏/缺坐标/重复/大小写/部分颜色/非法类型/不支持格式、生命周期和源文件不修改。
+- **验证结果**：2026-08-22 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug、PCL 1.15.1/io 完成 `build-io006-clean` 干净全量构建；设置测试进程 PATH 为 PCL bin、VTK bin 和 OpenNI2 Redist 后，`dzc_ply_reader` 及 Reader/PCL 专项通过；完整 CTest 与隔离扫描待最终验证。
 - **追踪**：FR-DATA-001、10.2
 
 ### IO-007 实现 PLY 批次转换
@@ -152,9 +153,9 @@
 
 - 完成日期：2026-08-22
 - 完成人：Codex
-- 关键变更：完成 IO-001 至 IO-004 的 Reader 公共契约、Registry、PCL 私有 Target 和 Header-only PCD 元数据打开；完成 IO-005 的 PCD 惰性全量数据体读取、严格字段/长度校验、私有 SoA 批次转换、坐标有效性过滤、RGBA 规范化和全文件 intensity 量化。PCL 类型、include 与链接依赖仍限制在 `dzc_data_pcl`；Reader 不修改源文件，Point Cloud I/O 模块保持进行中状态。
-- 未解决问题：PLY Reader（IO-006、IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度和错误事件转换（IO-009）以及模块级验收仍未完成。
-- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。
+- 关键变更：完成 IO-001 至 IO-005，并完成 IO-006 的 PLY Header-only 元数据打开。新增 PLY Pimpl Reader、原始头声明预校验、ASCII/binary_little_endian 支持、标准 XYZ/RGB/intensity 映射和无 PCL 集成测试；PCL 类型、include 与链接依赖仍限制在 `dzc_data_pcl`，Reader 不修改源文件，Point Cloud I/O 模块保持进行中状态。
+- 未解决问题：PLY 批次转换（IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度和错误事件转换（IO-009）以及模块级验收仍未完成。
+- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。 IO-006 使用相同工具链完成 `build-io006-clean` 干净全量构建；`dzc_ply_reader` 1/1 通过，Reader/PCL 专项在显式前置 PCL/VTK/OpenNI2 DLL PATH 后通过；最终完整 CTest、隔离扫描和 `git diff --check` 待完成。
 - 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束
