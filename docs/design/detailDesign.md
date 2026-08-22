@@ -893,6 +893,15 @@ PLY XYZ 接受数值标量并转为 `glm::dvec3`；任一坐标为 NaN/Infinity 
 - PLY 属性名映射只限标准 x/y/z、red/green/blue/alpha、intensity，不猜测其他业务字段；
 - Reader 不修改源文件。
 
+### 10.3 `PointCloudLoadTask` 的并发与背压
+
+IO-008 在 `dzc_data_core` 中提供无 PCL 依赖的 `PointCloudLoadTask`。调用方用可移动的 `PointCloudLoadRequest` 独占交付 `DatasetId`、非空源路径、`std::unique_ptr<IPointCloudReader>`、正的单批最大点数、`std::shared_ptr<ConcurrencyGate>`、`std::shared_ptr<BackpressureController>`，以及 `onOpened(PointCloudSourceInfo, CancellationToken)` 和 `onBatch(PointBatch&&, CancellationToken)` 回调；可选外部 Token 与优先级默认 Normal。`submit()` 在调用线程只校验请求并以 `TaskSystem::submitForDataset()` 入队，不读取文件或调用回调。路径为空、批次上限为零、Reader/流控对象/任一回调为空均返回 `Configuration/1` 且不入队。
+
+后台 worker 独占 Reader 并以 RAII 保证所有退出路径调用 `close()`。它先检查组合 Token、仅在取得 Gate 的 RAII `Lease` 期间调用一次 `reader.open(path)`，释放许可后再次检查取消并调用一次 `onOpened`。随后每次循环先等待 `BackpressureController::waitUntilResumed(token)`，仅在恢复后取得新的 Gate 许可执行一次 `readNext(maximumPoints, token)`；空 optional 正常结束。成功批次在 Reader 返回后重新检查取消、经 `PointBatch::validate()` 校验，并在回调前再次检查取消后交给 `onBatch`。因此 Gate 绝不覆盖背压等待或下游回调，拥塞不会长期占用 I/O 许可；两个回调始终在 TaskSystem worker 上执行，调用方不得在其中访问仅限 UI 线程的对象。
+
+调用方拥有并保持共享 Gate 与背压器的生命周期，加载任务既不创建、关闭，也不调用 `BackpressureController::updateUsage()`。背压用量单位完全由下游约定；典型做法是在 `onBatch` 入队后增加“已接收未消费批次数”，消费者取走后减少，达到高水位后暂停并在低水位恢复。
+
+取消在打开前、等待 Gate/背压后、Reader 返回后及各回调前后检查。Token 已取消时不再发起新的 Reader I/O 或交付元数据/批次，并以 `Task/7` 完成；不可中断的单次 Reader 调用若在取消后返回，其结果不得交付。Gate 或背压器在等待期间关闭且 Token 未取消时完成为 `Internal/1`；若 Token 同时已取消则仍为 `Task/7`。Reader、批次校验和回调返回的业务错误原样作为带 DatasetId 的 TaskCompletion 结果发布。IO-008 不实现 IO-009 的进度/错误事件转换，也不改造 Engine、Factory/Registry、Dataset 写入或 PCL Reader。
 ## 11. `.dzcpc` V1 文件格式
 
 ### 11.1 通用规则

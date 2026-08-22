@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/point-cloud-io.md`  
 > 所属阶段：Phase 1  
-> 模块状态：进行中（IO-001 至 IO-007 已完成；IO-008 至 IO-009 与模块级验收未完成）
+> 模块状态：进行中（IO-001 至 IO-008 已完成；IO-009 与模块级验收未完成）
 > 前置模块：[project-foundation](./project-foundation.md)、[task-system](./task-system.md)、[point-cloud-data](./point-cloud-data.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -33,7 +33,7 @@
 - [x] **IO-005 实现 PCD 批次转换**
 - [x] **IO-006 实现 PLY 元数据打开**
 - [x] **IO-007 实现 PLY 批次转换**
-- [ ] **IO-008 接入 I/O 并发与背压**
+- [x] **IO-008 接入 I/O 并发与背压**
 - [ ] **IO-009 实现 Reader 错误与进度转换**
 
 ## 5. 子任务说明
@@ -123,14 +123,16 @@
 
 ### IO-008 接入 I/O 并发与背压
 
-- **状态**：未开始
-- **目标**：将 Reader 任务接入 ConcurrencyGate 和 BackpressureController。
+- **状态**：已完成（2026-08-22）
+- **目标**：将调用方独占的 Reader 任务接入共享 ConcurrencyGate 和 BackpressureController。
 - **前置任务**：IO-005, IO-007, task-system/TS-008
-- **预计文件**：`src/data/io/PointCloudLoadTask.h`、`src/data/io/PointCloudLoadTask.cpp`、`tests/integration/PointCloudLoadTaskTests.cpp`
-- **实现要求**：同时读取最多配置值；下游拥塞暂停；取消优先。
-- **验收检查**：加载不占 UI 线程，取消后停止产生新批次。
-- **测试要求**：可控 Fake Reader 验证并发峰值、背压和取消延迟。
-- **追踪**：NFR-PERF-003/004、FR-DATA-004
+- **实际文件**：`src/data/io/PointCloudLoadTask.h`、`src/data/io/PointCloudLoadTask.cpp`、`src/data/CMakeLists.txt`、`tests/integration/PointCloudLoadTaskTests.cpp`、`tests/integration/CMakeLists.txt`、`docs/design/detailDesign.md`、`docs/tasks/progress.md`、`上下文.md`
+- **实现结果**：新增无 PCL 依赖的可移动 `PointCloudLoadRequest` 与静态 `PointCloudLoadTask::submit()`。请求绑定 DatasetId、源路径、独占 `std::unique_ptr<IPointCloudReader>`、每批上限、共享 Gate/背压器、打开和批次回调，并可带调用方 Token 与优先级。提交只经 `TaskSystem::submitForDataset()` 排队；空路径、零上限、空 Reader/流控对象/回调均返回 `Configuration/1` 且不入队。
+- **并发、背压与生命周期**：后台 worker 以 RAII 在所有退出路径关闭 Reader。Gate 仅覆盖 `open()` 和每一次 `readNext()`；打开后先交付一次 `onOpened`，每次下一次读取前都等待背压恢复，批次经 `PointBatch::validate()` 后按 Reader 顺序交付 `onBatch`。任务不创建、关闭或更新调用方共享的 Gate/背压器；回调运行在 TaskSystem worker，调用方定义并维护下游使用量。
+- **错误与取消**：在等待、Reader 返回及回调前后检查组合 Token；取消后不交付新元数据或批次、不再发起读取，并以 `Task/7` 完成。等待中的 Gate/背压器关闭在未取消时为 `Internal/1`，取消同时发生时仍为 `Task/7`；Reader、批次校验和回调业务错误原样发布在同 DatasetId 的完成结果中。未实现 IO-009 进度/错误事件转换，未改 Engine、Factory/Registry、Dataset 写入或 PCL Reader。
+- **集成测试**：新增无 PCL include/link 的 `dzc_point_cloud_load_task`，以可阻塞 Fake Reader 覆盖后台执行、打开/批次顺序和 EOF、共享 Gate 并发峰值、背压暂停/低水位恢复、预取消/等待 Gate/等待背压/阻塞 Reader/首批后的取消、Reader/批次校验/回调错误、流控关闭与全部请求校验。
+- **验证结果**：2026-08-22 的 `build-io008-clean` OpenGL-only Debug/NMake 干净构建通过；`dzc_point_cloud_load_task`、TaskSystem/Gate/背压、Reader 合约/Registry 和 Target 边界专项均通过。显式前置 PCL、VTK 与 OpenNI2 DLL PATH 后，四个 PCL Reader/Batch 可执行文件逐个运行通过；聚合 CTest 的实际结果见交接记录。
+- **追踪**：NFR-PERF-003/004、FR-DATA-004、10.3
 
 ### IO-009 实现 Reader 错误与进度转换
 
@@ -154,9 +156,9 @@
 
 - 完成日期：2026-08-22
 - 完成人：Codex
-- 关键变更：完成 IO-001 至 IO-005，并完成 IO-006 的 PLY Header-only 元数据打开。新增 PLY Pimpl Reader、原始头声明预校验、ASCII/binary_little_endian 支持、标准 XYZ/RGB/intensity 映射和无 PCL 集成测试；PCL 类型、include 与链接依赖仍限制在 `dzc_data_pcl`，Reader 不修改源文件，Point Cloud I/O 模块保持进行中状态。
-- 未解决问题：PLY 批次转换（IO-007）、Creator/Factory、I/O 并发/背压（IO-008）、进度和错误事件转换（IO-009）以及模块级验收仍未完成。
-- 测试命令与结果：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。 IO-006 使用相同工具链完成 `build-io006-clean` 干净全量构建；`dzc_ply_reader` 1/1 通过，Reader/PCL 专项在显式前置 PCL/VTK/OpenNI2 DLL PATH 后通过；最终完整 CTest、隔离扫描和 `git diff --check` 待完成。
+- 关键变更：完成 IO-008。新增无 PCL 依赖的 `PointCloudLoadTask`，用 DatasetId 经 `TaskSystem::submitForDataset()` 交付最终完成结果；worker 回调交付 Reader 元数据和已验证批次。Gate 仅保护实际 `open()`/`readNext()`，背压等待和下游回调不占 I/O 许可；调用方拥有共享流控对象并自行维护用量。PCL 类型、include 和链接依赖继续限制在 `dzc_data_pcl`，模块保持进行中状态。
+- 未解决问题：Creator/Factory、IO-009 的进度和错误事件转换以及模块级验收仍未完成；Engine、DatasetSession 和 UI 尚未接入加载任务。
+- 测试命令与结果：IO-008 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 在 `build-io008-clean` 完成干净全量构建；`dzc_point_cloud_load_task`、`dzc_task_system`、`dzc_concurrency_gate`、`dzc_backpressure`、`dzc_task_system_shutdown`、`dzc_reader_contract`、`dzc_reader_registry` 和 `dzc_target_boundary` 专项通过。前置 `D:\PCL\PCL 1.15.1\bin`、VTK bin 与 OpenNI2 Redist 后，`dzc_pcd_reader_tests.exe`、`dzc_pcd_batch_tests.exe`、`dzc_ply_reader_tests.exe`、`dzc_ply_batch_tests.exe` 逐个运行通过；完整聚合 CTest 为 52/56 通过，四项 PCL CTest（51 至 54）仍以 Windows `0xc0000135` 失败，不能表述为全绿。最终 `git diff --check` 通过；验证后 `build-io008-clean` 已安全删除。历史记录：IO-001 使用 MSVC 19.51.36246.0、NMake Makefiles、OpenGL-only Debug 配置成功全量构建；`ctest --test-dir build-io001-clean --output-on-failure` 为 50/50 通过，其中 `dzc_reader_contract` 通过。IO-002 使用相同工具链完成干净全量构建；`ctest --test-dir build-io002-clean -R "^dzc_reader_registry$" --output-on-failure` 为 1/1 通过，完整 `ctest --test-dir build-io002-clean --output-on-failure` 为 51/51 通过。IO-003 使用相同工具链与 PCL 1.15.1/io 完成干净全量构建；`dzc_data_pcl`、Target 边界检查、Reader 回归均通过，完整 CTest 为 51/51 通过；`git diff --check` 通过。IO-004 使用相同工具链和干净 OpenGL-only Debug 配置，`dzc_pcd_reader` 1/1、Reader 回归 2/2、`dzc_target_boundary` 1/1 通过，完整 CTest 为 52/52 通过；`git diff --check` 通过。IO-005 使用显式记录的 NMake 路径完成干净全量构建；`dzc_pcd_reader`、`dzc_pcd_batch`、Reader 回归和 Target 边界专项为 5/5 通过，完整 CTest 为 53/53 通过；最终 `git diff --check` 通过。 IO-006 使用相同工具链完成 `build-io006-clean` 干净全量构建；`dzc_ply_reader` 1/1 通过，Reader/PCL 专项在显式前置 PCL/VTK/OpenNI2 DLL PATH 后通过；最终完整 CTest、隔离扫描和 `git diff --check` 待完成。
 - 关联提交：未提交（按用户要求不创建提交）。
 
 ## 8. 变更约束
