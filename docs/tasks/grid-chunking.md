@@ -28,7 +28,7 @@
 
 - [x] **GC-001 实现网格参数估算**
 - [x] **GC-002 实现 checked CellKey 计算**
-- [ ] **GC-003 实现内存分桶器**
+- [x] **GC-003 实现内存分桶器**
 - [ ] **GC-004 实现临时 run 写读**
 - [ ] **GC-005 实现确定性 Cell 合并**
 - [ ] **GC-006 实现超限 Cell 拆分**
@@ -65,15 +65,16 @@
 - **追踪**：FR-VIS-001、9.2
 ### GC-003 实现内存分桶器
 
-- **状态**：未开始
-- **目标**：按 CellKey 聚合 PointBatch，并跟踪 CPU 字节。
+- **状态**：已完成（2026-08-23）
+- **目标**：按 checked `GridCellKey` 聚合多个 `PointBatch`，保留稳定全局源序号并跟踪 CPU 逻辑载荷字节。
 - **前置任务**：GC-002, point-cloud-data/PD-003
-- **预计文件**：`src/data/chunk/GridBucketStore.h`、`src/data/chunk/GridBucketStore.cpp`、`tests/unit/GridBucketStoreTests.cpp`
-- **实现要求**：不得要求全数据同时驻留；同 Cell 内保持稳定源序号。
-- **验收检查**：批次跨界追加后点数、属性和顺序正确。
-- **测试要求**：多批次、多属性和预算边界测试。
+- **实现文件**：`src/data/chunk/GridBucketStore.h`、`src/data/chunk/GridBucketStore.cpp`、`tests/unit/GridBucketStoreTests.cpp`
+- **接口**：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)` 创建值语义分桶器；`appendBatch()` 批量追加；`snapshot()` 返回按 `x → y → z` 排序的独立 `GridBucket` 副本；`clear()` 清空桶、schema、计数并将源序号重置为 `0`。
+- **稳定顺序**：首个非空批次固定 `AttributeSchema`，后续批次必须完全一致；源序号按追加顺序从 `0` 递增，被拒绝批次和合法空批次均不消耗源序号；同 Cell 内点、属性流和 `sourceIndices` 保持对应及稳定顺序。
+- **预算与错误语义**：`residentBytes()` 只统计 positions、颜色、强度和 sourceIndices 的实际逻辑载荷；追加前执行 checked 字节乘加，正好达到预算允许，超预算或字节不可表示返回 `ErrorDomain::Resource/1`。非法配置、非法批次、非有限坐标、schema 不一致或 CellKey 计算失败返回 `ErrorDomain::DataFormat/2`；零预算创建返回 `ErrorDomain::Resource/1`。
+- **验收检查**：批次跨界追加后点数、属性、CellKey 字典序和源序号正确，失败追加保持已有状态不变。
+- **测试要求**：已覆盖合法/非法配置、单批次多 Cell、多批次稳定顺序、多属性、空批次、非法批次、非有限点、schema 不一致、预算边界、快照副本、clear 重置和确定性。
 - **追踪**：NFR-PERF-001、9.2
-
 ### GC-004 实现临时 run 写读
 
 - **状态**：未开始
@@ -149,12 +150,13 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-23（GC-001、GC-002）
+- 完成日期：2026-08-23（GC-001、GC-002、GC-003）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算和 checked GridCellKey 计算；新增值语义 CellKey、floor 映射、非有限/溢出检查、单元测试和 CMake 接入；GC-003 至 GC-009 尚未实现。
-- GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。
+- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算和内存 GridBucketStore；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、单元测试和 CMake 接入；GC-004 至 GC-009 尚未实现。
+- GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
+- GC-003 接口：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)`、`appendBatch()`、`snapshot()`、`clear()`、`residentBytes()` 和 `pointCount()`；快照返回独立值副本，预算只统计逻辑载荷，拒绝追加不改变状态。错误为非法数据 `DataFormat/2`、预算/零预算 `Resource/1`。
 - 未解决问题：后续任务仍需定义分桶、run、拆分、Chunk 构建和可见性行为。
-- 测试命令与结果：`ctest --test-dir build-gc002-ninja-msvc -R '^dzc_grid_cell_key$' --output-on-failure` 专项测试 `1/1` 通过；将 Debug PCL/VTK/OpenNI2 及 MSVC/UCRT 运行时 DLL 临时复制到测试目录后，完整 CTest `59/59` 通过；测试结束后已删除全部临时 DLL。
+- 测试命令与结果：GC-002 专项测试 `1/1` 通过；将 Debug PCL/VTK/OpenNI2 及 MSVC/UCRT 运行时 DLL 临时复制到测试目录后，完整 CTest `59/59` 通过；GC-003 使用 `build-gc003-nmake` 构建 `dzc_grid_bucket_store_tests` 成功，`ctest --test-dir build-gc003-nmake -R '^dzc_grid_bucket_store$' --output-on-failure` 专项测试 `1/1` 通过；随后临时复制 355 个 PCL/VTK/OpenNI2/vcpkg DLL 后完整 CTest `60/60` 通过，测试结束后已删除全部临时 DLL。
 - 关联提交：无（按要求未创建提交）。
 ## 8. 变更约束
 

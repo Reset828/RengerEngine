@@ -45,7 +45,7 @@
 ## 5. Phase 1：OpenGL 基础渲染
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
-- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001、GC-002 已完成；GC-003 至 GC-009 未完成）
+- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001、GC-002、GC-003 已完成；GC-004 至 GC-009 未完成）
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
@@ -133,7 +133,7 @@
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
-| 2026-08-23 | GC-002 完成 | 已实现 checked GridCellKey：按 `floor((position - datasetMinimum) / cellSize)` 逐轴映射，检查非有限输入、中间结果和 int64 范围；新增专项测试与 CMake 接入。GC-002 专项测试 `1/1` 通过；临时补齐 Debug PCL/VTK/OpenNI2 及 MSVC/UCRT 运行时 DLL 后完整 CTest `59/59` 通过，测试结束后已清理临时 DLL。Grid Chunking 模块仍为进行中，GC-003 至 GC-009 未完成。 |
+| 2026-08-23 | GC-003 完成 | 已实现配置校验创建和内存 `GridBucketStore`：按 checked `GridCellKey` 聚合多批次 `PointBatch`，固定首个非空 schema，保留从 0 开始且拒绝批次不消耗的稳定源序号；快照按 `x → y → z` 字典序返回独立副本。按 positions、颜色、强度和 sourceIndices 的逻辑载荷执行 checked CPU 字节预算，非法数据返回 `DataFormat/2`，预算不足或零预算返回 `Resource/1`。构建 `dzc_grid_bucket_store_tests` 成功，GC-003 专项测试 `1/1` 通过；临时复制 355 个 PCL/VTK/OpenNI2/vcpkg DLL 后完整 CTest `60/60` 通过，测试结束后已全部删除。Grid Chunking 模块继续进行中，GC-004 至 GC-009 未完成。 |
 |---|---|---|
 
 | 2026-08-22 | IO-009 完成 | 已为公共 Reader 增加以“已消费源点数”为单位的 PointCloudReadProgress；Pcd/PLY 成功打开后报告 0/声明总量，首次完整读体转换后推进到源总量。PointCloudLoadTask 在 worker 使用公共 EngineEvent 交付打开/读取阶段、已知总量进度、Loaded、Cancelled 和 RecoverableError，并验证进度不倒退、总量稳定、EOF 达总量；未知总量不伪造百分比，异常稳定映射 Internal/1，错误事件不会递归重试。干净构建、专项、非 PCL 聚合 CTest 53/53 和 PCL 边界扫描通过；完整 CTest 53/57，4 个既有 PCL CTest 仍为 Windows 0xc0000135，而显式 DLL PATH 下逐个可执行文件通过。未接入 Engine、DatasetSession、UI、Factory/Registry 或 Dataset 写入；模块级验收仍未完成。 |
