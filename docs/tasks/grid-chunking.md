@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/grid-chunking.md`  
 > 所属阶段：Phase 1  
-> 模块状态：未开始  
+> 模块状态：进行中
 > 前置模块：[point-cloud-data](./point-cloud-data.md)、[point-cloud-io](./point-cloud-io.md)、[task-system](./task-system.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **GC-001 实现网格参数估算**
+- [x] **GC-001 实现网格参数估算**
 - [ ] **GC-002 实现 checked CellKey 计算**
 - [ ] **GC-003 实现内存分桶器**
 - [ ] **GC-004 实现临时 run 写读**
@@ -40,13 +40,15 @@
 
 ### GC-001 实现网格参数估算
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-23）
 - **目标**：根据 bounds、点数和目标 262144 点估算初始立方网格边长。
 - **前置任务**：point-cloud-data/PD-002
 - **预计文件**：`src/data/chunk/GridParameters.h`、`src/data/chunk/GridParameters.cpp`、`tests/unit/GridParametersTests.cpp`
 - **实现要求**：退化 bounds 和未知点数必须有稳定保守结果；使用 double 和 checked 计算。
 - **验收检查**：常规、稀疏、退化和大坐标输入得到有限正边长。
-- **测试要求**：参数化数学测试。
+- **测试要求**：常规、稀疏、退化、未知点数、零点数、非法 bounds 和溢出测试。
+- **估算规则**：已知正点数使用 `cbrt(effectiveVolume * 262144 / pointCount)`；未知或零点数使用最长轴；零尺寸轴替换为最长非零轴；三轴全零时使用 `1.0`；所有中间结果必须保持有限且为正。
+- **实现结果**：已提供固定目标点数 262144 的无状态 cell-size 估算；未知/零点数使用最长轴保守值；部分退化轴使用最长非零轴替代；全零 bounds 使用 1.0；非法 bounds、不可表示范围或非有限结果返回 DataFormat/2。
 - **追踪**：DDD-007、9.1
 
 ### GC-002 实现 checked CellKey 计算
@@ -146,12 +148,12 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成日期：2026-08-23（GC-001）
+- 完成人：Codex
+- 关键变更：完成 GridParameters cell-size 估算、单元测试和 CMake 接入；GC-002 至 GC-009 尚未实现。
+- 未解决问题：后续任务仍需定义 CellKey、分桶、run、拆分、Chunk 构建和可见性行为。
+- 测试命令与结果：Debug/NMake 构建成功；`dzc_grid_parameters` 1/1 通过；排除 Windows PCL DLL 装载问题的非 PCL CTest 54/54 通过；4 个 PCL 集成测试在显式运行时 PATH 下直接通过；完整聚合 CTest 受 0xc0000135 DLL 环境问题影响为 54/58。
+- 关联提交：无（按要求未创建提交）。
 
 ## 8. 变更约束
 

@@ -1,5 +1,6 @@
 add_library(dzc_data_core STATIC
     chunk/Bounds3d.cpp
+    chunk/GridParameters.cpp
     chunk/PointBatch.cpp
     chunk/IntensityQuantizer.cpp
     chunk/CoordinateLocalizer.cpp

@@ -418,3 +418,12 @@ target_include_directories(dzc_reader_registry_tests PRIVATE ${PROJECT_SOURCE_DI
 target_link_libraries(dzc_reader_registry_tests PRIVATE dzc_data_core dzc_tasks dzc_engine_api)
 
 add_test(NAME dzc_reader_registry COMMAND dzc_reader_registry_tests)
+add_executable(dzc_grid_parameters_tests
+    GridParametersTests.cpp
+)
+
+target_compile_features(dzc_grid_parameters_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_grid_parameters_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_grid_parameters_tests PRIVATE dzc_data_core dzc_engine_api)
+
+add_test(NAME dzc_grid_parameters COMMAND dzc_grid_parameters_tests)
