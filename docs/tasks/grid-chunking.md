@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **GC-001 实现网格参数估算**
-- [ ] **GC-002 实现 checked CellKey 计算**
+- [x] **GC-002 实现 checked CellKey 计算**
 - [ ] **GC-003 实现内存分桶器**
 - [ ] **GC-004 实现临时 run 写读**
 - [ ] **GC-005 实现确定性 Cell 合并**
@@ -53,15 +53,16 @@
 
 ### GC-002 实现 checked CellKey 计算
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-23）
 - **目标**：把点坐标映射到 int64 三维网格键。
 - **前置任务**：GC-001
 - **预计文件**：`src/data/chunk/GridCellKey.h`、`src/data/chunk/GridCellKey.cpp`、`tests/unit/GridCellKeyTests.cpp`
-- **实现要求**：使用 floor；检测减法、除法和 int64 转换溢出。
-- **验收检查**：边界点、负坐标和溢出得到确定结果或明确 Error。
-- **测试要求**：单元测试分割面、负值、大坐标。
+- **接口**：`GridCellKey::fromPosition(position, datasetMinimum, cellSize) -> Result<GridCellKey>`；CellKey 为包含 `int64` 的值类型，提供相等比较和 `x -> y -> z` 字典序比较。
+- **映射规则**：每个轴严格计算 `floor((position - datasetMinimum) / cellSize)`；负值遵循数学 floor；最大边界点不压回 bounds 内，允许得到外侧 Cell。
+- **错误语义**：点坐标、数据集最小点或边长非有限，边长非正，减法/除法/floor 结果非有限，或结果超出 `int64` 可表示范围时，统一返回 `ErrorDomain::DataFormat`、错误码 `2`。
+- **验收检查**：边界点、负坐标、大坐标、非有限输入和计算/转换溢出得到确定结果或明确 Error。
+- **测试要求**：专项测试覆盖分割面、负值、大坐标、非法边长、NaN/Inf、减法溢出、int64 范围、比较和确定性。
 - **追踪**：FR-VIS-001、9.2
-
 ### GC-003 实现内存分桶器
 
 - **状态**：未开始
@@ -148,13 +149,13 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-23（GC-001）
+- 完成日期：2026-08-23（GC-001、GC-002）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算、单元测试和 CMake 接入；GC-002 至 GC-009 尚未实现。
-- 未解决问题：后续任务仍需定义 CellKey、分桶、run、拆分、Chunk 构建和可见性行为。
-- 测试命令与结果：Debug/NMake 构建成功；`dzc_grid_parameters` 1/1 通过；排除 Windows PCL DLL 装载问题的非 PCL CTest 54/54 通过；4 个 PCL 集成测试在显式运行时 PATH 下直接通过；完整聚合 CTest 受 0xc0000135 DLL 环境问题影响为 54/58。
+- 关键变更：完成 GridParameters cell-size 估算和 checked GridCellKey 计算；新增值语义 CellKey、floor 映射、非有限/溢出检查、单元测试和 CMake 接入；GC-003 至 GC-009 尚未实现。
+- GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。
+- 未解决问题：后续任务仍需定义分桶、run、拆分、Chunk 构建和可见性行为。
+- 测试命令与结果：`ctest --test-dir build-gc002-ninja-msvc -R '^dzc_grid_cell_key$' --output-on-failure` 专项测试 `1/1` 通过；将 Debug PCL/VTK/OpenNI2 及 MSVC/UCRT 运行时 DLL 临时复制到测试目录后，完整 CTest `59/59` 通过；测试结束后已删除全部临时 DLL。
 - 关联提交：无（按要求未创建提交）。
-
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。

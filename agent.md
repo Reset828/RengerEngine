@@ -66,6 +66,11 @@
 - **GLM（vcpkg）**：`D:\vcpkg\vcpkg\installed\x64-windows`。CMake 配置须传递 `-DCMAKE_PREFIX_PATH=D:\vcpkg\vcpkg\installed\x64-windows`；运行会启动子 CMake 的 CTest 配置冒烟测试时，也须将同一路径设置为环境变量 `CMAKE_PREFIX_PATH`。
 - **PCL 1.15.1**：安装根目录为 `D:\PCL\PCL 1.15.1`，CMake 配置目录为 `D:\PCL\PCL 1.15.1\cmake`。配置时必须通过 `-DPCL_DIR=...` 注入该目录；项目 CMake 禁止硬编码本机 PCL 路径。当前项目仅允许 `dzc_data_pcl` 私有 Target 使用 PCL。
 - **PCL Debug 运行时测试**：OpenNI2 2.2 已由 `D:\PCL\PCL 1.15.1\3rdParty\OpenNI2\OpenNI-Windows-x64-2.2.msi` 安装到 `C:\Program Files\OpenNI2\Redist`。运行链接 `pcl_iod.dll` 的 Debug 测试前，仅为测试进程将 `D:\PCL\PCL 1.15.1\bin`、`D:\PCL\PCL 1.15.1\3rdParty\VTK\bin`、`C:\Program Files\OpenNI2\Redist` 置于 `PATH` 前部；不要把这些机器路径硬编码到项目 CMake。
+## 4.4 Windows 测试运行时 DLL 约定
+
+- 当 CTest 因 PCL/VTK 运行时 DLL 缺失而失败，并报告 Windows 加载错误 `0xc0000135` 时，可将仓库现有 `build\bin\Debug` 或对应配置目录中的必要 DLL 临时复制到新构建的测试可执行文件目录后重试。
+- 临时复制仅用于测试运行，不得把复制的 DLL 提交到仓库；测试结束后必须删除所有临时复制的 DLL，并确认工作树中没有遗留测试运行时文件。
+- 如果构建配置与 DLL 后缀不匹配（例如 Debug 测试需要带 `d` 或 `-gd` 后缀的 PCL/VTK DLL），仍需补充对应配置的 PCL/VTK 运行时目录，或仅为测试进程设置正确的 `PATH`；不得通过重命名 DLL 规避依赖。
 ## 5. 功能边界
 *   **包含**：点云加载、相机漫游、视锥体剔除、FPS 统计、CUDA 简单预处理。
 *   **不包含**：深度学习、复杂的 GIS 坐标系转换、网络下载、通用图像处理。
