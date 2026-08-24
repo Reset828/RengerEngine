@@ -3,6 +3,7 @@ add_library(dzc_data_core STATIC
     chunk/GridParameters.cpp
     chunk/GridCellKey.cpp
     chunk/GridBucketStore.cpp
+    chunk/GridRunFile.cpp
     chunk/PointBatch.cpp
     chunk/IntensityQuantizer.cpp
     chunk/CoordinateLocalizer.cpp

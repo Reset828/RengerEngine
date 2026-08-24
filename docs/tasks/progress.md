@@ -45,7 +45,7 @@
 ## 5. Phase 1：OpenGL 基础渲染
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
-- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001、GC-002、GC-003 已完成；GC-004 至 GC-009 未完成）
+- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-004 已完成；GC-005 至 GC-009 未完成）
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
@@ -133,6 +133,7 @@
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
+| 2026-08-24 | GC-004 完成 | 已实现 RAII `GridRunFile` 临时 run：保存完整 `GridBucket`、属性流和稳定 sourceIndices，使用 magic/version/结束标记的内部二进制格式；支持原子完成、确定性读回、取消检查以及失败/损坏/未完成文件自动清理。构建 `dzc_grid_run_file_tests` 成功，GC-004 专项测试 `1/1` 通过；临时复制 176 个 Debug PCL/VTK/OpenNI2 DLL 后完整 CTest `61/61` 通过，测试结束后已删除全部临时 DLL；Grid Chunking 模块继续进行中，GC-005 至 GC-009 未完成。 |
 | 2026-08-23 | GC-003 完成 | 已实现配置校验创建和内存 `GridBucketStore`：按 checked `GridCellKey` 聚合多批次 `PointBatch`，固定首个非空 schema，保留从 0 开始且拒绝批次不消耗的稳定源序号；快照按 `x → y → z` 字典序返回独立副本。按 positions、颜色、强度和 sourceIndices 的逻辑载荷执行 checked CPU 字节预算，非法数据返回 `DataFormat/2`，预算不足或零预算返回 `Resource/1`。构建 `dzc_grid_bucket_store_tests` 成功，GC-003 专项测试 `1/1` 通过；临时复制 355 个 PCL/VTK/OpenNI2/vcpkg DLL 后完整 CTest `60/60` 通过，测试结束后已全部删除。Grid Chunking 模块继续进行中，GC-004 至 GC-009 未完成。 |
 |---|---|---|
 

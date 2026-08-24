@@ -77,13 +77,16 @@
 - **追踪**：NFR-PERF-001、9.2
 ### GC-004 实现临时 run 写读
 
-- **状态**：未开始
-- **目标**：预算超过阈值时把稳定分桶 run 写入缓存临时目录。
+- **状态**：已完成（2026-08-24）
+- **目标**：预算超过阈值时把稳定分桶 run 写入调用方提供的缓存临时目录。
 - **前置任务**：GC-003, task-system/TS-008
-- **预计文件**：`src/data/chunk/GridRunFile.h`、`src/data/chunk/GridRunFile.cpp`、`tests/unit/GridRunFileTests.cpp`
-- **实现要求**：临时格式仅内部使用；RAII 文件；取消/失败删除；不修改源文件。
-- **验收检查**：run 往返数据一致，异常后无遗留有效产物。
-- **测试要求**：临时目录往返、截断、取消和写失败测试。
+- **实现文件**：`src/data/chunk/GridRunFile.h`、`src/data/chunk/GridRunFile.cpp`、`tests/unit/GridRunFileTests.cpp`
+- **接口**：`GridRunFile::create(directory)` 创建唯一 RAII 临时文件；`write(buckets, token)` 写入一次完整 `GridBucket` 快照；`complete()` 将 pending 文件原子提升为完成 run；`read(token)` 读取完成 run；`path()` 和 `isComplete()` 查询生命周期状态。
+- **内部格式**：文件使用 `DZGR` magic、版本号 `1`、桶数量、按 `GridCellKey` 字典序排列的完整桶记录以及固定结束标记；每个桶保存 `GridCellKey`、`AttributeSchema`、positions、colorsRgba8、intensities 和 sourceIndices。格式仅供内部使用，读写均执行长度、边界、schema、流一致性和尾部检查。
+- **生命周期与取消**：未完成、写入失败、取消、读取失败或格式损坏时自动删除文件；`complete()` 成功后文件保留供 GC-005 读取；写读接口接收 `dzc::tasks::CancellationToken`，取消统一返回 `ErrorDomain::Task`、错误码 `7`。
+- **错误语义**：目录/打开失败返回 `FileIo/1`，读失败返回 `FileIo/2`，写失败返回 `FileIo/3`，格式损坏返回 `DataFormat/2`，非法生命周期调用返回 `Task/1`；内存分配失败返回 `Resource/1`。
+- **验收检查**：多 Cell、多属性 run 往返数据一致；源文件 bucket 不被修改；异常后无遗留临时/损坏产物；重复读取结果确定。
+- **测试要求**：临时目录往返、RAII 清理、完成文件保留、取消写读、重复完成、目录错误、magic/version 错误、截断和损坏文件测试。
 - **追踪**：NFR-PERF-003、9.2
 
 ### GC-005 实现确定性 Cell 合并
@@ -150,13 +153,14 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-23（GC-001、GC-002、GC-003）
+- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算和内存 GridBucketStore；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、单元测试和 CMake 接入；GC-004 至 GC-009 尚未实现。
+- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore 和 RAII GridRunFile；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算，以及完整 GridBucket 临时 run 的二进制写读、原子完成、取消和异常清理。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
 - GC-003 接口：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)`、`appendBatch()`、`snapshot()`、`clear()`、`residentBytes()` 和 `pointCount()`；快照返回独立值副本，预算只统计逻辑载荷，拒绝追加不改变状态。错误为非法数据 `DataFormat/2`、预算/零预算 `Resource/1`。
-- 未解决问题：后续任务仍需定义分桶、run、拆分、Chunk 构建和可见性行为。
-- 测试命令与结果：GC-002 专项测试 `1/1` 通过；将 Debug PCL/VTK/OpenNI2 及 MSVC/UCRT 运行时 DLL 临时复制到测试目录后，完整 CTest `59/59` 通过；GC-003 使用 `build-gc003-nmake` 构建 `dzc_grid_bucket_store_tests` 成功，`ctest --test-dir build-gc003-nmake -R '^dzc_grid_bucket_store$' --output-on-failure` 专项测试 `1/1` 通过；随后临时复制 355 个 PCL/VTK/OpenNI2/vcpkg DLL 后完整 CTest `60/60` 通过，测试结束后已删除全部临时 DLL。
+- GC-004 接口：`GridRunFile::create(directory)`、`write(buckets, token)`、`complete()`、`read(token)`、`path()` 和 `isComplete()`；保存完整 `GridBucket` 属性流及 sourceIndices，要求输入桶按 CellKey 字典序排列；pending/损坏/失败/取消文件由 RAII 自动删除，完成文件保留供 GC-005 使用。
+- 未解决问题：GC-005 至 GC-009 仍需实现确定性 Cell 合并、拆分、Chunk 构建、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
+- 测试命令与结果：GC-004 构建 `dzc_grid_run_file_tests` 成功，`ctest --test-dir build-gc004-nmake -R '^dzc_grid_run_file$' --output-on-failure` 专项测试 `1/1` 通过；完整 CTest 在临时复制 176 个 Debug PCL/VTK/OpenNI2 DLL 后 `61/61` 通过，命令结束时已删除全部临时 DLL；`git diff --check` 通过。
 - 关联提交：无（按要求未创建提交）。
 ## 8. 变更约束
 
