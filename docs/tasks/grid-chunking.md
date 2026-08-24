@@ -29,8 +29,8 @@
 - [x] **GC-001 实现网格参数估算**
 - [x] **GC-002 实现 checked CellKey 计算**
 - [x] **GC-003 实现内存分桶器**
-- [ ] **GC-004 实现临时 run 写读**
-- [ ] **GC-005 实现确定性 Cell 合并**
+- [x] **GC-004 实现临时 run 写读**
+- [x] **GC-005 实现确定性 Cell 合并**
 - [ ] **GC-006 实现超限 Cell 拆分**
 - [ ] **GC-007 生成 Chunk 数据和稳定 ID**
 - [ ] **GC-008 实现 ViewFrustum 数学剔除**
@@ -91,13 +91,16 @@
 
 ### GC-005 实现确定性 Cell 合并
 
-- **状态**：未开始
-- **目标**：按 CellKey 排序合并内存桶和临时 run。
+- **状态**：已完成（2026-08-24）
+- **目标**：按 CellKey 排序合并内存桶和临时 run 的读取结果。
 - **前置任务**：GC-004
-- **预计文件**：`src/data/chunk/GridRunMerger.h`、`src/data/chunk/GridRunMerger.cpp`、`tests/unit/GridRunMergerTests.cpp`
-- **实现要求**：相同输入不同批次边界产生相同输出顺序。
-- **验收检查**：输出 CellKey 有序且属性流一致。
-- **测试要求**：改变批次大小和 run 分布验证确定性。
+- **实现文件**：`src/data/chunk/GridRunMerger.h`、`src/data/chunk/GridRunMerger.cpp`、`tests/unit/GridRunMergerTests.cpp`
+- **接口**：`GridRunMerger::merge(inputs, token)` 接收 `std::vector<std::vector<GridBucket>>`；每个输入组可来自 `GridBucketStore::snapshot()` 或 `GridRunFile::read()`，返回 `Result<std::vector<GridBucket>>`。合并器不接管或删除输入 run 文件。
+- **确定性规则**：每个输入组必须按 `GridCellKey` 的 `x → y → z` 顺序严格递增；相同 Cell 的点跨输入组按全局 `sourceIndices` 升序合并，重复 source index 返回 `DataFormat/2`；不依赖输入组、批次边界或 run 分布顺序。
+- **属性与 schema**：空输入组和空桶忽略且不固定 schema；所有非空桶必须拥有相同有效 `AttributeSchema`，Position、Color、Intensity 和 `sourceIndices` 按同一排序保持一一对应。
+- **错误与取消**：非法 schema、流长度、非有限坐标、CellKey 顺序、非递增 source index、重复 source index 或 checked 计数失败返回 `ErrorDomain::DataFormat/2`；内存不足返回 `Resource/1`；取消返回 `Task/7`。所有检查完成后才构建和返回结果。
+- **验收检查**：输出 CellKey 有序、同 Cell source index 全局有序、属性流一致，且同一逻辑输入在不同输入分布下得到相同结果。
+- **测试要求**：单 Cell 多输入、多 Cell 排序、输入分布确定性、属性一致性、空输入、非法输入、重复 source index、取消、重复调用和 GridRunFile 往返测试。
 - **追踪**：9.2、NFR-TEST-002
 
 ### GC-006 实现超限 Cell 拆分
@@ -153,14 +156,15 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004）
+- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore 和 RAII GridRunFile；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算，以及完整 GridBucket 临时 run 的二进制写读、原子完成、取消和异常清理。
+- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile 和确定性 GridRunMerger；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读，以及跨输入组的 Cell 合并。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
 - GC-003 接口：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)`、`appendBatch()`、`snapshot()`、`clear()`、`residentBytes()` 和 `pointCount()`；快照返回独立值副本，预算只统计逻辑载荷，拒绝追加不改变状态。错误为非法数据 `DataFormat/2`、预算/零预算 `Resource/1`。
 - GC-004 接口：`GridRunFile::create(directory)`、`write(buckets, token)`、`complete()`、`read(token)`、`path()` 和 `isComplete()`；保存完整 `GridBucket` 属性流及 sourceIndices，要求输入桶按 CellKey 字典序排列；pending/损坏/失败/取消文件由 RAII 自动删除，完成文件保留供 GC-005 使用。
-- 未解决问题：GC-005 至 GC-009 仍需实现确定性 Cell 合并、拆分、Chunk 构建、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
-- 测试命令与结果：GC-004 构建 `dzc_grid_run_file_tests` 成功，`ctest --test-dir build-gc004-nmake -R '^dzc_grid_run_file$' --output-on-failure` 专项测试 `1/1` 通过；完整 CTest 在临时复制 176 个 Debug PCL/VTK/OpenNI2 DLL 后 `61/61` 通过，命令结束时已删除全部临时 DLL；`git diff --check` 通过。
+- GC-005 接口：`GridRunMerger::merge(inputs, token)` 返回独立 `std::vector<GridBucket>`；输入组可来自内存快照或 `GridRunFile::read()`，非空 schema 必须一致；每个输入组按 CellKey 严格递增校验，同 Cell 按 source index 全局升序合并，重复 source index 返回 `DataFormat/2`，取消返回 `Task/7`，内存不足返回 `Resource/1`；不删除调用方拥有的输入 run。
+- 未解决问题：GC-006 至 GC-009 仍需实现超限 Cell 拆分、Chunk 构建、稳定 ChunkId、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
+- 测试命令与结果：构建 `dzc_grid_run_merger_tests` 成功；`ctest --test-dir build-gc005-nmake -R "^dzc_grid_run_merger$" --output-on-failure` 专项测试 `1/1` 通过；完整 CTest 已执行，但受到既有 Windows PCL/VTK/OpenNI2 DLL 装载问题影响，未记为全绿；测试过程中使用的临时 DLL 已全部删除；`git diff --check` 通过。
 - 关联提交：无（按要求未创建提交）。
 ## 8. 变更约束
 

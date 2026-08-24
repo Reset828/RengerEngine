@@ -45,7 +45,7 @@
 ## 5. Phase 1：OpenGL 基础渲染
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
-- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-004 已完成；GC-005 至 GC-009 未完成）
+- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-005 已完成；GC-006 至 GC-009 未完成）
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
@@ -112,6 +112,7 @@
 ## 8. 当前阻塞事项
 
 | 编号 | 阻塞事项 | 影响范围 | 解除条件 |
+| 2026-08-24 | GC-005 完成 | 已实现无状态 `GridRunMerger`：统一接收内存桶快照或 `GridRunFile::read()` 结果，按 `GridCellKey` 字典序输出，并按全局 `sourceIndices` 升序合并同 Cell 点及属性流；严格校验 schema、流长度、有限坐标、输入顺序和重复源序号，错误分别返回 `DataFormat/2`、`Resource/1` 或取消 `Task/7`。构建 `dzc_grid_run_merger_tests` 和 GC-005 专项测试通过；Grid Chunking 模块继续进行中，GC-006 至 GC-009 未完成。 |
 |---|---|---|---|
 | BLK-002 | 正式 Camera 性能采集未完成 | IT-014、IT-016、AC-P2-011 | 确认基准硬件、正式数据集并接入 Renderer 后执行采集 |
 | BLK-003 | 正式基准硬件/软件环境未确定 | Phase 1/2 正式性能结论 | 确认 CPU、GPU、显存、内存、存储、Windows、驱动和 CUDA 版本 |
@@ -133,6 +134,7 @@
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
+| 2026-08-24 | GC-005 完成 | 已实现无状态 `GridRunMerger`：统一接收内存桶快照或 `GridRunFile::read()` 结果，按 `GridCellKey` 字典序输出，并按全局 `sourceIndices` 升序合并同 Cell 点及属性流；严格校验 schema、流长度、有限坐标、输入顺序和重复源序号，错误分别返回 `DataFormat/2`、`Resource/1` 或取消 `Task/7`。构建 `dzc_grid_run_merger_tests` 成功，GC-005 专项测试 `1/1` 通过；完整 CTest 受既有 Windows PCL/VTK/OpenNI2 DLL 装载问题影响，未记为全绿；Grid Chunking 模块继续进行中，GC-006 至 GC-009 未完成。
 | 2026-08-24 | GC-004 完成 | 已实现 RAII `GridRunFile` 临时 run：保存完整 `GridBucket`、属性流和稳定 sourceIndices，使用 magic/version/结束标记的内部二进制格式；支持原子完成、确定性读回、取消检查以及失败/损坏/未完成文件自动清理。构建 `dzc_grid_run_file_tests` 成功，GC-004 专项测试 `1/1` 通过；临时复制 176 个 Debug PCL/VTK/OpenNI2 DLL 后完整 CTest `61/61` 通过，测试结束后已删除全部临时 DLL；Grid Chunking 模块继续进行中，GC-005 至 GC-009 未完成。 |
 | 2026-08-23 | GC-003 完成 | 已实现配置校验创建和内存 `GridBucketStore`：按 checked `GridCellKey` 聚合多批次 `PointBatch`，固定首个非空 schema，保留从 0 开始且拒绝批次不消耗的稳定源序号；快照按 `x → y → z` 字典序返回独立副本。按 positions、颜色、强度和 sourceIndices 的逻辑载荷执行 checked CPU 字节预算，非法数据返回 `DataFormat/2`，预算不足或零预算返回 `Resource/1`。构建 `dzc_grid_bucket_store_tests` 成功，GC-003 专项测试 `1/1` 通过；临时复制 355 个 PCL/VTK/OpenNI2/vcpkg DLL 后完整 CTest `60/60` 通过，测试结束后已全部删除。Grid Chunking 模块继续进行中，GC-004 至 GC-009 未完成。 |
 |---|---|---|
