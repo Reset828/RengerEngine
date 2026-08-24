@@ -31,7 +31,7 @@
 - [x] **GC-003 实现内存分桶器**
 - [x] **GC-004 实现临时 run 写读**
 - [x] **GC-005 实现确定性 Cell 合并**
-- [ ] **GC-006 实现超限 Cell 拆分**
+- [x] **GC-006 实现超限 Cell 拆分**
 - [ ] **GC-007 生成 Chunk 数据和稳定 ID**
 - [ ] **GC-008 实现 ViewFrustum 数学剔除**
 - [ ] **GC-009 实现 Phase 1 可见列表**
@@ -105,13 +105,17 @@
 
 ### GC-006 实现超限 Cell 拆分
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-24）
 - **目标**：把超过 524288 点的 Cell 确定性拆成子块。
 - **前置任务**：GC-005
-- **预计文件**：`src/data/chunk/GridCellSplitter.h`、`src/data/chunk/GridCellSplitter.cpp`、`tests/unit/GridCellSplitterTests.cpp`
-- **实现要求**：目标 262144、最大 524288；按最长轴/稳定规则拆分；不得产生超限块。
-- **验收检查**：所有输出非空且不超最大值，点总数守恒。
-- **测试要求**：最大值边界、重复坐标和极端分布测试。
+- **实现文件**：`src/data/chunk/GridCellSplitter.h`、`src/data/chunk/GridCellSplitter.cpp`、`tests/unit/GridCellSplitterTests.cpp`
+- **接口**：`GridCellSplitter::split(const GridBucket&, tasks::CancellationToken)` 返回 `Result<std::vector<GridBucket>>`；输入和输出均为单个 Cell 的值语义桶，拆分器不创建新 CellKey。
+- **固定参数**：目标点数固定为 262144，最大点数固定为 524288；点数不超过最大值时返回一个独立副本；超限时输出 `ceil(pointCount / 262144)` 个非空子桶。
+- **确定性规则**：递归节点选择当前点集最长轴，轴长度相等时固定 `x → y → z`；沿所选轴坐标升序建立空间稳定秩，坐标相等时按 `sourceIndices` 升序；递归按目标子桶数量尽量均衡分配点数。重复坐标、单轴退化和极端分布通过稳定秩正常拆分，不产生空子桶。
+- **顺序与属性**：空间稳定秩只决定子桶成员和子桶输出顺序；每个子桶内部按原输入 `sourceIndices` 顺序搬运 Position、Color、Intensity 和 `sourceIndices`，并保留原 CellKey 与 schema。
+- **错误与取消**：schema、流长度、source index 顺序、非有限坐标及 checked 算术失败返回 `DataFormat/2`；内存或容器容量不足返回 `Resource/1`；取消返回 `Task/7`；失败时不返回部分结果。
+- **验收检查**：所有输出非空且不超过目标/最大点数，点数和属性流守恒、逐点对齐，重复调用结果一致。
+- **测试要求**：专项测试覆盖空桶、262144/524288/524289 边界、ceil 子块数量、最长轴与轴平局、重复坐标、非法输入、坐标范围溢出、取消、确定性和属性对齐；构建 `dzc_grid_cell_splitter_tests` 成功，GC-006 专项测试 `1/1` 通过。
 - **追踪**：DDD-007、9.2
 
 ### GC-007 生成 Chunk 数据和稳定 ID
@@ -156,16 +160,18 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005）
+- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile 和确定性 GridRunMerger；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读，以及跨输入组的 Cell 合并。
+- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile、确定性 GridRunMerger 和超限 Cell 拆分；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读、跨输入组的 Cell 合并，以及固定目标/最大点数的最长轴稳定拆分。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
 - GC-003 接口：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)`、`appendBatch()`、`snapshot()`、`clear()`、`residentBytes()` 和 `pointCount()`；快照返回独立值副本，预算只统计逻辑载荷，拒绝追加不改变状态。错误为非法数据 `DataFormat/2`、预算/零预算 `Resource/1`。
 - GC-004 接口：`GridRunFile::create(directory)`、`write(buckets, token)`、`complete()`、`read(token)`、`path()` 和 `isComplete()`；保存完整 `GridBucket` 属性流及 sourceIndices，要求输入桶按 CellKey 字典序排列；pending/损坏/失败/取消文件由 RAII 自动删除，完成文件保留供 GC-005 使用。
 - GC-005 接口：`GridRunMerger::merge(inputs, token)` 返回独立 `std::vector<GridBucket>`；输入组可来自内存快照或 `GridRunFile::read()`，非空 schema 必须一致；每个输入组按 CellKey 严格递增校验，同 Cell 按 source index 全局升序合并，重复 source index 返回 `DataFormat/2`，取消返回 `Task/7`，内存不足返回 `Resource/1`；不删除调用方拥有的输入 run。
-- 未解决问题：GC-006 至 GC-009 仍需实现超限 Cell 拆分、Chunk 构建、稳定 ChunkId、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
-- 测试命令与结果：构建 `dzc_grid_run_merger_tests` 成功；`ctest --test-dir build-gc005-nmake -R "^dzc_grid_run_merger$" --output-on-failure` 专项测试 `1/1` 通过；完整 CTest 已执行，但受到既有 Windows PCL/VTK/OpenNI2 DLL 装载问题影响，未记为全绿；测试过程中使用的临时 DLL 已全部删除；`git diff --check` 通过。
+- GC-006 接口：GridCellSplitter::split(bucket, token) 仅处理单个 GridBucket；不超过 524288 点返回独立副本，超限时按 ceil(pointCount / 262144) 生成非空子桶。递归选择最长轴并以 x → y → z 平局，坐标相同时按 source index 排序；子桶内部保留原 source index 顺序，非法输入为 DataFormat/2，容量不足为 Resource/1，取消为 Task/7。
+- 未解决问题：GC-007 至 GC-009 仍需实现 Chunk 构建、稳定 ChunkId、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
+- 测试命令与结果：构建 `dzc_grid_cell_splitter_tests` 成功；`ctest --test-dir build-gc006-nmake -R "^dzc_grid_cell_splitter$" --output-on-failure` 专项测试 `1/1` 通过。已按 `agent.md` 临时复制 355 个运行时 DLL 尝试完整 CTest，测试结束后全部删除；完整 CTest 未完成：该构建目录未生成其他测试可执行文件，尝试全量构建时在既有 `engine_core/Engine.cpp` 编译阶段失败，因此不能记录为全绿。`git diff --check` 已执行。
 - 关联提交：无（按要求未创建提交）。
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。
+- GC-006 接口：`GridCellSplitter::split(bucket, token)` 只接收单个 `GridBucket`；不超过 524288 点时返回独立副本，超限时按 `ceil(pointCount / 262144)` 输出子桶。使用最长轴递归二分、`x → y → z` 平局规则、坐标后接 source index 的稳定排序；子桶内部保留原 source index 顺序，所有输出保留原 CellKey/schema。非法输入和 checked 算术返回 `DataFormat/2`，容量失败返回 `Resource/1`，取消返回 `Task/7`。

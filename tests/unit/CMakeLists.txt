@@ -464,3 +464,12 @@ target_include_directories(dzc_grid_run_merger_tests PRIVATE ${PROJECT_SOURCE_DI
 target_link_libraries(dzc_grid_run_merger_tests PRIVATE dzc_data_core dzc_tasks dzc_engine_api)
 
 add_test(NAME dzc_grid_run_merger COMMAND dzc_grid_run_merger_tests)
+add_executable(dzc_grid_cell_splitter_tests
+    GridCellSplitterTests.cpp
+)
+
+target_compile_features(dzc_grid_cell_splitter_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_grid_cell_splitter_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_grid_cell_splitter_tests PRIVATE dzc_data_core dzc_tasks dzc_engine_api)
+
+add_test(NAME dzc_grid_cell_splitter COMMAND dzc_grid_cell_splitter_tests)

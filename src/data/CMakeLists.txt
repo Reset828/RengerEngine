@@ -5,6 +5,7 @@ add_library(dzc_data_core STATIC
     chunk/GridBucketStore.cpp
     chunk/GridRunFile.cpp
     chunk/GridRunMerger.cpp
+    chunk/GridCellSplitter.cpp
     chunk/PointBatch.cpp
     chunk/IntensityQuantizer.cpp
     chunk/CoordinateLocalizer.cpp
