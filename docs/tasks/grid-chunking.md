@@ -32,7 +32,7 @@
 - [x] **GC-004 实现临时 run 写读**
 - [x] **GC-005 实现确定性 Cell 合并**
 - [x] **GC-006 实现超限 Cell 拆分**
-- [ ] **GC-007 生成 Chunk 数据和稳定 ID**
+- [x] **GC-007 生成 Chunk 数据和稳定 ID**
 - [ ] **GC-008 实现 ViewFrustum 数学剔除**
 - [ ] **GC-009 实现 Phase 1 可见列表**
 
@@ -120,13 +120,13 @@
 
 ### GC-007 生成 Chunk 数据和稳定 ID
 
-- **状态**：未开始
-- **目标**：局部化每个分区并生成 CellKey+子块序号的 ChunkId。
+- **状态**：已完成
+- **目标**：将 GC-006 分组 GridBucket 转换为 CpuResident Chunk，并生成 Chunk bounds、中心 origin、float 局部坐标和确定性 ChunkId。
 - **前置任务**：GC-006, point-cloud-data/PD-006
 - **预计文件**：`src/data/chunk/GridChunkBuilder.h`、`src/data/chunk/GridChunkBuilder.cpp`、`tests/unit/GridChunkBuilderTests.cpp`
-- **实现要求**：Chunk bounds/origin/schema 正确；ID 在同一 Dataset 构建中稳定。
-- **验收检查**：多次构建 ID、点数和局部坐标一致。
-- **测试要求**：确定性、取消和属性缺失测试。
+- **实现要求**：输入按 Cell 分组；忽略空外层、空内层、空桶；同 Cell 不得跨分组重复；子桶输入顺序决定稳定子块序号。Chunk 使用 Position bounds 中心作为 origin，CPU Position 写入 float 局部坐标，Color/Intensity 按 schema 保留。ChunkId 使用 little-endian FNV-1a 64 位编码 `(x,y,z,subchunkIndex)`，单次构建检测哈希碰撞。
+- **验收检查**：输出按 CellKey 字典序、组内按输入子桶顺序排列；所有 Chunk 为 `CpuResident`，属性流和 metadata schema 对齐；重复构建结果确定。
+- **测试要求**：覆盖空输入、四种 schema、排序/稳定 ID、bounds/origin/局部坐标、重复 Cell/source index、非法流、非有限坐标、取消和重复调用；构建 `dzc_grid_chunk_builder_tests` 成功，GC-007 专项测试 `1/1` 通过。
 - **追踪**：FR-VIS-001、DDD-007
 
 ### GC-008 实现 ViewFrustum 数学剔除
@@ -160,16 +160,18 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006）
+- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006、GC-007）
 - 完成人：Codex
-- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile、确定性 GridRunMerger 和超限 Cell 拆分；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读、跨输入组的 Cell 合并，以及固定目标/最大点数的最长轴稳定拆分。
+- 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile、确定性 GridRunMerger、超限 Cell 拆分和 Chunk 构建；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读、跨输入组的 Cell 合并、固定目标/最大点数的最长轴稳定拆分，以及 bounds/origin、float 局部坐标和 FNV-1a ChunkId。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
 - GC-003 接口：`GridBucketStore::create(datasetMinimum, cellSize, byteBudget)`、`appendBatch()`、`snapshot()`、`clear()`、`residentBytes()` 和 `pointCount()`；快照返回独立值副本，预算只统计逻辑载荷，拒绝追加不改变状态。错误为非法数据 `DataFormat/2`、预算/零预算 `Resource/1`。
 - GC-004 接口：`GridRunFile::create(directory)`、`write(buckets, token)`、`complete()`、`read(token)`、`path()` 和 `isComplete()`；保存完整 `GridBucket` 属性流及 sourceIndices，要求输入桶按 CellKey 字典序排列；pending/损坏/失败/取消文件由 RAII 自动删除，完成文件保留供 GC-005 使用。
 - GC-005 接口：`GridRunMerger::merge(inputs, token)` 返回独立 `std::vector<GridBucket>`；输入组可来自内存快照或 `GridRunFile::read()`，非空 schema 必须一致；每个输入组按 CellKey 严格递增校验，同 Cell 按 source index 全局升序合并，重复 source index 返回 `DataFormat/2`，取消返回 `Task/7`，内存不足返回 `Resource/1`；不删除调用方拥有的输入 run。
 - GC-006 接口：GridCellSplitter::split(bucket, token) 仅处理单个 GridBucket；不超过 524288 点返回独立副本，超限时按 ceil(pointCount / 262144) 生成非空子桶。递归选择最长轴并以 x → y → z 平局，坐标相同时按 source index 排序；子桶内部保留原 source index 顺序，非法输入为 DataFormat/2，容量不足为 Resource/1，取消为 Task/7。
-- 未解决问题：GC-007 至 GC-009 仍需实现 Chunk 构建、稳定 ChunkId、视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
-- 测试命令与结果：构建 `dzc_grid_cell_splitter_tests` 成功；`ctest --test-dir build-gc006-nmake -R "^dzc_grid_cell_splitter$" --output-on-failure` 专项测试 `1/1` 通过。已按 `agent.md` 临时复制 355 个运行时 DLL 尝试完整 CTest，测试结束后全部删除；完整 CTest 未完成：该构建目录未生成其他测试可执行文件，尝试全量构建时在既有 `engine_core/Engine.cpp` 编译阶段失败，因此不能记录为全绿。`git diff --check` 已执行。
+- GC-007 接口：`GridChunkBuilder::build(groups, token)` 接收外层 Cell 分组，忽略空输入和空桶，按 CellKey 的 x → y → z 字典序输出；组内输入子桶顺序决定 subchunkIndex。校验 Position/schema/属性流、有限坐标、sourceIndices 长度与严格递增、跨子桶 source index 唯一和重复 Cell 分组，错误为 `DataFormat/2`，容量失败为 `Resource/1`，取消为 `Task/7`。每个输出 Chunk 由 bounds 中心作为 origin，CPU Position 为 `float3(sourcePosition - origin)`，并完成 `Chunk::create()`、CPU load，最终为 `CpuResident`。ChunkId 使用 FNV-1a 64 位 little-endian 编码 `(x,y,z,subchunkIndex)`，单次 build 检测碰撞。
+- 未解决问题：GC-008 和 GC-009 仍需实现视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
+
+- 测试命令与结果：构建 `dzc_grid_chunk_builder_tests` 成功；`ctest --test-dir build-dg007 -R "^dzc_grid_chunk_builder$" --output-on-failure` 专项测试 `1/1` 通过。完整 CTest 未完成：构建阶段成功但测试过程在第 57/64 项超时，前两个 configure smoke 测试因未提供 `glm_DIR` 失败；未将完整 CTest 记录为全绿。未遗留测试运行时 DLL 或临时构建目录；`git diff --check` 已执行。
 - 关联提交：无（按要求未创建提交）。
 ## 8. 变更约束
 
