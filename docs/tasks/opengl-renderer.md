@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/opengl-renderer.md`  
 > 所属阶段：Phase 1  
-> 模块状态：未开始  
+> 模块状态：进行中
 > 前置模块：[engine-core](./engine-core.md)、[point-cloud-data](./point-cloud-data.md)、[grid-chunking](./grid-chunking.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **GL-001 配置 OpenGL 和 GLAD 私有依赖**
+- [x] **GL-001 配置 OpenGL 和 GLAD 私有依赖**
 - [ ] **GL-002 实现 OpenGL 4.5 能力检查**
 - [ ] **GL-003 实现 GL Buffer/VAO RAII**
 - [ ] **GL-004 实现 GLSL 编译与链接**
@@ -43,7 +43,7 @@
 
 ### GL-001 配置 OpenGL 和 GLAD 私有依赖
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：建立 dzc_render_opengl Target 和函数加载。
 - **前置任务**：project-foundation/PF-003
 - **预计文件**：`src/render/opengl/CMakeLists.txt`、`cmake/FindOrFetchGlad.cmake`
@@ -182,12 +182,12 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成日期：2026-08-25
+- 完成人：Codex（按主人确认执行）
+- 关键变更：GL-001 已完成。将 GLAD 1.0.36（生成目标 OpenGL 4.6 Core）纳入 `third_party/glad`；OpenGL 开启时通过内置默认路径或 `DZC_GLAD_ROOT` 覆盖路径检查 GLAD 文件并创建真实 `dzc_render_opengl` 静态库，GLAD include 目录保持私有；OpenGL 关闭时保留兼容的接口占位 Target。新增 GLAD 配置成功、缺失依赖失败和 OpenGL 关闭场景测试。
+- 未解决问题：GL-002 至 GL-012 尚未实现；OpenGL 4.5 Core 运行时能力检查留给 GL-002。OpenGL Renderer 模块级验收尚未开始。
+- 测试命令与结果：使用 MSVC/NMake 和 vcpkg/GLM、PCL 配置执行 `cmake -S . -B build-gl001 -G "NMake Makefiles" -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`，配置成功；`cmake --build build-gl001 --target dzc_render_opengl` 成功；`ctest --test-dir build-gl001 -R "^(dzc_gl001_configure|dzc_target_boundary|dzc_configure_smoke_(default|opengl_only))$" --output-on-failure` 为 `4/4` 通过。GL-001 配置测试覆盖内置路径成功、缺失 GLAD 明确失败和 OpenGL 关闭不检查 GLAD。
+- 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束
 

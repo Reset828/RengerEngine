@@ -67,10 +67,11 @@
 - **PCL 1.15.1**：安装根目录为 `D:\PCL\PCL 1.15.1`，CMake 配置目录为 `D:\PCL\PCL 1.15.1\cmake`。配置时必须通过 `-DPCL_DIR=...` 注入该目录；项目 CMake 禁止硬编码本机 PCL 路径。当前项目仅允许 `dzc_data_pcl` 私有 Target 使用 PCL。
 - **PCL Debug 运行时测试**：OpenNI2 2.2 已由 `D:\PCL\PCL 1.15.1\3rdParty\OpenNI2\OpenNI-Windows-x64-2.2.msi` 安装到 `C:\Program Files\OpenNI2\Redist`。运行链接 `pcl_iod.dll` 的 Debug 测试前，仅为测试进程将 `D:\PCL\PCL 1.15.1\bin`、`D:\PCL\PCL 1.15.1\3rdParty\VTK\bin`、`C:\Program Files\OpenNI2\Redist` 置于 `PATH` 前部；不要把这些机器路径硬编码到项目 CMake。
 ## 4.4 Windows 测试运行时 DLL 约定
+- **测试 DLL 必须来自仓库根目录 `dll` 文件夹**：每次构建测试程序时，必须先在仓库根目录的 `dll` 文件夹中查找测试所需的全部 DLL，并将其复制到对应的构建测试文件夹后再执行该步骤。如果 `dll` 文件夹缺少任何所需 DLL，必须立即停止该步骤并向主人明确报告缺失的 DLL；待主人将缺失 DLL 添加到 `dll` 文件夹后，才能重新执行该步骤，不得改用其他目录中的 DLL 规避此流程。
 
-- 当 CTest 因 PCL/VTK 运行时 DLL 缺失而失败，并报告 Windows 加载错误 `0xc0000135` 时，可将仓库现有 `build\bin\Debug` 或对应配置目录中的必要 DLL 临时复制到新构建的测试可执行文件目录后重试。
-- 临时复制仅用于测试运行，不得把复制的 DLL 提交到仓库；测试结束后必须删除所有临时复制的 DLL，并确认工作树中没有遗留测试运行时文件。
-- 如果构建配置与 DLL 后缀不匹配（例如 Debug 测试需要带 `d` 或 `-gd` 后缀的 PCL/VTK DLL），仍需补充对应配置的 PCL/VTK 运行时目录，或仅为测试进程设置正确的 `PATH`；不得通过重命名 DLL 规避依赖。
+- 当 CTest 报告 Windows DLL 加载错误（例如 `0xc0000135`）时，必须重新核对仓库根目录 `dll` 文件夹中的所需 DLL；缺少时按上一条规则停止并报告，不得从其他构建目录复制或通过其他运行时目录的 `PATH` 规避。
+- 从根目录 `dll` 文件夹复制的 DLL 仅用于测试运行，不得提交到仓库；测试结束后必须删除构建测试文件夹中的临时 DLL，并确认工作树中没有遗留测试运行时文件。
+- 如果构建配置与 DLL 后缀不匹配（例如 Debug 测试需要带 `d` 或 `-gd` 后缀的 PCL/VTK DLL），必须由主人将匹配配置的 DLL 补充到根目录 `dll` 文件夹后再重试；不得重命名 DLL 或改用其他来源。
 ## 5. 功能边界
 *   **包含**：点云加载、相机漫游、视锥体剔除、FPS 统计、CUDA 简单预处理。
 *   **不包含**：深度学习、复杂的 GIS 坐标系转换、网络下载、通用图像处理。

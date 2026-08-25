@@ -62,7 +62,6 @@ target_link_libraries(dzc_render_api INTERFACE
     dzc_engine_api
     dzc_data_core
 )
-target_link_libraries(dzc_render_opengl INTERFACE dzc_render_api)
 target_link_libraries(dzc_render_vulkan INTERFACE
     dzc_render_api
     dzc_platform
@@ -109,9 +108,6 @@ if(DZC_ENABLE_VULKAN)
 endif()
 
 # dzc_app is the only Target allowed to link Qt Widgets; dzc_data_pcl is the`r`n# only Target allowed to link PCL. The latter discovers PCL in src/data/io/pcl.
-if(DZC_ENABLE_OPENGL)
-    target_link_libraries(dzc_render_opengl INTERFACE OpenGL::GL)
-endif()
 if(DZC_ENABLE_VULKAN)
     target_link_libraries(dzc_render_vulkan INTERFACE Vulkan::Vulkan)
 endif()
@@ -120,21 +116,30 @@ if(DZC_ENABLE_CUDA)
 endif()
 
 # Generate a small configure-time manifest consumed by the boundary check.
-set(_dzc_manifest "set(DZC_CONFIGURED_TARGETS \"${DZC_FOUNDATION_TARGETS}\")\n")
+set(_dzc_manifest
+    "set(DZC_CONFIGURED_TARGETS \"${DZC_FOUNDATION_TARGETS}\")\nset(DZC_MANIFEST_ENABLE_OPENGL \"${DZC_ENABLE_OPENGL}\")\n")
 foreach(targetName IN LISTS DZC_FOUNDATION_TARGETS)
+    get_target_property(targetType ${targetName} TYPE)
     get_target_property(targetLinks ${targetName} INTERFACE_LINK_LIBRARIES)
-    if(targetLinks STREQUAL "targetLinks-NOTFOUND")
-        set(targetLinks "")
-    endif()
-    string(REPLACE ";" "|" targetLinksText "${targetLinks}")
     get_target_property(targetDirectLinks ${targetName} LINK_LIBRARIES)
-    if(targetDirectLinks STREQUAL "targetDirectLinks-NOTFOUND")
-        set(targetDirectLinks "")
-    endif()
-    string(REPLACE ";" "|" targetDirectLinksText "${targetDirectLinks}")
+    get_target_property(targetSources ${targetName} SOURCES)
+    get_target_property(targetIncludeDirectories ${targetName} INCLUDE_DIRECTORIES)
+    get_target_property(targetInterfaceIncludeDirectories ${targetName} INTERFACE_INCLUDE_DIRECTORIES)
+    foreach(propertyName IN ITEMS
+            targetLinks targetDirectLinks targetSources targetIncludeDirectories
+            targetInterfaceIncludeDirectories)
+        if(${propertyName} STREQUAL "${propertyName}-NOTFOUND")
+            set(${propertyName} "")
+        endif()
+        string(REPLACE ";" "|" ${propertyName}Text "${${propertyName}}")
+    endforeach()
     string(APPEND _dzc_manifest
+        "set(DZC_TARGET_TYPE_${targetName} \"${targetType}\")\n"
         "set(DZC_TARGET_LINKS_${targetName} \"${targetLinksText}\")\n"
         "set(DZC_TARGET_DIRECT_LINKS_${targetName} \"${targetDirectLinksText}\")\n"
+        "set(DZC_TARGET_SOURCES_${targetName} \"${targetSourcesText}\")\n"
+        "set(DZC_TARGET_INCLUDE_DIRECTORIES_${targetName} \"${targetIncludeDirectoriesText}\")\n"
+        "set(DZC_TARGET_INTERFACE_INCLUDE_DIRECTORIES_${targetName} \"${targetInterfaceIncludeDirectoriesText}\")\n"
     )
 endforeach()
 file(WRITE "${CMAKE_BINARY_DIR}/DzcTargetManifest.cmake" "${_dzc_manifest}")

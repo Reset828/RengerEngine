@@ -36,6 +36,26 @@ if(DEFINED CMAKE_PREFIX_PATH AND NOT CMAKE_PREFIX_PATH STREQUAL "")
     list(APPEND _dzc_smoke_prefix_args -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH})
 endif()
 
+set(_dzc_gl001_script
+    "${CMAKE_SOURCE_DIR}/tests/cmake/GladDependencyFailure.cmake")
+set(_dzc_gl001_root
+    "${CMAKE_BINARY_DIR}/gl001-configure-tests")
+add_test(
+    NAME dzc_gl001_configure
+    COMMAND ${CMAKE_COMMAND}
+        -DDZC_GL001_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DDZC_GL001_BINARY_ROOT=${_dzc_gl001_root}
+        -DDZC_GL001_GENERATOR=${CMAKE_GENERATOR}
+        -DDZC_GL001_MAKE_PROGRAM=${_dzc_smoke_make_program}
+        -DDZC_GL001_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        ${_dzc_smoke_toolchain_args}
+        ${_dzc_smoke_pcl_args}
+        ${_dzc_smoke_prefix_args}
+        -P ${_dzc_gl001_script}
+)
+set_tests_properties(dzc_gl001_configure PROPERTIES
+    LABELS "configure;opengl;gl001")
+
 add_test(
     NAME dzc_configure_smoke_default
     COMMAND ${CMAKE_COMMAND}

@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DzcOptions.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindOrFetchGlad.cmake)
 
 add_subdirectory(src)
 
