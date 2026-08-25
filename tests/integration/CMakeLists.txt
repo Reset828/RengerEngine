@@ -81,3 +81,16 @@ target_link_libraries(dzc_reader_progress_tests PRIVATE
 )
 
 add_test(NAME dzc_reader_progress COMMAND dzc_reader_progress_tests)
+add_executable(dzc_grid_visibility_tests
+    GridVisibilityTests.cpp
+)
+
+target_compile_features(dzc_grid_visibility_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_grid_visibility_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(dzc_grid_visibility_tests PRIVATE
+    dzc_engine_core
+    dzc_data_core
+    dzc_engine_api
+)
+
+add_test(NAME dzc_grid_visibility COMMAND dzc_grid_visibility_tests)

@@ -34,7 +34,7 @@
 - [x] **GC-006 实现超限 Cell 拆分**
 - [x] **GC-007 生成 Chunk 数据和稳定 ID**
 - [x] **GC-008 实现 ViewFrustum 数学剔除**
-- [ ] **GC-009 实现 Phase 1 可见列表**
+- [x] **GC-009 实现 Phase 1 可见列表**
 
 ## 5. 子任务说明
 
@@ -142,15 +142,17 @@
 - **验收检查**：轴对齐和旋转平面下的 Inside/Intersecting/Outside、退化 Bounds、负坐标、大坐标、无效平面和提示平面结果稳定；不修改输入 ViewFrustum 或 Bounds3d。
 - **测试要求**：专项测试覆盖六个方向、旋转平面、零尺寸 Bounds、NaN/Inf、反向 Bounds、计算溢出、提示命中/未命中、重复调用和类型值语义。
 - **追踪**：FR-VIS-002、9.3
+
 ### GC-009 实现 Phase 1 可见列表
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-25）
 - **目标**：对 Dataset Chunk 执行剔除并输出 DrawChunk 和统计。
 - **前置任务**：GC-007, GC-008, engine-core/EC-009
-- **预计文件**：`src/scene/GridVisibilitySelector.h`、`src/scene/GridVisibilitySelector.cpp`、`tests/integration/GridVisibilityTests.cpp`
-- **实现要求**：不可见块不得进入 draw 列表；统计总点、可见点和可见块。
-- **验收检查**：固定 Frustum 的输出 ID 和计数符合预期。
-- **测试要求**：小型人工场景集成测试。
+- **实现文件**：`src/scene/GridVisibilitySelector.h`、`src/scene/GridVisibilitySelector.cpp`、`tests/integration/GridVisibilityTests.cpp`
+- **实现结果**：新增后端无关 `GridVisibilitySelector`，按 Dataset 原始 Chunk 顺序执行 AABB 视锥体剔除；仅 `CpuResident`/`GpuResident` Chunk 进入 DrawChunk 列表。返回 Dataset 总点数、可见点数和可见 Chunk 数；DrawChunk 携带 ChunkId、点数、有限 float 相对原点和属性 schema。选择器按 DatasetId/ChunkId 保存上一帧 separating plane，仅用于优化检查顺序；非法 origin、Frustum 或 Bounds 返回 `DataFormat/2`，容量异常返回 `Resource/1`。
+- **Dataset 接口**：增加只读 `chunks()` 遍历接口，不复制 Chunk 数据。
+- **验收检查**：固定 identity Frustum 下内部、相交和外部 Chunk 的输出 ID、顺序和计数符合预期；非驻留状态不进入 DrawChunk；非 Ready Dataset 仍可按 Chunk 驻留状态选择；空 Dataset 返回零统计。
+- **测试结果**：新增 `dzc_grid_visibility` 集成 CTest；专项构建和 CTest `1/1` 通过。
 - **追踪**：FR-VIS-002/003、AC-P1-008
 
 ## 6. 模块级验收
@@ -162,7 +164,7 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-25（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006、GC-007、GC-008）
+- 完成日期：2026-08-25（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006、GC-007、GC-008、GC-009）
 - 完成人：Codex
 - 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile、确定性 GridRunMerger、超限 Cell 拆分和 Chunk 构建；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读、跨输入组的 Cell 合并、固定目标/最大点数的最长轴稳定拆分，以及 bounds/origin、float 局部坐标和 FNV-1a ChunkId。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
@@ -172,10 +174,13 @@
 - GC-006 接口：GridCellSplitter::split(bucket, token) 仅处理单个 GridBucket；不超过 524288 点返回独立副本，超限时按 ceil(pointCount / 262144) 生成非空子桶。递归选择最长轴并以 x → y → z 平局，坐标相同时按 source index 排序；子桶内部保留原 source index 顺序，非法输入为 DataFormat/2，容量不足为 Resource/1，取消为 Task/7。
 - GC-007 接口：`GridChunkBuilder::build(groups, token)` 接收外层 Cell 分组，忽略空输入和空桶，按 CellKey 的 x → y → z 字典序输出；组内输入子桶顺序决定 subchunkIndex。校验 Position/schema/属性流、有限坐标、sourceIndices 长度与严格递增、跨子桶 source index 唯一和重复 Cell 分组，错误为 `DataFormat/2`，容量失败为 `Resource/1`，取消为 `Task/7`。每个输出 Chunk 由 bounds 中心作为 origin，CPU Position 为 `float3(sourcePosition - origin)`，并完成 `Chunk::create()`、CPU load，最终为 `CpuResident`。ChunkId 使用 FNV-1a 64 位 little-endian 编码 `(x,y,z,subchunkIndex)`，单次 build 检测碰撞。
 - GC-008 接口：`FrustumCulling::classify(frustum, bounds, previousSeparatingPlane)` 为无状态三态 AABB 分类；六个平面执行 checked positive/negative vertex 测试，Inside/Intersecting/Outside 及 separating plane 语义固定。提示平面只改变检查顺序；Bounds、平面方程、法向量和所有中间乘加结果非法或非有限时返回 `DataFormat/2`。
-- 未解决问题：GC-009 仍需实现 Phase 1 可见列表；Grid Chunking 模块继续进行中。
+- GC-009 接口：`Dataset::chunks()` 返回只读 Chunk 容器引用；`GridVisibilitySelector::select(dataset, frustum)` 返回 `GridVisibilityResult`，按 Dataset 原顺序输出 `DrawChunk`，仅选择 `CpuResident`/`GpuResident` 且不在 Frustum 外的 Chunk，统计总点、可见点和可见 Chunk。选择器按 DatasetId/ChunkId 缓存上一帧 separating plane；缓存只改变检查顺序。非法 origin/Frustum/Bounds 返回 `DataFormat/2`，容量异常返回 `Resource/1`。
+- 未解决问题：Grid Chunking 模块级验收仍未完成，模块继续进行中。
 
 - 测试命令与结果：构建 `dzc_grid_chunk_builder_tests` 成功；`ctest --test-dir build-dg007 -R "^dzc_grid_chunk_builder$" --output-on-failure` 专项测试 `1/1` 通过。完整 CTest 未完成：构建阶段成功但测试过程在第 57/64 项超时，前两个 configure smoke 测试因未提供 `glm_DIR` 失败；未将完整 CTest 记录为全绿。未遗留测试运行时 DLL 或临时构建目录；`git diff --check` 已执行。
+- GC-009 测试命令与结果：构建 `dzc_grid_visibility_tests` 成功；`ctest --test-dir build-gc009 -R "^dzc_grid_visibility$" --output-on-failure` 专项测试 `1/1` 通过。验证使用临时构建目录，测试后已清理；未创建提交。
 - 关联提交：无（按要求未创建提交）。
+
 ## 8. 变更约束
 
 若实现需要改变公共接口、模块依赖、已确认参数或需求行为，必须先更新需求与设计文档，不得在编码任务中自行改变。

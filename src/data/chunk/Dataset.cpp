@@ -133,6 +133,10 @@ std::uint64_t Dataset::totalPointCount() const noexcept {
     return m_totalPointCount;
 }
 
+const std::vector<Chunk>& Dataset::chunks() const noexcept {
+    return m_chunks;
+}
+
 const Chunk* Dataset::findChunk(ChunkId id) const noexcept {
     for (const Chunk& chunk : m_chunks) {
         if (chunk.metadata().id == id) {

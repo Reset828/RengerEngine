@@ -37,6 +37,7 @@ public:
     const DatasetMetadata& metadata() const noexcept;
     std::size_t chunkCount() const noexcept;
     std::uint64_t totalPointCount() const noexcept;
+    const std::vector<Chunk>& chunks() const noexcept;
     const Chunk* findChunk(ChunkId id) const noexcept;
 
 private:
