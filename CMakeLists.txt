@@ -16,6 +16,9 @@ if(DZC_BUILD_TESTS)
     add_subdirectory(tests/unit)
     add_subdirectory(tests/integration)
     add_subdirectory(tests/performance)
+    if(DZC_ENABLE_OPENGL)
+        add_subdirectory(tests/graphics)
+    endif()
     add_test(
         NAME dzc_target_boundary
         COMMAND ${CMAKE_COMMAND}
