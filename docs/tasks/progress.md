@@ -45,7 +45,7 @@
 ## 5. Phase 1：OpenGL 基础渲染
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
-- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-007 已完成；GC-008 至 GC-009 未完成）
+- [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-008 已完成；GC-009 未完成）
 - [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：未开始
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
@@ -136,6 +136,7 @@
 
 | 日期 | 变更 | 说明 |
 | 2026-08-24 | GC-007 完成 | 已实现无状态 `GridChunkBuilder`：接收 Cell 分组和稳定子块顺序，校验 schema、属性流、有限坐标、source index、重复 Cell 与跨子块重复 source index；按 CellKey 字典序输出 `CpuResident` Chunk，计算 bounds/origin 和 float 局部坐标，使用 little-endian FNV-1a 64 位生成确定性 ChunkId 并检测碰撞。构建 `dzc_grid_chunk_builder_tests` 成功，GC-007 专项测试 `1/1` 通过；Grid Chunking 模块继续进行中，GC-008 至 GC-009 未完成。 |
+| 2026-08-25 | GC-008 完成 | 已实现无状态 `FrustumCulling`：对有限 `Bounds3d` 执行六平面 AABB `Inside`/`Intersecting`/`Outside` 三态分类，使用 positive/negative vertex 和逐项 checked 浮点乘加；支持上一帧 separating plane 提示并返回当前 Outside 平面。非法 bounds、平面、索引或非有限中间结果返回 `DataFormat/2`。新增 `dzc_frustum_culling_tests`；由于当前环境缺少可用 C++ 编译器，GC-008 专项构建、专项 CTest 和完整 CTest 未执行，不能记为通过；`git diff --check` 已执行。Grid Chunking 模块继续进行中，GC-009 未完成。
 | 2026-08-24 | GC-006 完成 | 已实现无状态 `GridCellSplitter`：对单个 `GridBucket` 执行固定目标 262144、最大 524288 的确定性超限拆分；按 `ceil(pointCount / 262144)` 生成子桶，使用最长轴递归空间稳定秩、`x → y → z` 平局规则和 source index 并列规则，子桶内部保留源序号顺序并保持属性流对齐。非法输入返回 `DataFormat/2`，容量不足返回 `Resource/1`，取消返回 `Task/7`。构建 `dzc_grid_cell_splitter_tests` 成功，GC-006 专项测试 `1/1` 通过；已临时复制 355 个运行时 DLL 尝试完整 CTest，测试结束后已全部删除；由于该构建目录未生成其他测试可执行文件且全量构建在既有 `engine_core/Engine.cpp` 阶段失败，完整 CTest 未完成，不能记录为全绿；Grid Chunking 模块继续进行中，GC-007 至 GC-009 未完成。
 | 2026-08-24 | GC-005 完成 | 已实现无状态 `GridRunMerger`：统一接收内存桶快照或 `GridRunFile::read()` 结果，按 `GridCellKey` 字典序输出，并按全局 `sourceIndices` 升序合并同 Cell 点及属性流；严格校验 schema、流长度、有限坐标、输入顺序和重复源序号，错误分别返回 `DataFormat/2`、`Resource/1` 或取消 `Task/7`。构建 `dzc_grid_run_merger_tests` 成功，GC-005 专项测试 `1/1` 通过；完整 CTest 受既有 Windows PCL/VTK/OpenNI2 DLL 装载问题影响，未记为全绿；Grid Chunking 模块继续进行中，GC-006 至 GC-009 未完成。
 | 2026-08-24 | GC-004 完成 | 已实现 RAII `GridRunFile` 临时 run：保存完整 `GridBucket`、属性流和稳定 sourceIndices，使用 magic/version/结束标记的内部二进制格式；支持原子完成、确定性读回、取消检查以及失败/损坏/未完成文件自动清理。构建 `dzc_grid_run_file_tests` 成功，GC-004 专项测试 `1/1` 通过；临时复制 176 个 Debug PCL/VTK/OpenNI2 DLL 后完整 CTest `61/61` 通过，测试结束后已删除全部临时 DLL；Grid Chunking 模块继续进行中，GC-005 至 GC-009 未完成。 |

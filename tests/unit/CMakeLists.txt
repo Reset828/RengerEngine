@@ -482,3 +482,11 @@ target_include_directories(dzc_grid_chunk_builder_tests PRIVATE ${PROJECT_SOURCE
 target_link_libraries(dzc_grid_chunk_builder_tests PRIVATE dzc_data_core dzc_tasks dzc_engine_api)
 
 add_test(NAME dzc_grid_chunk_builder COMMAND dzc_grid_chunk_builder_tests)
+add_executable(dzc_frustum_culling_tests
+    FrustumCullingTests.cpp
+)
+
+target_compile_features(dzc_frustum_culling_tests PRIVATE cxx_std_17)
+target_link_libraries(dzc_frustum_culling_tests PRIVATE dzc_engine_core dzc_engine_api)
+
+add_test(NAME dzc_frustum_culling COMMAND dzc_frustum_culling_tests)

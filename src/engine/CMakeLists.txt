@@ -14,6 +14,7 @@ add_library(dzc_engine_core STATIC
     EngineCommand.cpp
     EngineStateMachine.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/Scene.cpp
+    ${PROJECT_SOURCE_DIR}/src/scene/FrustumCulling.cpp
     ${PROJECT_SOURCE_DIR}/src/camera/ViewFrustum.cpp
     ${PROJECT_SOURCE_DIR}/src/camera/OrbitCameraController.cpp
 )

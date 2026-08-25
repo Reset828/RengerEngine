@@ -33,7 +33,7 @@
 - [x] **GC-005 实现确定性 Cell 合并**
 - [x] **GC-006 实现超限 Cell 拆分**
 - [x] **GC-007 生成 Chunk 数据和稳定 ID**
-- [ ] **GC-008 实现 ViewFrustum 数学剔除**
+- [x] **GC-008 实现 ViewFrustum 数学剔除**
 - [ ] **GC-009 实现 Phase 1 可见列表**
 
 ## 5. 子任务说明
@@ -131,15 +131,17 @@
 
 ### GC-008 实现 ViewFrustum 数学剔除
 
-- **状态**：未开始
-- **目标**：提供 AABB 与六平面相交测试及上一帧剔除平面提示。
+- **状态**：已完成（2026-08-25）
+- **目标**：提供无状态 AABB 六平面三态分类，并支持上一帧 separating plane 提示。
 - **前置任务**：camera-abstraction/CA-002, point-cloud-data/PD-002
-- **预计文件**：`src/scene/FrustumCulling.h`、`src/scene/FrustumCulling.cpp`、`tests/unit/FrustumCullingTests.cpp`
-- **实现要求**：只使用 Camera 提供的 ViewFrustum；不决定相机模型。
-- **验收检查**：内部、外部和相交 Chunk 分类正确。
-- **测试要求**：轴对齐、旋转平面、退化 box 和大坐标测试。
+- **实现文件**：`src/scene/FrustumCulling.h`、`src/scene/FrustumCulling.cpp`、`tests/unit/FrustumCullingTests.cpp`
+- **接口**：`FrustumCulling::classify(const ViewFrustum&, const Bounds3d&, std::optional<ViewFrustum::PlaneIndex>)` 返回 `Result<FrustumCullingResult>`；分类为 `Outside`、`Intersecting` 或 `Inside`，Outside 同时返回当前 separating plane。
+- **分类规则**：逐平面使用 AABB positive/negative vertex 计算 `dot(normal, vertex) + w`；positive distance 小于零表示完全在外，negative distance 小于零表示相交，零边界不视为外部或相交。平面检查顺序固定为 Left → Right → Bottom → Top → Near → Far。
+- **提示语义**：上一帧 separating plane 合法时优先检查；命中外部则立即返回，未命中时继续固定顺序的其余平面。提示只改变检查顺序，不改变三态分类结果。
+- **校验与错误**：Bounds 必须有限且 `minimum <= maximum`；平面方程必须有限且法向量非零；乘法、累加和距离逐步检查有限性；非法输入或非有限计算统一返回 `ErrorDomain::DataFormat`、错误码 `2`。
+- **验收检查**：轴对齐和旋转平面下的 Inside/Intersecting/Outside、退化 Bounds、负坐标、大坐标、无效平面和提示平面结果稳定；不修改输入 ViewFrustum 或 Bounds3d。
+- **测试要求**：专项测试覆盖六个方向、旋转平面、零尺寸 Bounds、NaN/Inf、反向 Bounds、计算溢出、提示命中/未命中、重复调用和类型值语义。
 - **追踪**：FR-VIS-002、9.3
-
 ### GC-009 实现 Phase 1 可见列表
 
 - **状态**：未开始
@@ -160,7 +162,7 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-24（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006、GC-007）
+- 完成日期：2026-08-25（GC-001、GC-002、GC-003、GC-004、GC-005、GC-006、GC-007、GC-008）
 - 完成人：Codex
 - 关键变更：完成 GridParameters cell-size 估算、checked GridCellKey 计算、内存 GridBucketStore、RAII GridRunFile、确定性 GridRunMerger、超限 Cell 拆分和 Chunk 构建；新增值语义 CellKey、floor 映射、非有限/溢出检查、按 CellKey 排序的内存分桶、稳定源序号、schema 固定、CPU 逻辑载荷预算、完整 GridBucket 临时 run 二进制写读、跨输入组的 Cell 合并、固定目标/最大点数的最长轴稳定拆分，以及 bounds/origin、float 局部坐标和 FNV-1a ChunkId。
 - GC-002 接口：`GridCellKey::fromPosition(position, datasetMinimum, cellSize)` 返回 `Result<GridCellKey>`；错误统一为 `DataFormat/2`。`GridBucketStore` 使用该接口逐点 checked 计算 CellKey。
@@ -169,7 +171,8 @@
 - GC-005 接口：`GridRunMerger::merge(inputs, token)` 返回独立 `std::vector<GridBucket>`；输入组可来自内存快照或 `GridRunFile::read()`，非空 schema 必须一致；每个输入组按 CellKey 严格递增校验，同 Cell 按 source index 全局升序合并，重复 source index 返回 `DataFormat/2`，取消返回 `Task/7`，内存不足返回 `Resource/1`；不删除调用方拥有的输入 run。
 - GC-006 接口：GridCellSplitter::split(bucket, token) 仅处理单个 GridBucket；不超过 524288 点返回独立副本，超限时按 ceil(pointCount / 262144) 生成非空子桶。递归选择最长轴并以 x → y → z 平局，坐标相同时按 source index 排序；子桶内部保留原 source index 顺序，非法输入为 DataFormat/2，容量不足为 Resource/1，取消为 Task/7。
 - GC-007 接口：`GridChunkBuilder::build(groups, token)` 接收外层 Cell 分组，忽略空输入和空桶，按 CellKey 的 x → y → z 字典序输出；组内输入子桶顺序决定 subchunkIndex。校验 Position/schema/属性流、有限坐标、sourceIndices 长度与严格递增、跨子桶 source index 唯一和重复 Cell 分组，错误为 `DataFormat/2`，容量失败为 `Resource/1`，取消为 `Task/7`。每个输出 Chunk 由 bounds 中心作为 origin，CPU Position 为 `float3(sourcePosition - origin)`，并完成 `Chunk::create()`、CPU load，最终为 `CpuResident`。ChunkId 使用 FNV-1a 64 位 little-endian 编码 `(x,y,z,subchunkIndex)`，单次 build 检测碰撞。
-- 未解决问题：GC-008 和 GC-009 仍需实现视锥体剔除和可见列表；Grid Chunking 模块继续进行中。
+- GC-008 接口：`FrustumCulling::classify(frustum, bounds, previousSeparatingPlane)` 为无状态三态 AABB 分类；六个平面执行 checked positive/negative vertex 测试，Inside/Intersecting/Outside 及 separating plane 语义固定。提示平面只改变检查顺序；Bounds、平面方程、法向量和所有中间乘加结果非法或非有限时返回 `DataFormat/2`。
+- 未解决问题：GC-009 仍需实现 Phase 1 可见列表；Grid Chunking 模块继续进行中。
 
 - 测试命令与结果：构建 `dzc_grid_chunk_builder_tests` 成功；`ctest --test-dir build-dg007 -R "^dzc_grid_chunk_builder$" --output-on-failure` 专项测试 `1/1` 通过。完整 CTest 未完成：构建阶段成功但测试过程在第 57/64 项超时，前两个 configure smoke 测试因未提供 `glm_DIR` 失败；未将完整 CTest 记录为全绿。未遗留测试运行时 DLL 或临时构建目录；`git diff --check` 已执行。
 - 关联提交：无（按要求未创建提交）。
