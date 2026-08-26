@@ -46,7 +46,7 @@
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
-- [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：进行中（GL-001 至 GL-004 已完成；GL-005 至 GL-012 未开始；模块级验收未完成）
+- [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：进行中（GL-001 至 GL-005 已完成；GL-006 至 GL-012 未开始；模块级验收未完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始

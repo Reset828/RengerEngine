@@ -30,7 +30,7 @@
 - [x] **GL-002 实现 OpenGL 4.5 能力检查**
 - [x] **GL-003 实现 GL Buffer/VAO RAII**
 - [x] **GL-004 实现 GLSL 编译与链接**
-- [ ] **GL-005 实现统一 FrameData/ChunkData 布局**
+- [x] **GL-005 实现统一 FrameData/ChunkData 布局**
 - [ ] **GL-006 实现 Chunk GPU 上传**
 - [ ] **GL-007 实现 OpenGLBackend 生命周期**
 - [ ] **GL-008 实现逐 Chunk 点绘制**
@@ -87,15 +87,16 @@
 
 ### GL-005 实现统一 FrameData/ChunkData 布局
 
-- **状态**：未开始
+- **状态**：已完成（2026-08-26）
 - **目标**：定义 CPU 侧 std140/std430 兼容结构和布局断言。
 - **前置任务**：GL-004, point-cloud-data/PD-008
-- **预计文件**：`src/render/common/ShaderData.h`、`src/render/opengl/OpenGLShaderData.cpp`、`tests/unit/ShaderLayoutTests.cpp`
-- **实现要求**：字段偏移显式；不得直接假设 glm 默认对齐；与 Shader 声明一致。
-- **验收检查**：静态断言和反射/查询验证 binding 与大小。
-- **测试要求**：布局 Golden 值和 OpenGL block 查询测试。
+- **实际文件**：`src/render/common/ShaderData.h`、`src/render/opengl/OpenGLShaderData.h`、`src/render/opengl/OpenGLShaderData.cpp`、`tests/unit/ShaderLayoutTests.cpp`
+- **实现结果**：新增不依赖 GLM 默认对齐的自有标量/数组 Shader 数据结构；FrameData 固定为 std140 binding 0、208 字节，ChunkData 固定为 std430 binding 1、16 字节数组 stride。矩阵按 GLM 列主序转换，Chunk 相对原点由 PD-008 计算后写入 vec4。
+- **布局契约**：FrameData 字段偏移为 view 0、projection 64、fixedColor 128、heightRange 144、intensityRange 160、pointSize 176、shadingMode 180、reservedPadding 184、reservedExtension 192；ChunkData relativeChunkOrigin 偏移 0。
+- **实现边界**：增加已链接 Program 的真实 block/member 反射查询入口，但不创建 Context、不初始化 GLAD、不上传 Buffer；绘制和完整着色留给 GL-008/GL-009。
+- **验收检查**：静态断言、Golden 布局验证、矩阵列主序和 Shader 契约检查通过；真实 block 查询测试因缺少统一 Context 基础设施明确 Skipped。
+- **测试要求**：`dzc_shader_layout` Fake/静态测试通过；`dzc_shader_layout_real_context` 使用返回码 77 并由 CTest 标记 Skipped。
 - **追踪**：DDD-014、13.2
-
 ### GL-006 实现 Chunk GPU 上传
 
 - **状态**：未开始
@@ -185,8 +186,17 @@
 - 完成日期：2026-08-26
 - 完成人：Codex（按主人确认执行）
 - 关键变更：GL-001 至 GL-003 保持已完成。GL-004 新增不暴露 OpenGL/GLAD 类型的 `GlShaderProgram` 和独立 `IGlShaderOperations`，支持源码与文件入口、Vertex/Fragment 运行时编译、Program 链接、阶段化错误日志、移动语义、显式 reset 和线程令牌约束。新增 `#version 450 core` 的最小点云 Vertex/Fragment shader fixture，固定 location 0/1/2 与 binding 0/1；GLAD 真实操作仅在 `.cpp` 内实现。
-- 未解决问题：GL-005 至 GL-012 尚未实现；GL-002、GL-003、GL-004 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
+- 未解决问题：GL-006 至 GL-012 尚未实现；GL-002、GL-003、GL-004、GL-005 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
 - 测试命令与结果：GL-001 至 GL-003 的既有配置、能力和资源回归保持通过。GL-004 使用 MSVC 19.51/NMake 配置 `build-gl004`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON）；`cmake --build build-gl004 --target dzc_gl_shader_tests` 成功，包含 `GlShaderProgram.cpp` 和 GLAD 的 `dzc_render_opengl` 构建成功；`ctest --test-dir build-gl004 -R "^dzc_gl_shader$|^dzc_gl_shader_real_context$" --output-on-failure` 为 `1/1` 通过、真实 Context 用例明确 Skipped。已执行 `git diff --check`，未创建 Git commit。
+- 关联提交：未提交（未创建 Git commit）。
+
+### GL-005（2026-08-26）
+
+- 关键变更：新增后端无关 `dzc::render::FrameData` 和 `ChunkData`，CPU 侧使用 `std::array`、标量和显式 `alignas(16)`/填充，不把 `glm::mat4` 或 `glm::vec4` 作为 GPU ABI 成员。FrameData 按 std140 binding 0 固定为 208 字节，ChunkData 按 std430 binding 1 固定为 16 字节数组 stride；矩阵辅助函数按 GLM 列主序写入。
+- OpenGL 实现：新增 `OpenGLShaderData` 的布局验证和已链接 Program 反射查询入口，使用 GLAD 查询 UBO block size/offset、SSBO block binding 和 buffer variable offset/array stride。未创建 Context，未初始化 GLAD loader，未实现 Buffer 上传、绘制或完整着色。
+- Shader 同步：`point_cloud.vert` 使用完整 FrameData 字段、view/projection 变换和 `relativeChunkOrigin[0]`；固定 `#version 450 core`、location 0/1/2、binding 0/1；Fragment Shader 仍仅输出输入 Color，四种着色留给 GL-009。
+- 验证结果：MSVC 19.51.36246.0 x64 / NMake Makefiles、OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON 配置成功；`dzc_render_opengl` 和 `dzc_shader_layout_tests` 构建成功；`dzc_shader_layout` 通过，真实 Context 用例明确 Skipped；`git diff --check` 已执行并通过。
+- 未解决问题：真实 OpenGL Context、GLAD loader 初始化和运行时 block 反射验证留给 GL-007；GL-006 至 GL-012 尚未实现；OpenGL Renderer 模块级验收未完成。
 - 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束

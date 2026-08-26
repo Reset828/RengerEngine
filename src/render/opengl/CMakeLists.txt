@@ -11,6 +11,7 @@ add_library(dzc_render_opengl STATIC
     GlBuffer.cpp
     GlVertexArray.cpp
     GlShaderProgram.cpp
+    OpenGLShaderData.cpp
 )
 
 # The project enables only CXX; generated GLAD C sources are C++ compatible.
@@ -19,6 +20,7 @@ set_source_files_properties("${DZC_GLAD_SOURCE}" PROPERTIES LANGUAGE CXX)
 target_compile_features(dzc_render_opengl PUBLIC cxx_std_17)
 target_include_directories(dzc_render_opengl PRIVATE
     "${DZC_GLAD_INCLUDE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src"
 )
 target_link_libraries(dzc_render_opengl
     PUBLIC dzc_render_api

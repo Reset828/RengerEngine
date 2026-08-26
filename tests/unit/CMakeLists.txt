@@ -490,3 +490,30 @@ target_compile_features(dzc_frustum_culling_tests PRIVATE cxx_std_17)
 target_link_libraries(dzc_frustum_culling_tests PRIVATE dzc_engine_core dzc_engine_api)
 
 add_test(NAME dzc_frustum_culling COMMAND dzc_frustum_culling_tests)
+
+if(DZC_ENABLE_OPENGL)
+    add_executable(dzc_shader_layout_tests
+        ShaderLayoutTests.cpp
+    )
+
+    target_compile_features(dzc_shader_layout_tests PRIVATE cxx_std_17)
+    target_compile_definitions(dzc_shader_layout_tests PRIVATE
+        DZC_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    )
+    target_include_directories(dzc_shader_layout_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+    )
+    target_link_libraries(dzc_shader_layout_tests PRIVATE
+        dzc_render_opengl
+    )
+
+    add_test(NAME dzc_shader_layout COMMAND dzc_shader_layout_tests)
+    set_tests_properties(dzc_shader_layout PROPERTIES
+        LABELS "graphics;opengl;gl005")
+
+    add_test(NAME dzc_shader_layout_real_context
+        COMMAND dzc_shader_layout_tests --real-context)
+    set_tests_properties(dzc_shader_layout_real_context PROPERTIES
+        LABELS "graphics;opengl;gl005;skipped"
+        SKIP_RETURN_CODE 77)
+endif()
