@@ -28,7 +28,7 @@
 
 - [x] **GL-001 配置 OpenGL 和 GLAD 私有依赖**
 - [x] **GL-002 实现 OpenGL 4.5 能力检查**
-- [ ] **GL-003 实现 GL Buffer/VAO RAII**
+- [x] **GL-003 实现 GL Buffer/VAO RAII**
 - [ ] **GL-004 实现 GLSL 编译与链接**
 - [ ] **GL-005 实现统一 FrameData/ChunkData 布局**
 - [ ] **GL-006 实现 Chunk GPU 上传**
@@ -65,13 +65,13 @@
 
 ### GL-003 实现 GL Buffer/VAO RAII
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：封装创建、移动、销毁和标签。
 - **前置任务**：GL-002
 - **预计文件**：`src/render/opengl/GlBuffer.h`、`src/render/opengl/GlBuffer.cpp`、`src/render/opengl/GlVertexArray.h`、`src/render/opengl/GlVertexArray.cpp`、`tests/graphics/GlResourceTests.cpp`
-- **实现要求**：对象仅在当前 Context 线程创建销毁；析构不抛。
-- **验收检查**：移动后只有新对象持有资源；shutdown 后无 GL 泄漏。
-- **测试要求**：创建/移动/重复释放和 Context 关闭测试。
+- **实现要求**：对象仅在当前 Context 线程创建销毁；析构不抛；资源操作通过项目自有接口隔离 GLAD。
+- **验收检查**：移动后只有新对象持有资源；显式 `reset()` 在正确 Context 线程完成释放；不安全析构跳过 GL 删除并标记 `releasePending`。
+- **测试要求**：创建、移动、重复释放、标签、错误、线程令牌和跨线程析构 Fake 测试；真实 Context 用例明确 Skipped，留给 GL-007。
 - **追踪**：NFR-MAIN-002、14.1
 
 ### GL-004 实现 GLSL 编译与链接
@@ -182,11 +182,11 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-08-25
+- 完成日期：2026-08-26
 - 完成人：Codex（按主人确认执行）
-- 关键变更：GL-001 已完成。将 GLAD 1.0.36（生成目标 OpenGL 4.6 Core）纳入 `third_party/glad`；OpenGL 开启时通过内置默认路径或 `DZC_GLAD_ROOT` 覆盖路径检查 GLAD 文件并创建真实 `dzc_render_opengl` 静态库，GLAD include 目录保持私有；OpenGL 关闭时保留兼容的接口占位 Target。GL-002 新增不暴露 OpenGL/GLAD 类型的 `OpenGLCapabilities` 能力查询接口和 `IOpenGLCapabilityQueries` Fake 注入接口，验证 OpenGL 4.5 Core 最低版本与 Core Profile，并记录点大小、UBO/SSBO 对齐、最大 SSBO Block Buffer、GPU/驱动/GLSL 信息。
-- 未解决问题：GL-003 至 GL-012 尚未实现；GL-002 的真实 Context 测试、GLAD loader 初始化和 OpenGL Backend 生命周期留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
-- 测试命令与结果：GL-001 的 OpenGL-only 配置、`dzc_render_opengl` 构建及相关 CTest 为 `4/4` 通过；GL-002 使用 MSVC/NMake 和 vcpkg/GLM、PCL 配置执行 `cmake -S . -B build-gl002 -G "NMake Makefiles" -DCMAKE_PREFIX_PATH=D:/vcpkg/vcpkg/installed/x64-windows -DDZC_ENABLE_OPENGL=ON -DDZC_ENABLE_VULKAN=OFF -DDZC_ENABLE_CUDA=OFF -DDZC_BUILD_TESTS=ON`，配置成功；`cmake --build build-gl002 --target dzc_render_opengl` 和 `cmake --build build-gl002 --target dzc_opengl_capabilities_tests` 成功；`ctest --test-dir build-gl002 -R "dzc_opengl_capabilities" --output-on-failure` 中 Fake 测试通过，真实 Context 用例明确 Skipped。
+- 关键变更：GL-001 已完成。将 GLAD 1.0.36（生成目标 OpenGL 4.6 Core）纳入 `third_party/glad`；OpenGL 开启时通过内置默认路径或 `DZC_GLAD_ROOT` 覆盖路径检查 GLAD 文件并创建真实 `dzc_render_opengl` 静态库，GLAD include 目录保持私有；OpenGL 关闭时保留兼容的接口占位 Target。GL-002 新增不暴露 OpenGL/GLAD 类型的 `OpenGLCapabilities` 能力查询接口和 `IOpenGLCapabilityQueries` Fake 注入接口，验证 OpenGL 4.5 Core 最低版本与 Core Profile，并记录点大小、UBO/SSBO 对齐、最大 SSBO Block Buffer、GPU/驱动/GLSL 信息。GL-003 在 `dzc_render_opengl` 中新增 `GlBuffer`、`GlVertexArray` 及共享 `IGlResourceOperations`/`GlContextThreadToken`，实现不可复制、可移动的 RAII 创建、显式 reset、标签转发和 CPU 标签保存；析构为 `noexcept`，错误线程或操作不可用时跳过 GL 删除并设置 `releasePending`。头文件不暴露 OpenGL/GLAD 类型。
+- 未解决问题：GL-004 至 GL-012 尚未实现；GL-002/GL-003 的真实 Context 测试、GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
+- 测试命令与结果：GL-001 的 OpenGL-only 配置、`dzc_render_opengl` 构建及相关 CTest 为 `4/4` 通过；GL-002 的 Fake 能力测试通过，真实 Context 用例明确 Skipped。GL-003 使用 MSVC 19.51/NMake 配置 `build-gl003`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON），`cmake --build build-gl003 --target dzc_render_opengl`、`cmake --build build-gl003 --target dzc_gl_resource_tests` 成功；`ctest --test-dir build-gl003 -R "^(dzc_gl_resource|dzc_opengl_capabilities|dzc_gl001_configure|dzc_target_boundary|dzc_configure_smoke_opengl_only)$" --output-on-failure` 为 `5/5` 通过；`ctest --test-dir build-gl003 -R "^dzc_opengl_capabilities_real_context$|^dzc_gl_resource_real_context$" --output-on-failure` 为 `2/2` Skipped。
 - 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束

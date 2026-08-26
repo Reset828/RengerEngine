@@ -20,3 +20,21 @@ add_test(NAME dzc_opengl_capabilities_real_context
 set_tests_properties(dzc_opengl_capabilities_real_context PROPERTIES
     LABELS "graphics;opengl;gl002;skipped")
 set_tests_properties(dzc_opengl_capabilities_real_context PROPERTIES SKIP_RETURN_CODE 77)
+add_executable(dzc_gl_resource_tests
+    GlResourceTests.cpp
+)
+
+target_compile_features(dzc_gl_resource_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_gl_resource_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_gl_resource_tests PRIVATE dzc_render_opengl)
+
+add_test(NAME dzc_gl_resource COMMAND dzc_gl_resource_tests)
+set_tests_properties(dzc_gl_resource PROPERTIES
+    LABELS "graphics;opengl;gl003")
+add_test(NAME dzc_gl_resource_real_context
+    COMMAND dzc_gl_resource_tests --real-context)
+set_tests_properties(dzc_gl_resource_real_context PROPERTIES
+    LABELS "graphics;opengl;gl003;skipped"
+    SKIP_RETURN_CODE 77)

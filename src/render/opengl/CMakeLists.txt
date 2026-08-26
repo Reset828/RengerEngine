@@ -7,6 +7,9 @@ endif()
 add_library(dzc_render_opengl STATIC
     "${DZC_GLAD_SOURCE}"
     OpenGLCapabilities.cpp
+    GlResource.cpp
+    GlBuffer.cpp
+    GlVertexArray.cpp
 )
 
 # The project enables only CXX; generated GLAD C sources are C++ compatible.
