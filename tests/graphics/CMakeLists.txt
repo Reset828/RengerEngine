@@ -61,3 +61,18 @@ add_test(NAME dzc_gl_shader_real_context
 set_tests_properties(dzc_gl_shader_real_context PROPERTIES
     LABELS "graphics;opengl;gl004;skipped"
     SKIP_RETURN_CODE 77)
+
+add_executable(dzc_gl_chunk_upload_tests
+    GlChunkUploadTests.cpp
+)
+
+target_compile_features(dzc_gl_chunk_upload_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_gl_chunk_upload_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_gl_chunk_upload_tests PRIVATE dzc_render_opengl)
+
+add_test(NAME dzc_gl_chunk_upload COMMAND dzc_gl_chunk_upload_tests)
+set_tests_properties(dzc_gl_chunk_upload PROPERTIES
+    LABELS "graphics;opengl;gl006")
