@@ -29,7 +29,7 @@
 - [x] **GL-001 配置 OpenGL 和 GLAD 私有依赖**
 - [x] **GL-002 实现 OpenGL 4.5 能力检查**
 - [x] **GL-003 实现 GL Buffer/VAO RAII**
-- [ ] **GL-004 实现 GLSL 编译与链接**
+- [x] **GL-004 实现 GLSL 编译与链接**
 - [ ] **GL-005 实现统一 FrameData/ChunkData 布局**
 - [ ] **GL-006 实现 Chunk GPU 上传**
 - [ ] **GL-007 实现 OpenGLBackend 生命周期**
@@ -76,7 +76,7 @@
 
 ### GL-004 实现 GLSL 编译与链接
 
-- **状态**：未开始
+- **状态**：已完成
 - **目标**：实现运行时加载、编译、链接和诊断日志。
 - **前置任务**：GL-003
 - **预计文件**：`src/render/opengl/GlShaderProgram.h`、`src/render/opengl/GlShaderProgram.cpp`、`shaders/opengl/point_cloud.vert`、`shaders/opengl/point_cloud.frag`、`tests/graphics/GlShaderTests.cpp`
@@ -184,9 +184,9 @@
 
 - 完成日期：2026-08-26
 - 完成人：Codex（按主人确认执行）
-- 关键变更：GL-001 已完成。将 GLAD 1.0.36（生成目标 OpenGL 4.6 Core）纳入 `third_party/glad`；OpenGL 开启时通过内置默认路径或 `DZC_GLAD_ROOT` 覆盖路径检查 GLAD 文件并创建真实 `dzc_render_opengl` 静态库，GLAD include 目录保持私有；OpenGL 关闭时保留兼容的接口占位 Target。GL-002 新增不暴露 OpenGL/GLAD 类型的 `OpenGLCapabilities` 能力查询接口和 `IOpenGLCapabilityQueries` Fake 注入接口，验证 OpenGL 4.5 Core 最低版本与 Core Profile，并记录点大小、UBO/SSBO 对齐、最大 SSBO Block Buffer、GPU/驱动/GLSL 信息。GL-003 在 `dzc_render_opengl` 中新增 `GlBuffer`、`GlVertexArray` 及共享 `IGlResourceOperations`/`GlContextThreadToken`，实现不可复制、可移动的 RAII 创建、显式 reset、标签转发和 CPU 标签保存；析构为 `noexcept`，错误线程或操作不可用时跳过 GL 删除并设置 `releasePending`。头文件不暴露 OpenGL/GLAD 类型。
-- 未解决问题：GL-004 至 GL-012 尚未实现；GL-002/GL-003 的真实 Context 测试、GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
-- 测试命令与结果：GL-001 的 OpenGL-only 配置、`dzc_render_opengl` 构建及相关 CTest 为 `4/4` 通过；GL-002 的 Fake 能力测试通过，真实 Context 用例明确 Skipped。GL-003 使用 MSVC 19.51/NMake 配置 `build-gl003`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON），`cmake --build build-gl003 --target dzc_render_opengl`、`cmake --build build-gl003 --target dzc_gl_resource_tests` 成功；`ctest --test-dir build-gl003 -R "^(dzc_gl_resource|dzc_opengl_capabilities|dzc_gl001_configure|dzc_target_boundary|dzc_configure_smoke_opengl_only)$" --output-on-failure` 为 `5/5` 通过；`ctest --test-dir build-gl003 -R "^dzc_opengl_capabilities_real_context$|^dzc_gl_resource_real_context$" --output-on-failure` 为 `2/2` Skipped。
+- 关键变更：GL-001 至 GL-003 保持已完成。GL-004 新增不暴露 OpenGL/GLAD 类型的 `GlShaderProgram` 和独立 `IGlShaderOperations`，支持源码与文件入口、Vertex/Fragment 运行时编译、Program 链接、阶段化错误日志、移动语义、显式 reset 和线程令牌约束。新增 `#version 450 core` 的最小点云 Vertex/Fragment shader fixture，固定 location 0/1/2 与 binding 0/1；GLAD 真实操作仅在 `.cpp` 内实现。
+- 未解决问题：GL-005 至 GL-012 尚未实现；GL-002、GL-003、GL-004 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
+- 测试命令与结果：GL-001 至 GL-003 的既有配置、能力和资源回归保持通过。GL-004 使用 MSVC 19.51/NMake 配置 `build-gl004`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON）；`cmake --build build-gl004 --target dzc_gl_shader_tests` 成功，包含 `GlShaderProgram.cpp` 和 GLAD 的 `dzc_render_opengl` 构建成功；`ctest --test-dir build-gl004 -R "^dzc_gl_shader$|^dzc_gl_shader_real_context$" --output-on-failure` 为 `1/1` 通过、真实 Context 用例明确 Skipped。已执行 `git diff --check`，未创建 Git commit。
 - 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束

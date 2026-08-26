@@ -38,3 +38,26 @@ add_test(NAME dzc_gl_resource_real_context
 set_tests_properties(dzc_gl_resource_real_context PROPERTIES
     LABELS "graphics;opengl;gl003;skipped"
     SKIP_RETURN_CODE 77)
+
+add_executable(dzc_gl_shader_tests
+    GlShaderTests.cpp
+)
+
+target_compile_features(dzc_gl_shader_tests PRIVATE cxx_std_17)
+target_compile_definitions(dzc_gl_shader_tests PRIVATE
+    DZC_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
+target_include_directories(dzc_gl_shader_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_gl_shader_tests PRIVATE dzc_render_opengl)
+
+add_test(NAME dzc_gl_shader COMMAND dzc_gl_shader_tests)
+set_tests_properties(dzc_gl_shader PROPERTIES
+    LABELS "graphics;opengl;gl004")
+
+add_test(NAME dzc_gl_shader_real_context
+    COMMAND dzc_gl_shader_tests --real-context)
+set_tests_properties(dzc_gl_shader_real_context PROPERTIES
+    LABELS "graphics;opengl;gl004;skipped"
+    SKIP_RETURN_CODE 77)
