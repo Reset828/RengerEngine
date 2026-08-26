@@ -97,3 +97,18 @@ add_test(NAME dzc_opengl_backend_real_context
 set_tests_properties(dzc_opengl_backend_real_context PROPERTIES
     LABELS "graphics;opengl;gl007;skipped"
     SKIP_RETURN_CODE 77)
+add_executable(dzc_opengl_draw_tests
+    OpenGLDrawTests.cpp
+)
+target_compile_features(dzc_opengl_draw_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_opengl_draw_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_opengl_draw_tests PRIVATE dzc_render_opengl)
+add_test(NAME dzc_opengl_draw COMMAND dzc_opengl_draw_tests)
+set_tests_properties(dzc_opengl_draw PROPERTIES LABELS "graphics;opengl;gl008")
+add_test(NAME dzc_opengl_draw_real_context COMMAND dzc_opengl_draw_tests --real-context)
+set_tests_properties(dzc_opengl_draw_real_context PROPERTIES
+    LABELS "graphics;opengl;gl008;skipped"
+    SKIP_RETURN_CODE 77)

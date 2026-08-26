@@ -71,6 +71,7 @@ public:
     dzc::Result<void> reset(const GlContextThreadToken& token);
 
     bool isValid() const noexcept { return mProgramId != 0; }
+    std::uint32_t id() const noexcept { return mProgramId; }
     bool releasePending() const noexcept { return mReleasePending; }
 
 private:

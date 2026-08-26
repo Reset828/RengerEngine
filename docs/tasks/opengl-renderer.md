@@ -33,7 +33,7 @@
 - [x] **GL-005 实现统一 FrameData/ChunkData 布局**
 - [x] **GL-006 实现 Chunk GPU 上传**
 - [x] **GL-007 实现 OpenGLBackend 生命周期**
-- [ ] **GL-008 实现逐 Chunk 点绘制**
+- [x] **GL-008 实现逐 Chunk 点绘制**
 - [ ] **GL-009 实现四种着色和点大小**
 - [ ] **GL-010 实现 resize 和投影适配**
 - [ ] **GL-011 实现 GPU Timer Query**
@@ -121,17 +121,18 @@
 - **生命周期边界**：`update()` 只校验并保存完整 `RenderFrame`，`render()` 仅在有效帧存在时返回占位成功，`resize()` 只更新尺寸；未实现 FrameData UBO、ChunkData SSBO、绘制、投影适配、平台 Context 创建或 GLAD loader 初始化。
 - **验收检查**：Fake 覆盖初始化成功/能力和 Context 失败/重复初始化/多 Chunk 与替换/upload 失败/帧更新与 render 占位/resize/线程拒绝/release/shutdown 失败重试/移动语义/析构安全。
 - **测试要求**：`dzc_opengl_backend_lifecycle` 已通过；`dzc_opengl_backend_real_context` 返回 `77` 并由 CTest 明确标记 Skipped，真实 Context 生命周期留给后续集成层。
-- **后续范围**：GL-008 至 GL-012 仍未开始；OpenGL Renderer 模块整体保持“进行中”，模块级验收不得标记完成。
+- **后续范围**：GL-009 至 GL-012 仍未开始；OpenGL Renderer 模块整体保持“进行中”，模块级验收不得标记完成。
 - **追踪**：4.3、14.2、NFR-REL-002
 ### GL-008 实现逐 Chunk 点绘制
 
-- **状态**：未开始
-- **目标**：每可见 Chunk 一次 glDrawArrays(GL_POINTS)。
-- **前置任务**：GL-007, grid-chunking/GC-009
-- **预计文件**：`src/render/opengl/OpenGLBackend.cpp`、`tests/graphics/OpenGLDrawTests.cpp`
-- **实现要求**：更新 Frame UBO 和 Chunk SSBO；不可见块不提交；首版不要求 MDI。
-- **验收检查**：捕获/统计 draw 次数等于可见 Chunk 数，点数正确。
-- **测试要求**：小型离屏渲染和 Draw 统计测试。
+- **状态**：已完成（2026-08-26）
+- **目标**：每可见 Chunk 一次 `glDrawArrays(GL_POINTS)`。
+- **前置任务**：GL-007、grid-chunking/GC-009
+- **实际文件**：`src/render/opengl/OpenGLBackend.cpp`、`src/render/opengl/GlDrawOperations.h`、`src/render/opengl/GlDrawOperations.cpp`、`tests/graphics/OpenGLDrawTests.cpp`
+- **实现结果**：在外部 Context、GLAD 和能力检查成功后，Backend 持久创建 Frame UBO、单记录 Chunk SSBO 和默认点云 Shader；FrameData 绑定到 binding 0，ChunkData 绑定到 binding 1。`render()` 先对全部 `RenderFrame.draws` 做资源有效性、点数一致性和 `GLsizei` 范围预检查，再按 draws 顺序上传 FrameData/ChunkData、清除当前帧颜色、绑定 Shader/VAO，并对每个可见 Chunk 提交一次 `GL_POINTS`。未列入 draws 的已上传 Chunk 不提交。
+- **错误与统计**：缺少资源、点数不一致、资源无效或注入式 GL 操作失败均返回 `RenderFailed`；预检查失败时不发生任何绘制操作，运行时操作失败不更新成功统计。`drawCount()` 和 `submittedPointCount()` 表示最近一次成功 render 的统计，失败保留上一成功帧，空 draws 是零统计成功帧。
+- **测试结果**：新增 `dzc_opengl_draw` Fake 操作表测试，覆盖资源创建、单/多 Chunk Draw、空和不可见列表、缺少资源、点数不一致、FrameData/ChunkData、binding 0/1、relative origin、失败统计保留；OpenGL-only 相关 CTest 共 14 项，其中 8 项通过、6 个真实 Context 测试按约定返回 77 并由 CTest 标记 `Skipped`。
+- **限制**：GL-008 不创建真实 Context，不引入 Qt/WGL/EGL，不实现 GL-009 着色逻辑、GL-010 resize 投影适配、GL-011 timer query 或 GL-012 集成测试；OpenGL Renderer 模块仍保持进行中。
 - **追踪**：FR-REN-001、DDD-014、AC-P1-008
 
 ### GL-009 实现四种着色和点大小

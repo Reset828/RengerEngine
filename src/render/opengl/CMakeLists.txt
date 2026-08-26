@@ -13,6 +13,7 @@ add_library(dzc_render_opengl STATIC
     GlShaderProgram.cpp
     OpenGLShaderData.cpp
     GlChunkResource.cpp
+    GlDrawOperations.cpp
     OpenGLBackend.cpp
 )
 
@@ -27,4 +28,8 @@ target_include_directories(dzc_render_opengl PRIVATE
 target_link_libraries(dzc_render_opengl
     PUBLIC dzc_render_api
     PRIVATE OpenGL::GL
+)
+
+target_compile_definitions(dzc_render_opengl PRIVATE
+    DZC_OPENGL_SHADER_DIR="${PROJECT_SOURCE_DIR}/shaders/opengl"
 )

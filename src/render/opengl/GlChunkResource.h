@@ -93,6 +93,7 @@ public:
     dzc::Result<void> reset(const GlContextThreadToken& token);
 
     bool isValid() const noexcept;
+    std::uint32_t vertexArrayId() const noexcept { return mVertexArray.id(); }
     bool releasePending() const noexcept;
     std::uint64_t pointCount() const noexcept { return mStats.pointCount; }
     const dzc::AttributeSchema& schema() const noexcept { return mStats.schema; }
