@@ -107,7 +107,8 @@ if(DZC_ENABLE_VULKAN)
     endif()
 endif()
 
-# dzc_app is the only Target allowed to link Qt Widgets; dzc_data_pcl is the`r`n# only Target allowed to link PCL. The latter discovers PCL in src/data/io/pcl.
+# dzc_app is the only Target allowed to link Qt Widgets; dzc_data_pcl is the
+# only Target allowed to link PCL. The latter discovers PCL in src/data/io/pcl.
 if(DZC_ENABLE_VULKAN)
     target_link_libraries(dzc_render_vulkan INTERFACE Vulkan::Vulkan)
 endif()

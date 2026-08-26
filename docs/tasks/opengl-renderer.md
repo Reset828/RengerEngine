@@ -32,7 +32,7 @@
 - [x] **GL-004 实现 GLSL 编译与链接**
 - [x] **GL-005 实现统一 FrameData/ChunkData 布局**
 - [x] **GL-006 实现 Chunk GPU 上传**
-- [ ] **GL-007 实现 OpenGLBackend 生命周期**
+- [x] **GL-007 实现 OpenGLBackend 生命周期**
 - [ ] **GL-008 实现逐 Chunk 点绘制**
 - [ ] **GL-009 实现四种着色和点大小**
 - [ ] **GL-010 实现 resize 和投影适配**
@@ -112,15 +112,17 @@
 
 ### GL-007 实现 OpenGLBackend 生命周期
 
-- **状态**：未开始
-- **目标**：实现内部 IRenderBackend init/upload/update/resize/release/shutdown。
-- **前置任务**：GL-002, GL-006, engine-core/EC-006
-- **预计文件**：`src/render/opengl/OpenGLBackend.h`、`src/render/opengl/OpenGLBackend.cpp`、`tests/graphics/OpenGLBackendLifecycleTests.cpp`
-- **实现要求**：检查调用线程；资源表按 ChunkId；显式 shutdown 在 Context 销毁前。
-- **验收检查**：生命周期和非法线程/状态错误符合设计。
-- **测试要求**：真实 Context 生命周期和故障注入测试。
+- **状态**：已完成（2026-08-26）
+- **目标**：实现内部 `IRenderBackend` 的 `init/upload/update/render/resize/release/shutdown` 生命周期。
+- **前置任务**：GL-002、GL-006、engine-core/EC-006
+- **实际文件**：`src/render/common/RenderBackendTypes.h`、`src/render/common/RenderBackendFactory.h`、`src/render/opengl/OpenGLBackend.h`、`src/render/opengl/OpenGLBackend.cpp`、`tests/graphics/OpenGLBackendLifecycleTests.cpp`
+- **实现结果**：补齐后端无关生命周期接口；`OpenGLBackend` 使用 `Uninitialized/Initialized/Shutdown` 状态机，通过外部 Context/loader、能力查询和 Chunk 上传操作表注入完成初始化；初始化检查当前 Context、GLAD functions loaded、OpenGL 4.5 Core 能力，并保存初始 `RenderSize`。
+- **资源管理**：按 `ChunkId` 使用 `std::unordered_map` 管理 `GlChunkResource`；批量 `upload()` 逐项处理，同 ID 只有新资源完整上传成功后才替换旧资源；`release()` 仅释放指定 Chunk，`shutdown()` 在当前 Context 线程释放全部资源，失败时保留资源并通过 `lastError()` 记录阶段和 ChunkId。
+- **生命周期边界**：`update()` 只校验并保存完整 `RenderFrame`，`render()` 仅在有效帧存在时返回占位成功，`resize()` 只更新尺寸；未实现 FrameData UBO、ChunkData SSBO、绘制、投影适配、平台 Context 创建或 GLAD loader 初始化。
+- **验收检查**：Fake 覆盖初始化成功/能力和 Context 失败/重复初始化/多 Chunk 与替换/upload 失败/帧更新与 render 占位/resize/线程拒绝/release/shutdown 失败重试/移动语义/析构安全。
+- **测试要求**：`dzc_opengl_backend_lifecycle` 已通过；`dzc_opengl_backend_real_context` 返回 `77` 并由 CTest 明确标记 Skipped，真实 Context 生命周期留给后续集成层。
+- **后续范围**：GL-008 至 GL-012 仍未开始；OpenGL Renderer 模块整体保持“进行中”，模块级验收不得标记完成。
 - **追踪**：4.3、14.2、NFR-REL-002
-
 ### GL-008 实现逐 Chunk 点绘制
 
 - **状态**：未开始

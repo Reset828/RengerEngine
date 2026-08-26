@@ -8,7 +8,26 @@
 
 namespace {
 
-class FakeRenderBackend final : public dzc::IRenderBackend {};
+class FakeRenderBackend final : public dzc::IRenderBackend {
+public:
+    dzc::Result<void> init(const dzc::RenderBackendConfig&) override {
+        return dzc::Result<void>::success();
+    }
+    dzc::Result<void> upload(const dzc::UploadBatch&) override {
+        return dzc::Result<void>::success();
+    }
+    dzc::Result<void> update(const dzc::RenderFrame&) override {
+        return dzc::Result<void>::success();
+    }
+    dzc::Result<void> render() override {
+        return dzc::Result<void>::success();
+    }
+    dzc::Result<void> resize(const dzc::RenderSize&) override {
+        return dzc::Result<void>::success();
+    }
+    void release(dzc::ChunkId) noexcept override {}
+    void shutdown() noexcept override {}
+};
 class FakeComputeBackend final : public dzc::IComputeBackend {};
 
 dzc::Error unavailableError(const char* context) {

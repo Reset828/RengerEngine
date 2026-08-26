@@ -75,7 +75,10 @@ add_executable(dzc_factory_contract_tests
 )
 
 target_compile_features(dzc_factory_contract_tests PRIVATE cxx_std_17)
-target_include_directories(dzc_factory_contract_tests PRIVATE ${PROJECT_SOURCE_DIR})
+target_include_directories(dzc_factory_contract_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src
+)
 target_link_libraries(dzc_factory_contract_tests PRIVATE dzc_engine_api)
 
 add_test(NAME dzc_factory_contract COMMAND dzc_factory_contract_tests)

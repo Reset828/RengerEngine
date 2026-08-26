@@ -1,23 +1,15 @@
-﻿#pragma once
+#pragma once
 
 #include "data/chunk/Dataset.h"
 #include "dzc/Result.h"
 #include "dzc/ViewFrustum.h"
-
-#include <glm/glm.hpp>
+#include "render/common/RenderBackendTypes.h"
 
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 namespace dzc {
-
-struct DrawChunk final {
-    ChunkId chunkId;
-    std::uint64_t pointCount{0U};
-    glm::vec3 relativeOrigin{0.0F};
-    AttributeSchema schema;
-};
 
 struct GridVisibilityResult final {
     std::vector<DrawChunk> draws;

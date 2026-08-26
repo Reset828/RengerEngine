@@ -13,6 +13,7 @@ add_library(dzc_render_opengl STATIC
     GlShaderProgram.cpp
     OpenGLShaderData.cpp
     GlChunkResource.cpp
+    OpenGLBackend.cpp
 )
 
 # The project enables only CXX; generated GLAD C sources are C++ compatible.

@@ -68,7 +68,16 @@ bool isOperationalState(EngineState state) noexcept {
            state == EngineState::Loading;
 }
 
-class FakeRenderBackend final : public IRenderBackend {};
+class FakeRenderBackend final : public IRenderBackend {
+public:
+    Result<void> init(const RenderBackendConfig&) override { return Result<void>::success(); }
+    Result<void> upload(const UploadBatch&) override { return Result<void>::success(); }
+    Result<void> update(const RenderFrame&) override { return Result<void>::success(); }
+    Result<void> render() override { return Result<void>::success(); }
+    Result<void> resize(const RenderSize&) override { return Result<void>::success(); }
+    void release(ChunkId) noexcept override {}
+    void shutdown() noexcept override {}
+};
 class FakeComputeBackend final : public IComputeBackend {};
 
 } // namespace

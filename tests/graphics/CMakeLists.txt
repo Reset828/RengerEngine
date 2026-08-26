@@ -76,3 +76,24 @@ target_link_libraries(dzc_gl_chunk_upload_tests PRIVATE dzc_render_opengl)
 add_test(NAME dzc_gl_chunk_upload COMMAND dzc_gl_chunk_upload_tests)
 set_tests_properties(dzc_gl_chunk_upload PROPERTIES
     LABELS "graphics;opengl;gl006")
+add_executable(dzc_opengl_backend_lifecycle_tests
+    OpenGLBackendLifecycleTests.cpp
+)
+
+target_compile_features(dzc_opengl_backend_lifecycle_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_opengl_backend_lifecycle_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_opengl_backend_lifecycle_tests PRIVATE dzc_render_opengl)
+
+add_test(NAME dzc_opengl_backend_lifecycle
+    COMMAND dzc_opengl_backend_lifecycle_tests)
+set_tests_properties(dzc_opengl_backend_lifecycle PROPERTIES
+    LABELS "graphics;opengl;gl007")
+
+add_test(NAME dzc_opengl_backend_real_context
+    COMMAND dzc_opengl_backend_lifecycle_tests --real-context)
+set_tests_properties(dzc_opengl_backend_real_context PROPERTIES
+    LABELS "graphics;opengl;gl007;skipped"
+    SKIP_RETURN_CODE 77)
