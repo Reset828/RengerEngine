@@ -187,6 +187,10 @@ public:
     uniforms.push_back({std::string(name), value});
     return true;
   }
+  bool setViewport(std::uint32_t, std::uint32_t, std::uint32_t,
+                   std::uint32_t) const noexcept override {
+    return true;
+  }
   bool clearColor(const ColorRgba&) const noexcept override { return true; }
   bool drawPoints(std::uint32_t pointCount) const noexcept override {
     drawnPointCounts.push_back(pointCount);

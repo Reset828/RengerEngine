@@ -124,6 +124,10 @@ public:
                              std::uint32_t) const noexcept override {
     return true;
   }
+  bool setViewport(std::uint32_t, std::uint32_t, std::uint32_t,
+                   std::uint32_t) const noexcept override {
+    return true;
+  }
   bool clearColor(const ColorRgba &) const noexcept override { return true; }
   bool drawPoints(std::uint32_t) const noexcept override { return true; }
 };
@@ -288,8 +292,10 @@ void testUpdateValidationAndThread() {
   RenderFrame invalid = frame();
   invalid.pointSize = 0.0F;
   assertError(backend->update(invalid), OpenGLBackendErrorCode::UpdateFailed);
-  assertError(backend->resize(RenderSize{}),
-              OpenGLBackendErrorCode::ResizeFailed);
+  assert(backend->resize(RenderSize{}).hasValue());
+  assert(backend->renderSize().width == 0U);
+  assert(!backend->update(frame()).hasValue());
+  assert(backend->render().hasValue());
 
   std::optional<Result<void>> threadResult;
   std::thread worker([&] {

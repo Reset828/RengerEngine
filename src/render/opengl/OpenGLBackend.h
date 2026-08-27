@@ -124,6 +124,7 @@ private:
   std::optional<OpenGLCapabilitySnapshot> m_capabilities;
   std::optional<dzc::Error> m_lastError;
   std::thread::id m_ownerThread;
+  bool m_renderSuspended{false};
   bool m_missingColorWarningIssued{false};
   bool m_missingIntensityWarningIssued{false};
 };

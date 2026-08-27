@@ -33,6 +33,9 @@ public:
   virtual bool setProgramUniformUInt(std::uint32_t programId,
                                      std::string_view name,
                                      std::uint32_t value) const noexcept = 0;
+  virtual bool setViewport(std::uint32_t x, std::uint32_t y,
+                           std::uint32_t width,
+                           std::uint32_t height) const noexcept = 0;
   virtual bool clearColor(const dzc::ColorRgba &color) const noexcept = 0;
   virtual bool drawPoints(std::uint32_t pointCount) const noexcept = 0;
 };

@@ -165,6 +165,10 @@ public:
                              std::uint32_t) const noexcept override {
     return true;
   }
+  bool setViewport(std::uint32_t, std::uint32_t, std::uint32_t,
+                   std::uint32_t) const noexcept override {
+    return true;
+  }
   bool clearColor(const ColorRgba &color) const noexcept override {
     clears.push_back(color);
     return true;

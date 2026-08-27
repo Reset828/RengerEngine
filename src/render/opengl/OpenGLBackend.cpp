@@ -29,6 +29,27 @@ bool validSize(const RenderSize &value) noexcept {
   return value.width > 0U && value.height > 0U &&
          finitePositive(value.devicePixelRatio);
 }
+struct PhysicalViewport final {
+  std::uint32_t width{0U};
+  std::uint32_t height{0U};
+};
+bool makePhysicalViewport(const RenderSize &size,
+                          PhysicalViewport &viewport) noexcept {
+  if (!validSize(size))
+    return false;
+  const auto convert = [](std::uint32_t logicalSize, float pixelRatio,
+                          std::uint32_t &physicalSize) noexcept {
+    const long double rounded = std::round(
+        static_cast<long double>(logicalSize) * static_cast<long double>(pixelRatio));
+    if (!std::isfinite(rounded) || rounded < 1.0L ||
+        rounded > static_cast<long double>(std::numeric_limits<std::int32_t>::max()))
+      return false;
+    physicalSize = static_cast<std::uint32_t>(rounded);
+    return true;
+  };
+  return convert(size.width, size.devicePixelRatio, viewport.width) &&
+         convert(size.height, size.devicePixelRatio, viewport.height);
+}
 std::string chunkContext(const char *operation, ChunkId id) {
   return std::string(operation) + " (ChunkId=" + std::to_string(id.value) + ")";
 }
@@ -83,6 +104,7 @@ OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
       m_chunks(std::move(other.m_chunks)),
       m_currentFrame(std::move(other.m_currentFrame)),
       m_renderSize(other.m_renderSize),
+      m_renderSuspended(other.m_renderSuspended),
       m_capabilities(std::move(other.m_capabilities)),
       m_lastError(std::move(other.m_lastError)),
       m_ownerThread(other.m_ownerThread),
@@ -110,6 +132,7 @@ OpenGLBackend &OpenGLBackend::operator=(OpenGLBackend &&other) noexcept {
     m_chunks = std::move(other.m_chunks);
     m_currentFrame = std::move(other.m_currentFrame);
     m_renderSize = other.m_renderSize;
+    m_renderSuspended = other.m_renderSuspended;
     m_capabilities = std::move(other.m_capabilities);
     m_lastError = std::move(other.m_lastError);
     m_ownerThread = other.m_ownerThread;
@@ -264,11 +287,13 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
   auto state = checkStateForInit();
   if (!state.hasValue())
     return state;
-  if (!validSize(config.initialSize))
+  PhysicalViewport initialViewport;
+  if (!makePhysicalViewport(config.initialSize, initialViewport))
     return makeFailure(
         OpenGLBackendErrorCode::OperationFailed,
-        "The initial render size is invalid",
-        "Width, height, and devicePixelRatio must be positive finite values",
+        "The initial OpenGL render size is invalid",
+        "Logical dimensions must be nonzero and the rounded physical viewport "
+        "must fit GLsizei",
         "OpenGLBackend::init");
   if (!m_contextOperations)
     return makeFailure(
@@ -301,6 +326,8 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
   try {
     m_capabilities = capabilityResult.value();
     m_renderSize = config.initialSize;
+    m_drawCount = 0U;
+    m_submittedPointCount = 0U;
     m_currentFrame.reset();
     m_ownerThread = std::this_thread::get_id();
     auto resources = initializeDrawResources();
@@ -309,6 +336,20 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
       m_capabilities.reset();
       return resources;
     }
+    if (!m_drawOperations ||
+        !m_drawOperations->setViewport(0U, 0U, initialViewport.width,
+                                       initialViewport.height)) {
+      resetDrawResources();
+      m_currentFrame.reset();
+      m_renderSize = {};
+      m_ownerThread = std::thread::id{};
+      m_capabilities.reset();
+      return makeFailure(OpenGLBackendErrorCode::OperationFailed,
+                         "Initial OpenGL viewport setup failed",
+                         "The injected OpenGL viewport operation failed",
+                         "OpenGLBackend::init");
+    }
+    m_renderSuspended = false;
     m_missingColorWarningIssued = false;
     m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Initialized;
@@ -382,6 +423,11 @@ Result<void> OpenGLBackend::update(const RenderFrame &frame) {
   auto ready = checkReady("OpenGLBackend::update");
   if (!ready.hasValue())
     return ready;
+  if (m_renderSuspended)
+    return makeFailure(OpenGLBackendErrorCode::UpdateFailed,
+                       "The OpenGL renderer is suspended for a zero-sized viewport",
+                       "A valid resize and a fresh camera frame are required before update",
+                       "OpenGLBackend::update");
   const auto validRange = [](const glm::vec2 &range) noexcept {
     return std::isfinite(range.x) != 0 && std::isfinite(range.y) != 0 &&
            range.x <= range.y;
@@ -393,9 +439,13 @@ Result<void> OpenGLBackend::update(const RenderFrame &frame) {
         "The OpenGL frame input is invalid",
         "Render size, pointSize, and attribute ranges must be finite; ranges must be ordered",
         "OpenGLBackend::update");
+  if (frame.size != m_renderSize)
+    return makeFailure(OpenGLBackendErrorCode::UpdateFailed,
+                       "The OpenGL frame size does not match the active viewport",
+                       "Call the camera controller with the latest RenderSize after resize",
+                       "OpenGLBackend::update");
   try {
     m_currentFrame = frame;
-    m_renderSize = frame.size;
     return Result<void>::success();
   } catch (const std::exception &e) {
     return makeFailure(OpenGLBackendErrorCode::UpdateFailed,
@@ -414,6 +464,11 @@ Result<void> OpenGLBackend::render() {
   auto ready = checkReady("OpenGLBackend::render");
   if (!ready.hasValue())
     return ready;
+  if (m_renderSuspended) {
+    m_drawCount = 0U;
+    m_submittedPointCount = 0U;
+    return Result<void>::success();
+  }
   if (!m_currentFrame)
     return makeFailure(OpenGLBackendErrorCode::InvalidState,
                        "No frame has been submitted to the OpenGL backend",
@@ -520,13 +575,34 @@ Result<void> OpenGLBackend::resize(const RenderSize &size) {
   auto ready = checkReady("OpenGLBackend::resize");
   if (!ready.hasValue())
     return ready;
-  if (!validSize(size))
-    return makeFailure(
-        OpenGLBackendErrorCode::ResizeFailed,
-        "The OpenGL render size is invalid",
-        "Width, height, and devicePixelRatio must be positive finite values",
-        "OpenGLBackend::resize");
+  if (!finitePositive(size.devicePixelRatio))
+    return makeFailure(OpenGLBackendErrorCode::ResizeFailed,
+                       "The OpenGL render size is invalid",
+                       "devicePixelRatio must be finite and positive",
+                       "OpenGLBackend::resize");
+  if (size.width == 0U || size.height == 0U) {
+    m_renderSize = size;
+    m_currentFrame.reset();
+    m_renderSuspended = true;
+    return Result<void>::success();
+  }
+  PhysicalViewport viewport;
+  if (!makePhysicalViewport(size, viewport))
+    return makeFailure(OpenGLBackendErrorCode::ResizeFailed,
+                       "The OpenGL physical viewport is invalid",
+                       "The rounded physical viewport must be nonzero and fit GLsizei",
+                       "OpenGLBackend::resize");
+  if (!m_drawOperations ||
+      !m_drawOperations->setViewport(0U, 0U, viewport.width, viewport.height))
+    return makeFailure(OpenGLBackendErrorCode::ResizeFailed,
+                       "OpenGL viewport setup failed",
+                       "The injected OpenGL viewport operation failed",
+                       "OpenGLBackend::resize");
+  const bool changed = size != m_renderSize;
   m_renderSize = size;
+  m_renderSuspended = false;
+  if (changed)
+    m_currentFrame.reset();
   return Result<void>::success();
 }
 void OpenGLBackend::release(ChunkId id) noexcept {
@@ -623,6 +699,7 @@ void OpenGLBackend::shutdownNoexcept() noexcept {
     m_currentFrame.reset();
     m_capabilities.reset();
     m_ownerThread = std::thread::id{};
+    m_renderSuspended = false;
     m_missingColorWarningIssued = false;
     m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Shutdown;
@@ -655,6 +732,7 @@ void OpenGLBackend::resetMovedFrom() noexcept {
   m_chunks.clear();
   m_currentFrame.reset();
   m_renderSize = {};
+  m_renderSuspended = false;
   m_capabilities.reset();
   m_lastError.reset();
   m_ownerThread = std::thread::id{};

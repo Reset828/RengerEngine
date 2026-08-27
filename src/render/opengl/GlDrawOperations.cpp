@@ -165,6 +165,18 @@ public:
     glUniform1ui(location, static_cast<GLuint>(value));
     return true;
   }
+  bool setViewport(std::uint32_t x, std::uint32_t y, std::uint32_t width,
+                   std::uint32_t height) const noexcept override {
+    if (!glViewport ||
+        x > static_cast<std::uint32_t>(std::numeric_limits<GLint>::max()) ||
+        y > static_cast<std::uint32_t>(std::numeric_limits<GLint>::max()) ||
+        width > static_cast<std::uint32_t>(std::numeric_limits<GLsizei>::max()) ||
+        height > static_cast<std::uint32_t>(std::numeric_limits<GLsizei>::max()))
+      return false;
+    glViewport(static_cast<GLint>(x), static_cast<GLint>(y),
+               static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+    return true;
+  }
   bool clearColor(const dzc::ColorRgba &color) const noexcept override {
     if (!glClearColor || !glClear)
       return false;
