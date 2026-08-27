@@ -34,7 +34,7 @@
 - [x] **GL-006 实现 Chunk GPU 上传**
 - [x] **GL-007 实现 OpenGLBackend 生命周期**
 - [x] **GL-008 实现逐 Chunk 点绘制**
-- [ ] **GL-009 实现四种着色和点大小**
+- [x] **GL-009 实现四种着色和点大小**
 - [ ] **GL-010 实现 resize 和投影适配**
 - [ ] **GL-011 实现 GPU Timer Query**
 - [ ] **GL-012 完成 OpenGL 后端集成测试**
@@ -93,7 +93,7 @@
 - **实际文件**：`src/render/common/ShaderData.h`、`src/render/opengl/OpenGLShaderData.h`、`src/render/opengl/OpenGLShaderData.cpp`、`tests/unit/ShaderLayoutTests.cpp`
 - **实现结果**：新增不依赖 GLM 默认对齐的自有标量/数组 Shader 数据结构；FrameData 固定为 std140 binding 0、208 字节，ChunkData 固定为 std430 binding 1、16 字节数组 stride。矩阵按 GLM 列主序转换，Chunk 相对原点由 PD-008 计算后写入 vec4。
 - **布局契约**：FrameData 字段偏移为 view 0、projection 64、fixedColor 128、heightRange 144、intensityRange 160、pointSize 176、shadingMode 180、reservedPadding 184、reservedExtension 192；ChunkData relativeChunkOrigin 偏移 0。
-- **实现边界**：增加已链接 Program 的真实 block/member 反射查询入口，但不创建 Context、不初始化 GLAD、不上传 Buffer；绘制和完整着色留给 GL-008/GL-009。
+- **实现边界**：增加已链接 Program 的真实 block/member 反射查询入口，但不创建 Context、不初始化 GLAD、不上传 Buffer；绘制和完整着色已在后续 GL-008/GL-009 实现。
 - **验收检查**：静态断言、Golden 布局验证、矩阵列主序和 Shader 契约检查通过；真实 block 查询测试因缺少统一 Context 基础设施明确 Skipped。
 - **测试要求**：`dzc_shader_layout` Fake/静态测试通过；`dzc_shader_layout_real_context` 使用返回码 77 并由 CTest 标记 Skipped。
 - **追踪**：DDD-014、13.2
@@ -118,10 +118,10 @@
 - **实际文件**：`src/render/common/RenderBackendTypes.h`、`src/render/common/RenderBackendFactory.h`、`src/render/opengl/OpenGLBackend.h`、`src/render/opengl/OpenGLBackend.cpp`、`tests/graphics/OpenGLBackendLifecycleTests.cpp`
 - **实现结果**：补齐后端无关生命周期接口；`OpenGLBackend` 使用 `Uninitialized/Initialized/Shutdown` 状态机，通过外部 Context/loader、能力查询和 Chunk 上传操作表注入完成初始化；初始化检查当前 Context、GLAD functions loaded、OpenGL 4.5 Core 能力，并保存初始 `RenderSize`。
 - **资源管理**：按 `ChunkId` 使用 `std::unordered_map` 管理 `GlChunkResource`；批量 `upload()` 逐项处理，同 ID 只有新资源完整上传成功后才替换旧资源；`release()` 仅释放指定 Chunk，`shutdown()` 在当前 Context 线程释放全部资源，失败时保留资源并通过 `lastError()` 记录阶段和 ChunkId。
-- **生命周期边界**：`update()` 只校验并保存完整 `RenderFrame`，`render()` 仅在有效帧存在时返回占位成功，`resize()` 只更新尺寸；未实现 FrameData UBO、ChunkData SSBO、绘制、投影适配、平台 Context 创建或 GLAD loader 初始化。
+- **生命周期边界**：`update()` 校验并保存完整 `RenderFrame`，`render()` 的逐 Chunk 绘制由 GL-008/GL-009 扩展；`resize()` 当前只更新尺寸。投影适配、平台 Context 创建和 GLAD loader 初始化仍不属于本阶段。
 - **验收检查**：Fake 覆盖初始化成功/能力和 Context 失败/重复初始化/多 Chunk 与替换/upload 失败/帧更新与 render 占位/resize/线程拒绝/release/shutdown 失败重试/移动语义/析构安全。
 - **测试要求**：`dzc_opengl_backend_lifecycle` 已通过；`dzc_opengl_backend_real_context` 返回 `77` 并由 CTest 明确标记 Skipped，真实 Context 生命周期留给后续集成层。
-- **后续范围**：GL-009 至 GL-012 仍未开始；OpenGL Renderer 模块整体保持“进行中”，模块级验收不得标记完成。
+- **后续范围**：GL-010 至 GL-012 仍未开始；OpenGL Renderer 模块整体保持“进行中”，模块级验收不得标记完成。
 - **追踪**：4.3、14.2、NFR-REL-002
 ### GL-008 实现逐 Chunk 点绘制
 
@@ -132,20 +132,21 @@
 - **实现结果**：在外部 Context、GLAD 和能力检查成功后，Backend 持久创建 Frame UBO、单记录 Chunk SSBO 和默认点云 Shader；FrameData 绑定到 binding 0，ChunkData 绑定到 binding 1。`render()` 先对全部 `RenderFrame.draws` 做资源有效性、点数一致性和 `GLsizei` 范围预检查，再按 draws 顺序上传 FrameData/ChunkData、清除当前帧颜色、绑定 Shader/VAO，并对每个可见 Chunk 提交一次 `GL_POINTS`。未列入 draws 的已上传 Chunk 不提交。
 - **错误与统计**：缺少资源、点数不一致、资源无效或注入式 GL 操作失败均返回 `RenderFailed`；预检查失败时不发生任何绘制操作，运行时操作失败不更新成功统计。`drawCount()` 和 `submittedPointCount()` 表示最近一次成功 render 的统计，失败保留上一成功帧，空 draws 是零统计成功帧。
 - **测试结果**：新增 `dzc_opengl_draw` Fake 操作表测试，覆盖资源创建、单/多 Chunk Draw、空和不可见列表、缺少资源、点数不一致、FrameData/ChunkData、binding 0/1、relative origin、失败统计保留；OpenGL-only 相关 CTest 共 14 项，其中 8 项通过、6 个真实 Context 测试按约定返回 77 并由 CTest 标记 `Skipped`。
-- **限制**：GL-008 不创建真实 Context，不引入 Qt/WGL/EGL，不实现 GL-009 着色逻辑、GL-010 resize 投影适配、GL-011 timer query 或 GL-012 集成测试；OpenGL Renderer 模块仍保持进行中。
+- **限制**：GL-008 不创建真实 Context，不引入 Qt/WGL/EGL；GL-009 着色、GL-010 resize 投影适配、GL-011 timer query 和 GL-012 集成测试由各自任务负责；OpenGL Renderer 模块仍保持进行中。
 - **追踪**：FR-REN-001、DDD-014、AC-P1-008
 
 ### GL-009 实现四种着色和点大小
 
-- **状态**：未开始
-- **目标**：完成 OriginalColor/FixedColor/Height/Intensity 分支。
+- **状态**：已完成（2026-08-26）
+- **目标**：完成 OriginalColor/FixedColor/Height/Intensity 四种着色，并使 pointSize 在后续帧生效。
 - **前置任务**：GL-004, GL-008
-- **预计文件**：`shaders/opengl/point_cloud.vert`、`shaders/opengl/point_cloud.frag`、`tests/graphics/OpenGLShadingTests.cpp`
-- **实现要求**：缺属性时按设计回退并一次警告；高度退化用 0.5。
-- **验收检查**：四种模式像素/统计结果可区分，point size 更新生效。
-- **测试要求**：离屏小图 Golden/采样测试。
+- **实际文件**：`src/render/common/RenderBackendTypes.h`、`src/render/opengl/OpenGLBackend.*`、`src/render/opengl/GlDrawOperations.*`、`shaders/opengl/point_cloud.vert`、`shaders/opengl/point_cloud.frag`、`tests/graphics/OpenGLShadingTests.cpp`
+- **实现结果**：`RenderFrame` 新增 `heightRange`/`intensityRange` 两个 `glm::vec2` 字段；`update()` 校验有限值和 `min <= max`，`FrameData` 将范围写入 vec4 前两个分量。Vertex Shader 使用 FrameData.pointSize 设置 `gl_PointSize`，传递原始 Color、Intensity 和 Chunk 相对高度；Fragment Shader 实现四种模式及蓝—青—绿—黄—红五段线性伪彩色带，退化范围固定归一化为 `0.5`，Height/Intensity 输出 alpha 为 `1.0`，OriginalColor/FixedColor 保留输入 alpha。
+- **缺失属性语义**：OriginalColor 缺少 Color、Intensity 模式缺少 Intensity 时使用 `fixedColor`，不读取无效属性；通过注入的 `dzc::diagnostics::ILogSink` 按属性类别只记录一次 Warn，记录 OpenGL 模块、ChunkId、FrameId 和回退原因；告警去重状态在初始化后生效并在 shutdown 清理。
+- **操作表和错误语义**：私有 `IGlDrawOperations`/GLAD 实现新增 per-draw uint uniform 设置，继续保持 UBO binding 0、SSBO binding 1、VAO 和逐 Chunk `GL_POINTS` 顺序。FrameData、uniform、ChunkData、VAO 或 Draw 任一操作失败时返回 `RenderFailed`，上一成功帧统计保持不变。
+- **验收检查**：Fake 覆盖四种模式、pointSize 后续帧、范围上传、退化范围 Shader 契约、固定五段色带 Shader 契约、缺失属性回退及一次告警、uniform 失败、Shader 初始化失败清理和 GL-008 绘制统计回归；真实 Context 用例返回 77 并由 CTest 标记 Skipped。
+- **测试要求**：`dzc_opengl_shading` 通过；`dzc_opengl_shading_real_context` 明确 Skipped。GL-010 至 GL-012 仍未开始，OpenGL Renderer 模块级验收仍未完成。
 - **追踪**：FR-REN-002/003、AC-P1-007
-
 ### GL-010 实现 resize 和投影适配
 
 - **状态**：未开始
@@ -191,7 +192,7 @@
 - 完成日期：2026-08-26
 - 完成人：Codex（按主人确认执行）
 - 关键变更：GL-001 至 GL-003 保持已完成。GL-004 新增不暴露 OpenGL/GLAD 类型的 `GlShaderProgram` 和独立 `IGlShaderOperations`，支持源码与文件入口、Vertex/Fragment 运行时编译、Program 链接、阶段化错误日志、移动语义、显式 reset 和线程令牌约束。新增 `#version 450 core` 的最小点云 Vertex/Fragment shader fixture，固定 location 0/1/2 与 binding 0/1；GLAD 真实操作仅在 `.cpp` 内实现。
-- 未解决问题：GL-007 至 GL-012 尚未开始；GL-002、GL-003、GL-004、GL-005 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；OpenGL Renderer 模块级验收尚未开始。
+- 未解决问题（该任务完成时）：GL-007 至 GL-012 尚未开始；GL-002、GL-003、GL-004、GL-005 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；当前 GL-010 至 GL-012 仍未开始，OpenGL Renderer 模块级验收未完成。
 - 测试命令与结果：GL-001 至 GL-003 的既有配置、能力和资源回归保持通过。GL-004 使用 MSVC 19.51/NMake 配置 `build-gl004`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON）；`cmake --build build-gl004 --target dzc_gl_shader_tests` 成功，包含 `GlShaderProgram.cpp` 和 GLAD 的 `dzc_render_opengl` 构建成功；`ctest --test-dir build-gl004 -R "^dzc_gl_shader$|^dzc_gl_shader_real_context$" --output-on-failure` 为 `1/1` 通过、真实 Context 用例明确 Skipped。已执行 `git diff --check`，未创建 Git commit。
 - 关联提交：未提交（未创建 Git commit）。
 
@@ -199,9 +200,9 @@
 
 - 关键变更：新增后端无关 `dzc::render::FrameData` 和 `ChunkData`，CPU 侧使用 `std::array`、标量和显式 `alignas(16)`/填充，不把 `glm::mat4` 或 `glm::vec4` 作为 GPU ABI 成员。FrameData 按 std140 binding 0 固定为 208 字节，ChunkData 按 std430 binding 1 固定为 16 字节数组 stride；矩阵辅助函数按 GLM 列主序写入。
 - OpenGL 实现：新增 `OpenGLShaderData` 的布局验证和已链接 Program 反射查询入口，使用 GLAD 查询 UBO block size/offset、SSBO block binding 和 buffer variable offset/array stride。未创建 Context，未初始化 GLAD loader，未实现 Buffer 上传、绘制或完整着色。
-- Shader 同步：`point_cloud.vert` 使用完整 FrameData 字段、view/projection 变换和 `relativeChunkOrigin[0]`；固定 `#version 450 core`、location 0/1/2、binding 0/1；Fragment Shader 仍仅输出输入 Color，四种着色留给 GL-009。
+- Shader 同步：`point_cloud.vert` 使用完整 FrameData 字段、view/projection 变换和 `relativeChunkOrigin[0]`；固定 `#version 450 core`、location 0/1/2、binding 0/1；当时 Fragment Shader 仅输出输入 Color；四种着色已在后续 GL-009 实现。
 - 验证结果：MSVC 19.51.36246.0 x64 / NMake Makefiles、OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON 配置成功；`dzc_render_opengl` 和 `dzc_shader_layout_tests` 构建成功；`dzc_shader_layout` 通过，真实 Context 用例明确 Skipped；`git diff --check` 已执行并通过。
-- 未解决问题：真实 OpenGL Context、GLAD loader 初始化和运行时 block 反射验证留给 GL-007；GL-007 至 GL-012 尚未开始；OpenGL Renderer 模块级验收未完成。
+- 未解决问题（该任务完成时）：真实 OpenGL Context、GLAD loader 初始化和运行时 block 反射验证留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-010 至 GL-012 仍未开始，OpenGL Renderer 模块级验收未完成。
 - 关联提交：未提交（未创建 Git commit）。
 
 ### GL-006（2026-08-26）
@@ -210,7 +211,7 @@
 - Schema 分支：支持 XYZ、XYZRGB、XYZI 和 XYZRGBI；缺失 Color 生成 RGBA `(255,255,255,255)`，缺失 Intensity 生成 `65535`；颜色不依赖主机端序，所有流字节数和统计由包装器显式计算。
 - 生命周期：上传、替换和 `reset()` 受 `GlContextThreadToken` 约束，临时资源先完成上传后再替换旧资源；失败时保留旧资源并尽力清理临时资源；资源包装器保持不可复制、可移动、析构 `noexcept` 和待释放状态。
 - 验证结果：MSVC 19.51.36246.0 x64 / NMake Makefiles、OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON 配置和构建成功；`dzc_render_opengl` 与 `dzc_gl_chunk_upload_tests` 构建成功，`dzc_gl_chunk_upload` Fake 测试通过；未创建真实 Context。
-- 未解决问题：ChunkData SSBO、FrameData UBO、绘制、Backend 生命周期、真实 Context 和 GLAD loader 初始化留给 GL-007；GL-007 至 GL-012 尚未开始；OpenGL Renderer 模块仍为进行中，模块级验收未完成。
+- 未解决问题（该任务完成时）：ChunkData SSBO、FrameData UBO、绘制、Backend 生命周期、真实 Context 和 GLAD loader 初始化留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-010 至 GL-012 仍未开始，OpenGL Renderer 模块仍为进行中，模块级验收未完成。
 - 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束

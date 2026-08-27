@@ -27,7 +27,7 @@ target_include_directories(dzc_render_opengl PRIVATE
 )
 target_link_libraries(dzc_render_opengl
     PUBLIC dzc_render_api
-    PRIVATE OpenGL::GL
+    PRIVATE OpenGL::GL dzc_diagnostics
 )
 
 target_compile_definitions(dzc_render_opengl PRIVATE

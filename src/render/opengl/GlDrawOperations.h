@@ -30,6 +30,9 @@ public:
                                   std::uint32_t binding,
                                   std::uint32_t bufferId) const noexcept = 0;
   virtual bool useProgram(std::uint32_t programId) const noexcept = 0;
+  virtual bool setProgramUniformUInt(std::uint32_t programId,
+                                     std::string_view name,
+                                     std::uint32_t value) const noexcept = 0;
   virtual bool clearColor(const dzc::ColorRgba &color) const noexcept = 0;
   virtual bool drawPoints(std::uint32_t pointCount) const noexcept = 0;
 };

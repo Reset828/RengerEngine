@@ -35,6 +35,8 @@ struct RenderFrame final {
     float pointSize{1.0F};
     ShadingMode shadingMode{ShadingMode::OriginalColor};
     ColorRgba fixedColor;
+    glm::vec2 heightRange{0.0F};
+    glm::vec2 intensityRange{0.0F};
     std::vector<DrawChunk> draws;
 };
 

@@ -161,6 +161,10 @@ public:
     usedProgram = id;
     return id != 0;
   }
+  bool setProgramUniformUInt(std::uint32_t, std::string_view,
+                             std::uint32_t) const noexcept override {
+    return true;
+  }
   bool clearColor(const ColorRgba &color) const noexcept override {
     clears.push_back(color);
     return true;

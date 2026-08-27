@@ -46,7 +46,7 @@
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
-- [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：进行中（GL-001 至 GL-008 已完成；GL-009 至 GL-012 未开始；模块级验收未完成）
+- [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：进行中（GL-001 至 GL-009 已完成；GL-010 至 GL-012 未开始；模块级验收未完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
@@ -135,6 +135,7 @@
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
+| 2026-08-26 | GL-009 完成 | 已实现 `RenderFrame` 高度/Intensity 范围字段、四种 OpenGL 着色模式、pointSize 后续帧更新、退化范围 0.5 归一化、缺失属性 fixedColor 回退和一次性 Warn Sink；新增 per-draw uniform 操作和 Fake Shading 测试。OpenGL-only GL-009 Fake 测试通过，真实 Context 测试返回 77 并明确 Skipped；GL-010 至 GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |
 | 2026-08-26 | GL-008 完成 | 已实现 OpenGLBackend 逐 Chunk `GL_POINTS` 绘制：初始化持久 Frame UBO、单记录 Chunk SSBO 和默认点云 Shader；render 预检查可见资源/点数/GLsizei 范围，按 RenderFrame.draws 顺序上传 FrameData 与 relative origin 并每个可见 Chunk 提交一次 Draw；新增 Fake Draw 统计测试。OpenGL-only 相关 CTest 8 项通过，6 项真实 Context 测试返回 77 并明确 Skipped；GL-009 至 GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |
 | 2026-08-24 | GC-007 完成 | 已实现无状态 `GridChunkBuilder`：接收 Cell 分组和稳定子块顺序，校验 schema、属性流、有限坐标、source index、重复 Cell 与跨子块重复 source index；按 CellKey 字典序输出 `CpuResident` Chunk，计算 bounds/origin 和 float 局部坐标，使用 little-endian FNV-1a 64 位生成确定性 ChunkId 并检测碰撞。构建 `dzc_grid_chunk_builder_tests` 成功，GC-007 专项测试 `1/1` 通过；Grid Chunking 模块继续进行中，GC-008 至 GC-009 未完成。 |
 | 2026-08-25 | GC-009 完成 | 已实现后端无关 `GridVisibilitySelector` 和 `Dataset::chunks()` 只读遍历接口：按 Dataset 原始顺序对 Chunk 执行 checked AABB 视锥体剔除，仅 `CpuResident`/`GpuResident` Chunk 进入 `DrawChunk`；返回总点、可见点和可见 Chunk 统计，按 DatasetId/ChunkId 缓存上一帧 separating plane 以优化检查顺序。非法 origin、Frustum 或 Bounds 返回 `DataFormat/2`，容量异常返回 `Resource/1`。新增 `dzc_grid_visibility` 集成 CTest，专项构建和测试 `1/1` 通过；Grid Chunking 模块级验收仍未完成，模块继续进行中。 |

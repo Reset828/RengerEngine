@@ -5,6 +5,7 @@
 #include "GlShaderProgram.h"
 #include "OpenGLCapabilities.h"
 #include "render/common/RenderBackendFactory.h"
+#include "diagnostics/ILogSink.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -44,7 +45,8 @@ public:
       std::shared_ptr<const IOpenGLCapabilityQueries> capabilityQueries = {},
       std::shared_ptr<const IGlChunkUploadOperations> chunkOperations = {},
       std::shared_ptr<const IGlDrawOperations> drawOperations = {},
-      std::shared_ptr<const IGlShaderOperations> shaderOperations = {});
+      std::shared_ptr<const IGlShaderOperations> shaderOperations = {},
+      std::shared_ptr<dzc::diagnostics::ILogSink> logSink = {});
 
   ~OpenGLBackend() noexcept override;
 
@@ -97,6 +99,8 @@ private:
                                 const char *context) const;
   void recordError(dzc::Error error) noexcept;
   void clearLastError() noexcept;
+  void warnMissingAttribute(const dzc::RenderFrame &frame,
+                           const dzc::DrawChunk &draw, bool color) noexcept;
   void resetMovedFrom() noexcept;
   void shutdownNoexcept() noexcept;
   dzc::Result<void> initializeDrawResources();
@@ -108,6 +112,7 @@ private:
   std::shared_ptr<const IGlChunkUploadOperations> m_chunkOperations;
   std::shared_ptr<const IGlDrawOperations> m_drawOperations;
   std::shared_ptr<const IGlShaderOperations> m_shaderOperations;
+  std::shared_ptr<dzc::diagnostics::ILogSink> m_logSink;
   GlBuffer m_frameBuffer;
   GlBuffer m_chunkDataBuffer;
   GlShaderProgram m_shaderProgram;
@@ -119,6 +124,8 @@ private:
   std::optional<OpenGLCapabilitySnapshot> m_capabilities;
   std::optional<dzc::Error> m_lastError;
   std::thread::id m_ownerThread;
+  bool m_missingColorWarningIssued{false};
+  bool m_missingIntensityWarningIssued{false};
 };
 
 } // namespace dzc::opengl

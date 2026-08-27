@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 
 #include <limits>
+#include <string>
 
 namespace dzc::opengl {
 namespace {
@@ -149,6 +150,19 @@ public:
     if (!glUseProgram || !id)
       return false;
     glUseProgram(static_cast<GLuint>(id));
+    return true;
+  }
+  bool setProgramUniformUInt(std::uint32_t programId, std::string_view name,
+                             std::uint32_t value) const noexcept override {
+    if (!programId || !glGetUniformLocation || !glUniform1ui ||
+        name.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
+      return false;
+    const std::string uniformName(name);
+    const GLint location = glGetUniformLocation(static_cast<GLuint>(programId),
+                                                uniformName.c_str());
+    if (location < 0)
+      return false;
+    glUniform1ui(location, static_cast<GLuint>(value));
     return true;
   }
   bool clearColor(const dzc::ColorRgba &color) const noexcept override {

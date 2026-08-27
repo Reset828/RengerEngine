@@ -3,6 +3,7 @@
 #include "render/common/ShaderData.h"
 
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -43,6 +44,8 @@ render::FrameData makeFrameData(const RenderFrame &frame) noexcept {
   data.projection = render::toColumnMajorArray(frame.camera.projection);
   data.fixedColor = {frame.fixedColor.red, frame.fixedColor.green,
                      frame.fixedColor.blue, frame.fixedColor.alpha};
+  data.heightRange = {frame.heightRange.x, frame.heightRange.y, 0.0F, 0.0F};
+  data.intensityRange = {frame.intensityRange.x, frame.intensityRange.y, 0.0F, 0.0F};
   data.pointSize = frame.pointSize;
   data.shadingMode = render::toShaderShadingMode(frame.shadingMode);
   return data;
@@ -55,12 +58,14 @@ OpenGLBackend::OpenGLBackend(
     std::shared_ptr<const IOpenGLCapabilityQueries> capabilityQueries,
     std::shared_ptr<const IGlChunkUploadOperations> chunkOperations,
     std::shared_ptr<const IGlDrawOperations> drawOperations,
-    std::shared_ptr<const IGlShaderOperations> shaderOperations)
+    std::shared_ptr<const IGlShaderOperations> shaderOperations,
+    std::shared_ptr<dzc::diagnostics::ILogSink> logSink)
     : m_contextOperations(std::move(contextOperations)),
       m_capabilityQueries(std::move(capabilityQueries)),
       m_chunkOperations(std::move(chunkOperations)),
       m_drawOperations(std::move(drawOperations)),
-      m_shaderOperations(std::move(shaderOperations)) {}
+      m_shaderOperations(std::move(shaderOperations)),
+      m_logSink(std::move(logSink)) {}
 OpenGLBackend::~OpenGLBackend() noexcept { shutdownNoexcept(); }
 OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
     : m_state(other.m_state),
@@ -69,6 +74,7 @@ OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
       m_chunkOperations(std::move(other.m_chunkOperations)),
       m_drawOperations(std::move(other.m_drawOperations)),
       m_shaderOperations(std::move(other.m_shaderOperations)),
+      m_logSink(std::move(other.m_logSink)),
       m_frameBuffer(std::move(other.m_frameBuffer)),
       m_chunkDataBuffer(std::move(other.m_chunkDataBuffer)),
       m_shaderProgram(std::move(other.m_shaderProgram)),
@@ -79,7 +85,9 @@ OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
       m_renderSize(other.m_renderSize),
       m_capabilities(std::move(other.m_capabilities)),
       m_lastError(std::move(other.m_lastError)),
-      m_ownerThread(other.m_ownerThread) {
+      m_ownerThread(other.m_ownerThread),
+      m_missingColorWarningIssued(other.m_missingColorWarningIssued),
+      m_missingIntensityWarningIssued(other.m_missingIntensityWarningIssued) {
   other.resetMovedFrom();
 }
 OpenGLBackend &OpenGLBackend::operator=(OpenGLBackend &&other) noexcept {
@@ -91,6 +99,9 @@ OpenGLBackend &OpenGLBackend::operator=(OpenGLBackend &&other) noexcept {
     m_chunkOperations = std::move(other.m_chunkOperations);
     m_drawOperations = std::move(other.m_drawOperations);
     m_shaderOperations = std::move(other.m_shaderOperations);
+    m_logSink = std::move(other.m_logSink);
+    m_missingColorWarningIssued = other.m_missingColorWarningIssued;
+    m_missingIntensityWarningIssued = other.m_missingIntensityWarningIssued;
     m_frameBuffer = std::move(other.m_frameBuffer);
     m_chunkDataBuffer = std::move(other.m_chunkDataBuffer);
     m_shaderProgram = std::move(other.m_shaderProgram);
@@ -123,6 +134,30 @@ void OpenGLBackend::recordError(Error error) noexcept {
   }
 }
 void OpenGLBackend::clearLastError() noexcept { m_lastError.reset(); }
+void OpenGLBackend::warnMissingAttribute(const RenderFrame &frame,
+                                         const DrawChunk &draw,
+                                         bool color) noexcept {
+  bool &issued = color ? m_missingColorWarningIssued
+                       : m_missingIntensityWarningIssued;
+  if (issued)
+    return;
+  issued = true;
+  if (!m_logSink)
+    return;
+  try {
+    diagnostics::LogRecord record;
+    record.timestamp = std::chrono::system_clock::now();
+    record.level = diagnostics::LogLevel::Warn;
+    record.module = "OpenGLBackend";
+    record.chunk = draw.chunkId.value;
+    record.frame = frame.frameId.value;
+    record.message = color
+        ? "Chunk has no Color attribute; OriginalColor falls back to fixedColor"
+        : "Chunk has no Intensity attribute; Intensity falls back to fixedColor";
+    m_logSink->write(record);
+  } catch (...) {
+  }
+}
 Result<void> OpenGLBackend::checkStateForInit() const {
   if (m_state == OpenGLBackendState::Initialized)
     return makeFailure(OpenGLBackendErrorCode::InvalidState,
@@ -274,6 +309,8 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
       m_capabilities.reset();
       return resources;
     }
+    m_missingColorWarningIssued = false;
+    m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Initialized;
     return Result<void>::success();
   } catch (const std::exception &e) {
@@ -345,11 +382,16 @@ Result<void> OpenGLBackend::update(const RenderFrame &frame) {
   auto ready = checkReady("OpenGLBackend::update");
   if (!ready.hasValue())
     return ready;
-  if (!validSize(frame.size) || !finitePositive(frame.pointSize))
+  const auto validRange = [](const glm::vec2 &range) noexcept {
+    return std::isfinite(range.x) != 0 && std::isfinite(range.y) != 0 &&
+           range.x <= range.y;
+  };
+  if (!validSize(frame.size) || !finitePositive(frame.pointSize) ||
+      !validRange(frame.heightRange) || !validRange(frame.intensityRange))
     return makeFailure(
         OpenGLBackendErrorCode::UpdateFailed,
         "The OpenGL frame input is invalid",
-        "Render size and pointSize must be positive finite values",
+        "Render size, pointSize, and attribute ranges must be finite; ranges must be ordered",
         "OpenGLBackend::update");
   try {
     m_currentFrame = frame;
@@ -433,6 +475,16 @@ Result<void> OpenGLBackend::render() {
       const auto &resource = m_chunks.at(draw.chunkId);
       const auto data = render::makeChunkData(draw.relativeOrigin);
       const auto bytes = bytesOf(&data, sizeof(data));
+      if (!m_drawOperations->setProgramUniformUInt(
+              m_shaderProgram.id(), "drawHasColor", draw.schema.hasColor() ? 1U : 0U) ||
+          !m_drawOperations->setProgramUniformUInt(
+              m_shaderProgram.id(), "drawHasIntensity",
+              draw.schema.hasIntensity() ? 1U : 0U))
+        return fail("OpenGL shading state update failed");
+      if (!draw.schema.hasColor() && frame.shadingMode == ShadingMode::OriginalColor)
+        warnMissingAttribute(frame, draw, true);
+      if (!draw.schema.hasIntensity() && frame.shadingMode == ShadingMode::Intensity)
+        warnMissingAttribute(frame, draw, false);
       if (!m_drawOperations->bindDrawBuffer(
               GlDrawBufferTarget::ShaderStorageBuffer,
               m_chunkDataBuffer.id()) ||
@@ -571,6 +623,8 @@ void OpenGLBackend::shutdownNoexcept() noexcept {
     m_currentFrame.reset();
     m_capabilities.reset();
     m_ownerThread = std::thread::id{};
+    m_missingColorWarningIssued = false;
+    m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Shutdown;
     clearLastError();
   } catch (const std::exception &e) {
@@ -592,6 +646,7 @@ void OpenGLBackend::resetMovedFrom() noexcept {
   m_chunkOperations.reset();
   m_drawOperations.reset();
   m_shaderOperations.reset();
+  m_logSink.reset();
   m_frameBuffer = GlBuffer{};
   m_chunkDataBuffer = GlBuffer{};
   m_shaderProgram = GlShaderProgram{};
@@ -603,5 +658,7 @@ void OpenGLBackend::resetMovedFrom() noexcept {
   m_capabilities.reset();
   m_lastError.reset();
   m_ownerThread = std::thread::id{};
+  m_missingColorWarningIssued = false;
+  m_missingIntensityWarningIssued = false;
 }
 } // namespace dzc::opengl

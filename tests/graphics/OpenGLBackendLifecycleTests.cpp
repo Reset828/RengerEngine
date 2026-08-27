@@ -120,6 +120,10 @@ public:
     return true;
   }
   bool useProgram(std::uint32_t) const noexcept override { return true; }
+  bool setProgramUniformUInt(std::uint32_t, std::string_view,
+                             std::uint32_t) const noexcept override {
+    return true;
+  }
   bool clearColor(const ColorRgba &) const noexcept override { return true; }
   bool drawPoints(std::uint32_t) const noexcept override { return true; }
 };

@@ -112,3 +112,18 @@ add_test(NAME dzc_opengl_draw_real_context COMMAND dzc_opengl_draw_tests --real-
 set_tests_properties(dzc_opengl_draw_real_context PROPERTIES
     LABELS "graphics;opengl;gl008;skipped"
     SKIP_RETURN_CODE 77)
+add_executable(dzc_opengl_shading_tests
+    OpenGLShadingTests.cpp
+)
+target_compile_features(dzc_opengl_shading_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_opengl_shading_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+)
+target_link_libraries(dzc_opengl_shading_tests PRIVATE dzc_render_opengl)
+add_test(NAME dzc_opengl_shading COMMAND dzc_opengl_shading_tests)
+set_tests_properties(dzc_opengl_shading PROPERTIES LABELS "graphics;opengl;gl009")
+add_test(NAME dzc_opengl_shading_real_context COMMAND dzc_opengl_shading_tests --real-context)
+set_tests_properties(dzc_opengl_shading_real_context PROPERTIES
+    LABELS "graphics;opengl;gl009;skipped"
+    SKIP_RETURN_CODE 77)
