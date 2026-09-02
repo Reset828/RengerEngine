@@ -80,13 +80,15 @@ OpenGLBackend::OpenGLBackend(
     std::shared_ptr<const IGlChunkUploadOperations> chunkOperations,
     std::shared_ptr<const IGlDrawOperations> drawOperations,
     std::shared_ptr<const IGlShaderOperations> shaderOperations,
-    std::shared_ptr<dzc::diagnostics::ILogSink> logSink)
+    std::shared_ptr<dzc::diagnostics::ILogSink> logSink,
+    std::shared_ptr<const IGlTimerQueryOperations> timerQueryOperations)
     : m_contextOperations(std::move(contextOperations)),
       m_capabilityQueries(std::move(capabilityQueries)),
       m_chunkOperations(std::move(chunkOperations)),
       m_drawOperations(std::move(drawOperations)),
       m_shaderOperations(std::move(shaderOperations)),
-      m_logSink(std::move(logSink)) {}
+      m_logSink(std::move(logSink)),
+      m_timerQueryPool(std::move(timerQueryOperations)) {}
 OpenGLBackend::~OpenGLBackend() noexcept { shutdownNoexcept(); }
 OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
     : m_state(other.m_state),
@@ -99,6 +101,7 @@ OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
       m_frameBuffer(std::move(other.m_frameBuffer)),
       m_chunkDataBuffer(std::move(other.m_chunkDataBuffer)),
       m_shaderProgram(std::move(other.m_shaderProgram)),
+      m_timerQueryPool(std::move(other.m_timerQueryPool)),
       m_drawCount(other.m_drawCount),
       m_submittedPointCount(other.m_submittedPointCount),
       m_chunks(std::move(other.m_chunks)),
@@ -106,6 +109,7 @@ OpenGLBackend::OpenGLBackend(OpenGLBackend &&other) noexcept
       m_renderSize(other.m_renderSize),
       m_renderSuspended(other.m_renderSuspended),
       m_capabilities(std::move(other.m_capabilities)),
+      m_latestGpuFrameMilliseconds(std::move(other.m_latestGpuFrameMilliseconds)),
       m_lastError(std::move(other.m_lastError)),
       m_ownerThread(other.m_ownerThread),
       m_missingColorWarningIssued(other.m_missingColorWarningIssued),
@@ -127,6 +131,7 @@ OpenGLBackend &OpenGLBackend::operator=(OpenGLBackend &&other) noexcept {
     m_frameBuffer = std::move(other.m_frameBuffer);
     m_chunkDataBuffer = std::move(other.m_chunkDataBuffer);
     m_shaderProgram = std::move(other.m_shaderProgram);
+    m_timerQueryPool = std::move(other.m_timerQueryPool);
     m_drawCount = other.m_drawCount;
     m_submittedPointCount = other.m_submittedPointCount;
     m_chunks = std::move(other.m_chunks);
@@ -134,6 +139,7 @@ OpenGLBackend &OpenGLBackend::operator=(OpenGLBackend &&other) noexcept {
     m_renderSize = other.m_renderSize;
     m_renderSuspended = other.m_renderSuspended;
     m_capabilities = std::move(other.m_capabilities);
+    m_latestGpuFrameMilliseconds = std::move(other.m_latestGpuFrameMilliseconds);
     m_lastError = std::move(other.m_lastError);
     m_ownerThread = other.m_ownerThread;
     other.resetMovedFrom();
@@ -336,9 +342,22 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
       m_capabilities.reset();
       return resources;
     }
+    auto timerResult = m_timerQueryPool.initialize(GlContextThreadToken::current());
+    if (!timerResult.hasValue()) {
+      resetDrawResources();
+      m_currentFrame.reset();
+      m_renderSize = {};
+      m_ownerThread = std::thread::id{};
+      m_capabilities.reset();
+      return makeFailure(OpenGLBackendErrorCode::OperationFailed,
+                         "OpenGL GPU timer query initialization failed",
+                         timerResult.error().diagnosticMessage,
+                         "OpenGLBackend::init GPU timer query");
+    }
     if (!m_drawOperations ||
         !m_drawOperations->setViewport(0U, 0U, initialViewport.width,
                                        initialViewport.height)) {
+      (void)m_timerQueryPool.reset(GlContextThreadToken::current());
       resetDrawResources();
       m_currentFrame.reset();
       m_renderSize = {};
@@ -350,6 +369,7 @@ Result<void> OpenGLBackend::init(const RenderBackendConfig &config) {
                          "OpenGLBackend::init");
     }
     m_renderSuspended = false;
+    m_latestGpuFrameMilliseconds.reset();
     m_missingColorWarningIssued = false;
     m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Initialized;
@@ -465,6 +485,7 @@ Result<void> OpenGLBackend::render() {
   if (!ready.hasValue())
     return ready;
   if (m_renderSuspended) {
+    m_latestGpuFrameMilliseconds.reset();
     m_drawCount = 0U;
     m_submittedPointCount = 0U;
     return Result<void>::success();
@@ -500,6 +521,14 @@ Result<void> OpenGLBackend::render() {
           chunkContext("OpenGLBackend::render", draw.chunkId).c_str());
   }
   try {
+    const auto token = GlContextThreadToken::current();
+    auto resolved = m_timerQueryPool.resolveElapsedMilliseconds(token);
+    if (!resolved.hasValue())
+      return makeFailure(OpenGLBackendErrorCode::RenderFailed,
+                         "OpenGL GPU timer query result could not be resolved",
+                         resolved.error().diagnosticMessage,
+                         "OpenGLBackend::render GPU timer query");
+    m_latestGpuFrameMilliseconds = resolved.value();
     const auto frameData = makeFrameData(frame);
     const auto frameBytes = bytesOf(&frameData, sizeof(frameData));
     const auto chunkData = render::makeChunkData(glm::vec3(0.0F));
@@ -512,6 +541,25 @@ Result<void> OpenGLBackend::render() {
     if (!m_drawOperations || !m_frameBuffer.isValid() ||
         !m_chunkDataBuffer.isValid() || !m_shaderProgram.isValid())
       return fail("OpenGL draw resources are unavailable");
+    bool timerActive = false;
+    auto stopTimer = [&]() {
+      if (!timerActive)
+        return Result<void>::success();
+      timerActive = false;
+      return m_timerQueryPool.endFrame(token);
+    };
+    auto failWithTimer = [&](const char *message) {
+      auto result = fail(message);
+      (void)stopTimer();
+      return result;
+    };
+    auto timerBegin = m_timerQueryPool.beginFrame(token);
+    if (!timerBegin.hasValue())
+      return makeFailure(OpenGLBackendErrorCode::RenderFailed,
+                         "OpenGL GPU timer query could not begin",
+                         timerBegin.error().diagnosticMessage,
+                         "OpenGLBackend::render GPU timer query");
+    timerActive = m_timerQueryPool.hasActiveQuery();
     if (!m_drawOperations->bindDrawBuffer(GlDrawBufferTarget::UniformBuffer,
                                           m_frameBuffer.id()) ||
         !m_drawOperations->uploadDrawBuffer(
@@ -521,10 +569,10 @@ Result<void> OpenGLBackend::render() {
         !m_drawOperations->bindDrawBufferBase(GlDrawBufferTarget::UniformBuffer,
                                               render::frameDataBinding,
                                               m_frameBuffer.id()))
-      return fail("FrameData UBO update failed");
+      return failWithTimer("FrameData UBO update failed");
     if (!m_drawOperations->clearColor(frame.backgroundColor) ||
         !m_drawOperations->useProgram(m_shaderProgram.id()))
-      return fail("OpenGL frame setup failed");
+      return failWithTimer("OpenGL frame setup failed");
     std::uint64_t nextDraws = 0U, nextPoints = 0U;
     for (const auto &draw : frame.draws) {
       const auto &resource = m_chunks.at(draw.chunkId);
@@ -535,7 +583,7 @@ Result<void> OpenGLBackend::render() {
           !m_drawOperations->setProgramUniformUInt(
               m_shaderProgram.id(), "drawHasIntensity",
               draw.schema.hasIntensity() ? 1U : 0U))
-        return fail("OpenGL shading state update failed");
+        return failWithTimer("OpenGL shading state update failed");
       if (!draw.schema.hasColor() && frame.shadingMode == ShadingMode::OriginalColor)
         warnMissingAttribute(frame, draw, true);
       if (!draw.schema.hasIntensity() && frame.shadingMode == ShadingMode::Intensity)
@@ -552,18 +600,28 @@ Result<void> OpenGLBackend::render() {
           !m_drawOperations->bindVertexArray(resource.vertexArrayId()) ||
           !m_drawOperations->drawPoints(
               static_cast<std::uint32_t>(resource.pointCount())))
-        return fail("OpenGL Chunk draw failed");
+        return failWithTimer("OpenGL Chunk draw failed");
       ++nextDraws;
       nextPoints += resource.pointCount();
     }
     m_drawCount = nextDraws;
     m_submittedPointCount = nextPoints;
+    auto timerEnd = stopTimer();
+    if (!timerEnd.hasValue())
+      return makeFailure(OpenGLBackendErrorCode::RenderFailed,
+                         "OpenGL GPU timer query could not end",
+                         timerEnd.error().diagnosticMessage,
+                         "OpenGLBackend::render GPU timer query");
     return Result<void>::success();
   } catch (const std::exception &e) {
+    if (m_timerQueryPool.hasActiveQuery())
+      (void)m_timerQueryPool.endFrame(GlContextThreadToken::current());
     return makeFailure(OpenGLBackendErrorCode::RenderFailed,
                        "OpenGL rendering failed", e.what(),
                        "OpenGLBackend::render");
   } catch (...) {
+    if (m_timerQueryPool.hasActiveQuery())
+      (void)m_timerQueryPool.endFrame(GlContextThreadToken::current());
     return makeFailure(OpenGLBackendErrorCode::RenderFailed,
                        "OpenGL rendering failed",
                        "An unknown exception occurred during rendering",
@@ -583,6 +641,7 @@ Result<void> OpenGLBackend::resize(const RenderSize &size) {
   if (size.width == 0U || size.height == 0U) {
     m_renderSize = size;
     m_currentFrame.reset();
+    m_latestGpuFrameMilliseconds.reset();
     m_renderSuspended = true;
     return Result<void>::success();
   }
@@ -652,13 +711,15 @@ void OpenGLBackend::shutdownNoexcept() noexcept {
   try {
     if (m_state == OpenGLBackendState::Shutdown && m_chunks.empty() &&
         !m_frameBuffer.isValid() && !m_chunkDataBuffer.isValid() &&
-        !m_shaderProgram.isValid()) {
+        !m_shaderProgram.isValid() && !m_timerQueryPool.isInitialized() &&
+        !m_timerQueryPool.releasePending()) {
       clearLastError();
       return;
     }
     if (m_state == OpenGLBackendState::Uninitialized && m_chunks.empty() &&
         !m_frameBuffer.isValid() && !m_chunkDataBuffer.isValid() &&
-        !m_shaderProgram.isValid()) {
+        !m_shaderProgram.isValid() && !m_timerQueryPool.isInitialized() &&
+        !m_timerQueryPool.releasePending()) {
       m_state = OpenGLBackendState::Shutdown;
       clearLastError();
       return;
@@ -691,6 +752,14 @@ void OpenGLBackend::shutdownNoexcept() noexcept {
       }
       it = m_chunks.erase(it);
     }
+    auto timer = m_timerQueryPool.reset(token);
+    if (!timer.hasValue()) {
+      recordError(makeError(OpenGLBackendErrorCode::ShutdownFailed,
+                            "The OpenGL GPU timer queries could not be released",
+                            timer.error().diagnosticMessage,
+                            "OpenGLBackend::shutdown GPU timer query"));
+      return;
+    }
     auto draw = resetDrawResources();
     if (!draw.hasValue()) {
       recordError(draw.error());
@@ -700,6 +769,7 @@ void OpenGLBackend::shutdownNoexcept() noexcept {
     m_capabilities.reset();
     m_ownerThread = std::thread::id{};
     m_renderSuspended = false;
+    m_latestGpuFrameMilliseconds.reset();
     m_missingColorWarningIssued = false;
     m_missingIntensityWarningIssued = false;
     m_state = OpenGLBackendState::Shutdown;
@@ -727,6 +797,7 @@ void OpenGLBackend::resetMovedFrom() noexcept {
   m_frameBuffer = GlBuffer{};
   m_chunkDataBuffer = GlBuffer{};
   m_shaderProgram = GlShaderProgram{};
+  m_timerQueryPool = GlTimerQueryPool{};
   m_drawCount = 0U;
   m_submittedPointCount = 0U;
   m_chunks.clear();
@@ -734,6 +805,7 @@ void OpenGLBackend::resetMovedFrom() noexcept {
   m_renderSize = {};
   m_renderSuspended = false;
   m_capabilities.reset();
+  m_latestGpuFrameMilliseconds.reset();
   m_lastError.reset();
   m_ownerThread = std::thread::id{};
   m_missingColorWarningIssued = false;

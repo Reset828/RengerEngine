@@ -66,7 +66,7 @@ void testDefaultValues() {
     const dzc::PerformanceSnapshot performance{};
     assert(performance.framesPerSecond == 0.0);
     assert(performance.cpuFrameMilliseconds == 0.0);
-    assert(performance.gpuFrameMilliseconds == 0.0);
+    assert(!performance.gpuFrameMilliseconds.has_value());
     assert(performance.uploadedBytesThisFrame == 0U);
     assert(performance.recordingWorkerCount == 0U);
 
@@ -123,7 +123,8 @@ void testPopulatedSnapshotAndConstSharedPointer() {
     assert(copied.dataset.progress == 0.8);
     assert(copied.performance.framesPerSecond == 60.0);
     assert(copied.performance.cpuFrameMilliseconds == 10.0);
-    assert(copied.performance.gpuFrameMilliseconds == 5.0);
+    assert(copied.performance.gpuFrameMilliseconds.has_value());
+    assert(*copied.performance.gpuFrameMilliseconds == 5.0);
     assert(copied.performance.uploadedBytesThisFrame == 4096U);
     assert(copied.performance.recordingWorkerCount == 4U);
     assert(copied.memory.cpuResidentBytes == 1024U);

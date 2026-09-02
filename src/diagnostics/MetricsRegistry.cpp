@@ -58,8 +58,16 @@ public:
         return setNonNegative(m_snapshot.performance.cpuFrameMilliseconds, value);
     }
 
-    bool setGpuFrameMilliseconds(double value) {
-        return setNonNegative(m_snapshot.performance.gpuFrameMilliseconds, value);
+    bool setGpuFrameMilliseconds(std::optional<double> value) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!value.has_value()) {
+            m_snapshot.performance.gpuFrameMilliseconds.reset();
+            return true;
+        }
+        if (!isValidNonNegative(*value))
+            return false;
+        m_snapshot.performance.gpuFrameMilliseconds = *value;
+        return true;
     }
 
     void addVisiblePoints(std::uint64_t value) {
@@ -215,8 +223,8 @@ bool MetricsRegistry::setCpuFrameMilliseconds(double value) {
     return m_impl->setCpuFrameMilliseconds(value);
 }
 
-bool MetricsRegistry::setGpuFrameMilliseconds(double value) {
-    return m_impl->setGpuFrameMilliseconds(value);
+bool MetricsRegistry::setGpuFrameMilliseconds(std::optional<double> value) {
+    return m_impl->setGpuFrameMilliseconds(std::move(value));
 }
 
 void MetricsRegistry::addVisiblePoints(std::uint64_t value) {

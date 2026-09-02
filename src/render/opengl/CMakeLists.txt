@@ -12,6 +12,7 @@ add_library(dzc_render_opengl STATIC
     GlVertexArray.cpp
     GlShaderProgram.cpp
     OpenGLShaderData.cpp
+    GlTimerQueryPool.cpp
     GlChunkResource.cpp
     GlDrawOperations.cpp
     OpenGLBackend.cpp

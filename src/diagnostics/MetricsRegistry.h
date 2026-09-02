@@ -2,13 +2,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace dzc::diagnostics {
 
 struct PerformanceMetrics {
     double framesPerSecond = 0.0;
     double cpuFrameMilliseconds = 0.0;
-    double gpuFrameMilliseconds = 0.0;
+    std::optional<double> gpuFrameMilliseconds;
 };
 
 struct GeometryMetrics {
@@ -81,7 +82,7 @@ public:
 
     bool setFramesPerSecond(double value);
     bool setCpuFrameMilliseconds(double value);
-    bool setGpuFrameMilliseconds(double value);
+    bool setGpuFrameMilliseconds(std::optional<double> value);
 
     void addVisiblePoints(std::uint64_t value);
     void addSubmittedPoints(std::uint64_t value);

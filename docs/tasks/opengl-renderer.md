@@ -36,7 +36,7 @@
 - [x] **GL-008 实现逐 Chunk 点绘制**
 - [x] **GL-009 实现四种着色和点大小**
 - [x] **GL-010 实现 resize 和投影适配**
-- [ ] **GL-011 实现 GPU Timer Query**
+- [x] **GL-011 实现 GPU Timer Query**
 - [ ] **GL-012 完成 OpenGL 后端集成测试**
 
 ## 5. 子任务说明
@@ -157,16 +157,18 @@
 - **暂停与帧同步**：宽或高为零且 DPR 有效时进入零尺寸暂停，保留 GPU 资源、清除缓存帧且不提交 viewport；暂停期间 `update()` 失败，`render()` 成功跳过所有 OpenGL 提交并将最近成功统计置零。恢复有效尺寸后必须按新逻辑尺寸重新生成相机矩阵并 `update()`；非暂停 `update()` 要求 `RenderFrame.size` 与当前 Backend 逻辑尺寸完全一致。
 - **投影职责**：Backend 不重算、不转换投影矩阵，直接上传调用方通过 `ICameraController::matrices(RenderSize)` 生成的、采用 OpenGL `NegativeOneToOne` 深度约定的矩阵；逻辑 aspect 由相机使用逻辑宽高计算，不受 DPR 改变。
 - **测试结果**：新增 `dzc_opengl_resize` 及真实 Context Skipped 用例，Fake 覆盖初始/重复 viewport、DPR 物理尺寸、`OrbitCameraController` 投影原样上传、尺寸同步、viewport 失败回滚、零宽/零高暂停恢复、物理尺寸边界和初始化资源清理。使用 OpenGL-only 配置（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON）构建成功；`ctest --test-dir build-dg010 -C Debug -L graphics --output-on-failure` 共 17 项通过，其中 8 项真实 Context 用例按 `SKIP_RETURN_CODE 77` 明确 Skipped；已在验证后清理 `build-dg010`。
-- **限制与交接**：不引入 Qt/WGL/EGL 或真实 Context 创建设施；GL-011 GPU Timer Query 与 GL-012 OpenGL 后端集成测试仍未完成，模块级验收不得标记完成。
+- **限制与交接**：不引入 Qt/WGL/EGL 或真实 Context 创建设施；GL-012 OpenGL 后端集成测试仍未完成，模块级验收不得标记完成。
 ### GL-011 实现 GPU Timer Query
 
-- **状态**：未开始
-- **目标**：使用查询池延迟读取 GPU 帧时间。
+- **状态**：已完成（OpenGL Renderer 模块仍为“进行中”）
+- **目标**：使用固定查询池延迟读取 GPU 帧时间，不同步等待当前帧。
 - **前置任务**：GL-008, diagnostics/DG-006
-- **预计文件**：`src/render/opengl/GlTimerQueryPool.h`、`src/render/opengl/GlTimerQueryPool.cpp`、`tests/graphics/GlTimerQueryTests.cpp`
-- **实现要求**：不得同步等待当前帧；缺结果时指标留空。
-- **验收检查**：若干帧后获得非负时间，帧循环无 glFinish。
-- **测试要求**：查询延迟和不可用路径测试。
+- **实际文件**：`src/render/opengl/GlTimerQueryPool.h`、`src/render/opengl/GlTimerQueryPool.cpp`、`src/render/opengl/OpenGLBackend.h`、`src/render/opengl/OpenGLBackend.cpp`、`include/dzc/EngineSnapshot.h`、`src/diagnostics/MetricsRegistry.h`、`src/diagnostics/MetricsRegistry.cpp`、`tests/graphics/FakeTimerQueryOperations.h`、`tests/graphics/GlTimerQueryTests.cpp` 及相关 CMake/回归测试文件。
+- **实现结果**：新增固定 3 帧延迟的 `GlTimerQueryPool`。当前帧只执行 begin/end，只检查至少 3 帧前的槽位；结果未就绪时返回空值并保留槽位，该帧跳过新的计时但继续正常绘制。实现不调用 `glFinish`，GLAD 类型和查询句柄仅存在于 `.cpp` 默认操作表中。
+- **Backend 接入**：`OpenGLBackend` 在 Context、GLAD 与能力检查成功后创建查询池，支持注入 Fake 操作表；每次有效渲染先解析延迟结果，再在绘制前后 begin/end，并通过 `latestGpuFrameMilliseconds()` 暴露 `std::optional<double>`。零尺寸暂停帧清空最新值；shutdown 在 Context 所属线程释放查询资源，失败记录既有 Backend 错误。
+- **指标语义**：`PerformanceMetrics::gpuFrameMilliseconds` 与公共 `PerformanceSnapshot::gpuFrameMilliseconds` 统一为 `std::optional<double>`；`nullopt` 表示未就绪，已完成结果只接受有限且非负的毫秒值。CSV 与 Markdown Writer 保持空值输出语义。
+- **测试结果**：OpenGL-only 构建成功；GL-011 Fake 覆盖 3 帧延迟、未就绪、创建/begin/end/可用性/读取/释放失败、线程令牌、移动和跨线程析构，并覆盖 Backend 初始化、渲染、暂停及 shutdown。相关专项/诊断/Writer 回归 13 项全部通过，其中 4 项真实 Context 用例按返回码 77 明确 Skipped；完整 graphics 回归 19 项全部通过，其中 9 项真实 Context 用例明确 Skipped。
+- **限制与交接**：未创建 Qt/WGL/EGL 或真实 OpenGL Context 基础设施；GL-012 离屏/管线集成测试仍未开始，OpenGL Renderer 模块状态保持“进行中”，模块级验收仍未完成。
 - **追踪**：FR-STAT-001、15
 
 ### GL-012 完成 OpenGL 后端集成测试
@@ -192,7 +194,7 @@
 - 完成日期：2026-08-26
 - 完成人：Codex（按主人确认执行）
 - 关键变更：GL-001 至 GL-003 保持已完成。GL-004 新增不暴露 OpenGL/GLAD 类型的 `GlShaderProgram` 和独立 `IGlShaderOperations`，支持源码与文件入口、Vertex/Fragment 运行时编译、Program 链接、阶段化错误日志、移动语义、显式 reset 和线程令牌约束。新增 `#version 450 core` 的最小点云 Vertex/Fragment shader fixture，固定 location 0/1/2 与 binding 0/1；GLAD 真实操作仅在 `.cpp` 内实现。
-- 未解决问题（该任务完成时）：GL-007 至 GL-012 尚未开始；GL-002、GL-003、GL-004、GL-005 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；当前 GL-011 至 GL-012 仍未完成，OpenGL Renderer 模块级验收未完成。
+- 未解决问题（该任务完成时）：GL-007 至 GL-012 尚未开始；GL-002、GL-003、GL-004、GL-005 的真实 Context 测试均明确 Skipped，GLAD loader 初始化、OpenGL Backend 生命周期和正常 shutdown 资源清理留给 GL-007；当前 GL-011 已完成，仅 GL-012 与 OpenGL Renderer 模块级验收未完成。
 - 测试命令与结果：GL-001 至 GL-003 的既有配置、能力和资源回归保持通过。GL-004 使用 MSVC 19.51/NMake 配置 `build-gl004`（OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON）；`cmake --build build-gl004 --target dzc_gl_shader_tests` 成功，包含 `GlShaderProgram.cpp` 和 GLAD 的 `dzc_render_opengl` 构建成功；`ctest --test-dir build-gl004 -R "^dzc_gl_shader$|^dzc_gl_shader_real_context$" --output-on-failure` 为 `1/1` 通过、真实 Context 用例明确 Skipped。已执行 `git diff --check`，未创建 Git commit。
 - 关联提交：未提交（未创建 Git commit）。
 
@@ -202,7 +204,7 @@
 - OpenGL 实现：新增 `OpenGLShaderData` 的布局验证和已链接 Program 反射查询入口，使用 GLAD 查询 UBO block size/offset、SSBO block binding 和 buffer variable offset/array stride。未创建 Context，未初始化 GLAD loader，未实现 Buffer 上传、绘制或完整着色。
 - Shader 同步：`point_cloud.vert` 使用完整 FrameData 字段、view/projection 变换和 `relativeChunkOrigin[0]`；固定 `#version 450 core`、location 0/1/2、binding 0/1；当时 Fragment Shader 仅输出输入 Color；四种着色已在后续 GL-009 实现。
 - 验证结果：MSVC 19.51.36246.0 x64 / NMake Makefiles、OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON 配置成功；`dzc_render_opengl` 和 `dzc_shader_layout_tests` 构建成功；`dzc_shader_layout` 通过，真实 Context 用例明确 Skipped；`git diff --check` 已执行并通过。
-- 未解决问题（该任务完成时）：真实 OpenGL Context、GLAD loader 初始化和运行时 block 反射验证留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-011 至 GL-012 仍未完成，OpenGL Renderer 模块级验收未完成。
+- 未解决问题（该任务完成时）：真实 OpenGL Context、GLAD loader 初始化和运行时 block 反射验证留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-011 已完成，仅 GL-012 与 OpenGL Renderer 模块级验收未完成。
 - 关联提交：未提交（未创建 Git commit）。
 
 ### GL-006（2026-08-26）
@@ -211,7 +213,15 @@
 - Schema 分支：支持 XYZ、XYZRGB、XYZI 和 XYZRGBI；缺失 Color 生成 RGBA `(255,255,255,255)`，缺失 Intensity 生成 `65535`；颜色不依赖主机端序，所有流字节数和统计由包装器显式计算。
 - 生命周期：上传、替换和 `reset()` 受 `GlContextThreadToken` 约束，临时资源先完成上传后再替换旧资源；失败时保留旧资源并尽力清理临时资源；资源包装器保持不可复制、可移动、析构 `noexcept` 和待释放状态。
 - 验证结果：MSVC 19.51.36246.0 x64 / NMake Makefiles、OpenGL=ON、Vulkan/CUDA=OFF、Tests=ON 配置和构建成功；`dzc_render_opengl` 与 `dzc_gl_chunk_upload_tests` 构建成功，`dzc_gl_chunk_upload` Fake 测试通过；未创建真实 Context。
-- 未解决问题（该任务完成时）：ChunkData SSBO、FrameData UBO、绘制、Backend 生命周期、真实 Context 和 GLAD loader 初始化留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-011 至 GL-012 仍未完成，OpenGL Renderer 模块仍为进行中，模块级验收未完成。
+- 未解决问题（该任务完成时）：ChunkData SSBO、FrameData UBO、绘制、Backend 生命周期、真实 Context 和 GLAD loader 初始化留给 GL-007；当时 GL-007 至 GL-012 尚未开始；当前 GL-011 已完成，仅 GL-012 与模块级验收未完成，OpenGL Renderer 模块仍为进行中。
+- 关联提交：未提交（未创建 Git commit）。
+
+### GL-011（2026-09-02）
+
+- 关键变更：新增固定 3 帧延迟的 `GlTimerQueryPool`、私有 GLAD 操作表和 Fake 操作表；接入 `OpenGLBackend` 的初始化、逐帧解析/begin/end、零尺寸暂停与 shutdown 生命周期，并增加 `latestGpuFrameMilliseconds()` 可选结果接口。
+- 公共指标：`PerformanceMetrics` 与 `PerformanceSnapshot` 的 GPU 帧时间统一为 `std::optional<double>`；未就绪清空，已就绪结果仅接受有限且非负值；CSV 与 Markdown Writer 空值回归已补齐。
+- 验证结果：OpenGL-only 相关目标构建成功；GL-011/Backend/诊断/快照/Writer 回归 13 项全部通过，4 项真实 Context 用例明确 Skipped；完整 graphics 回归 19 项全部通过，9 项真实 Context 用例明确 Skipped；未复制仓库外 DLL。
+- 未解决问题：GL-012 仍未开始；未创建真实 OpenGL Context；OpenGL Renderer 模块级验收仍未完成，模块继续处于“进行中”。
 - 关联提交：未提交（未创建 Git commit）。
 
 ## 8. 变更约束

@@ -143,3 +143,21 @@ add_test(NAME dzc_opengl_resize_real_context COMMAND dzc_opengl_resize_tests --r
 set_tests_properties(dzc_opengl_resize_real_context PROPERTIES
     LABELS "graphics;opengl;gl010;skipped"
     SKIP_RETURN_CODE 77)
+add_executable(dzc_gl_timer_query_tests
+    GlTimerQueryTests.cpp
+)
+target_compile_features(dzc_gl_timer_query_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_gl_timer_query_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/render/opengl
+    ${PROJECT_SOURCE_DIR}/tests/graphics
+)
+target_link_libraries(dzc_gl_timer_query_tests PRIVATE dzc_render_opengl)
+add_test(NAME dzc_gl_timer_query COMMAND dzc_gl_timer_query_tests)
+set_tests_properties(dzc_gl_timer_query PROPERTIES
+    LABELS "graphics;opengl;gl011")
+add_test(NAME dzc_gl_timer_query_real_context
+    COMMAND dzc_gl_timer_query_tests --real-context)
+set_tests_properties(dzc_gl_timer_query_real_context PROPERTIES
+    LABELS "graphics;opengl;gl011;skipped"
+    SKIP_RETURN_CODE 77)

@@ -159,6 +159,7 @@ void testMissingValuesAndTbd() {
     assert(bytes.find("| pointCount | 0 |\n") != std::string::npos);
     assert(bytes.find("| benchmarkHardware | TBD |\n") != std::string::npos);
     assert(bytes.find("| cameraPath | TBD |\n") != std::string::npos);
+    assert(bytes.find("| averageGpuFrameMilliseconds |  |\n") != std::string::npos);
     assert(bytes.find("| lowFrameRatePercentile | TBD |\n") != std::string::npos);
 }
 

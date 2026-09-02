@@ -1,4 +1,5 @@
 #include "OpenGLBackend.h"
+#include "FakeTimerQueryOperations.h"
 #include "render/common/ShaderData.h"
 
 #include <cassert>
@@ -223,7 +224,8 @@ struct Fixture {
       std::make_shared<FakeCapabilities>();
   std::shared_ptr<FakeDraw> operations = std::make_shared<FakeDraw>();
   std::shared_ptr<FakeShader> shader = std::make_shared<FakeShader>();
-  OpenGLBackend backend{context, capabilities, operations, operations, shader};
+  OpenGLBackend backend{context, capabilities, operations, operations, shader, {},
+                        std::make_shared<dzc::opengl::test::FakeTimerQueryOperations>()};
   Fixture() { assert(backend.init({RenderSize{640U, 480U, 1.0F}}).hasValue()); }
   ~Fixture() { backend.shutdown(); }
 };

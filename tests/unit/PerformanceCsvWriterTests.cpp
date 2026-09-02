@@ -130,6 +130,7 @@ void testMissingValuesAndCsvEscaping() {
     row.backend = std::string("Vulkan, \"test\"\r\nnext");
     row.width.reset();
     row.cpuFrameMilliseconds.reset();
+    row.gpuFrameMilliseconds.reset();
     row.visiblePoints.reset();
     row.recordingWorkers.reset();
     assert(writer.write(row));
@@ -138,7 +139,7 @@ void testMissingValuesAndCsvEscaping() {
     const auto lines = splitLines(readBytes(file));
     assert(lines.size() == 2U);
     const std::string expectedRow =
-        "1970-01-01T00:00:00.123Z,42,\"Vulkan, \"\"test\"\"\r\nnext\",,1080,,2.500000,60.000000,,200,3,400,500,600,7,\n";
+        "1970-01-01T00:00:00.123Z,42,\"Vulkan, \"\"test\"\"\r\nnext\",,1080,,,60.000000,,200,3,400,500,600,7,\n";
     assert(lines[1] + "\n" == expectedRow);
 }
 void testInvalidFloatingPointRejectsWholeRow() {

@@ -34,7 +34,7 @@ struct DatasetSummary final {
 struct PerformanceSnapshot final {
     double framesPerSecond{0.0};
     double cpuFrameMilliseconds{0.0};
-    double gpuFrameMilliseconds{0.0};
+    std::optional<double> gpuFrameMilliseconds;
     std::uint64_t uploadedBytesThisFrame{0};
     std::uint32_t recordingWorkerCount{0};
 };

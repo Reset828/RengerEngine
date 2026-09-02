@@ -1,4 +1,5 @@
 #include "OpenGLBackend.h"
+#include "FakeTimerQueryOperations.h"
 #include "render/common/ShaderData.h"
 
 #include <array>
@@ -265,7 +266,8 @@ public:
       std::make_shared<FakeCapabilities>();
   std::shared_ptr<FakeDraw> draw = std::make_shared<FakeDraw>();
   std::shared_ptr<FakeShader> shader = std::make_shared<FakeShader>();
-  OpenGLBackend backend{context, capabilities, draw, draw, shader};
+  OpenGLBackend backend{context, capabilities, draw, draw, shader, {},
+                        std::make_shared<dzc::opengl::test::FakeTimerQueryOperations>()};
 
   Fixture() {
     assert(backend.init({RenderSize{64U, 64U, 1.0F}}).hasValue());
@@ -336,7 +338,8 @@ void testMissingAttributesWarnOnce() {
   auto draw = std::make_shared<FakeDraw>();
   auto shader = std::make_shared<FakeShader>();
   auto sink = std::make_shared<CollectingLogSink>();
-  OpenGLBackend backend{context, capabilities, draw, draw, shader, sink};
+  OpenGLBackend backend{context, capabilities, draw, draw, shader, sink,
+                        std::make_shared<dzc::opengl::test::FakeTimerQueryOperations>()};
   assert(backend.init({RenderSize{64U, 64U, 1.0F}}).hasValue());
   assert(backend.upload({{makeUpload(1U, 2U, positionMask)}}).hasValue());
 
@@ -392,7 +395,8 @@ void testShaderInitializationFailureReleasesBuffers() {
   auto draw = std::make_shared<FakeDraw>();
   auto shader = std::make_shared<FakeShader>();
   shader->failCompile = true;
-  OpenGLBackend backend{context, capabilities, draw, draw, shader};
+  OpenGLBackend backend{context, capabilities, draw, draw, shader, {},
+                        std::make_shared<dzc::opengl::test::FakeTimerQueryOperations>()};
   const auto result = backend.init({RenderSize{64U, 64U, 1.0F}});
   assert(!result.hasValue());
   assert(draw->createdBuffers == 2U);

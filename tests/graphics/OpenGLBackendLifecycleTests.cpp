@@ -1,4 +1,5 @@
 #include "OpenGLBackend.h"
+#include "FakeTimerQueryOperations.h"
 
 #include <cassert>
 #include <cstddef>
@@ -182,9 +183,14 @@ std::unique_ptr<OpenGLBackend>
 makeBackend(const std::shared_ptr<FakeContextOperations> &context,
             const std::shared_ptr<FakeCapabilities> &capabilities,
             const std::shared_ptr<FakeChunkOperations> &operations) {
-  return std::make_unique<OpenGLBackend>(
-      context, capabilities, operations, operations,
-      std::make_shared<FakeShaderOperations>());
+  std::shared_ptr<const IGlShaderOperations> shader =
+      std::make_shared<FakeShaderOperations>();
+  std::shared_ptr<const IGlTimerQueryOperations> timer =
+      std::make_shared<dzc::opengl::test::FakeTimerQueryOperations>();
+  std::shared_ptr<dzc::diagnostics::ILogSink> sink;
+  return std::make_unique<OpenGLBackend>(context, capabilities, operations,
+                                         operations, std::move(shader),
+                                         std::move(sink), std::move(timer));
 }
 
 RenderBackendConfig config() {

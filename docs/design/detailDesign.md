@@ -487,7 +487,7 @@ struct DatasetSummary final {
 struct PerformanceSnapshot final {
     double framesPerSecond{0.0};
     double cpuFrameMilliseconds{0.0};
-    double gpuFrameMilliseconds{0.0};
+    std::optional<double> gpuFrameMilliseconds;
     std::uint64_t uploadedBytesThisFrame{0};
     std::uint32_t recordingWorkerCount{0};
 };
@@ -522,6 +522,7 @@ struct EngineSnapshot final {
 - UI 使用 `std::atomic_load_explicit`；内存序使用 `release/acquire`；
 - 发布后不得修改对象；
 - Snapshot 不包含点数组、Chunk Payload、GPU 句柄或 Qt 类型；
+- `PerformanceSnapshot::gpuFrameMilliseconds` 使用 `std::optional<double>`：GPU 查询尚未就绪或当前帧未执行有效绘制时为 `std::nullopt`，有值时必须有限且非负；
 - FPS 使用最近 120 帧或最近 1 秒中先达到者的滑动窗口；窗口未填满时按实际样本计算。
 
 ### 6.4 有界队列和溢出策略
@@ -1517,7 +1518,7 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 
 通用指标由 `MetricsRegistry` 维护，并通过 `MetricsSnapshot` 返回一致值副本。快照固定包含以下分组：
 
-- `PerformanceMetrics`：FPS、CPU frame ms、GPU frame ms；
+- `PerformanceMetrics`：FPS、CPU frame ms，以及使用 `std::optional<double>` 表示的 GPU frame ms；
 - `GeometryMetrics`：visible/submitted points、visible/drawn chunks；
 - `TransferMetrics`：reader bytes、cache bytes、upload bytes；
 - `MemoryMetrics`：CPU/GPU resident 与 budget；
@@ -1528,9 +1529,10 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 
 `MetricsRegistry` 不持有 `FrameStatistics`；调用方从 `FrameStatistics::snapshot()` 获取 FPS 和帧耗时后调用对应 setter。Registry 使用固定字段更新方法，不使用字符串键值注册表，也不保存逐 worker 动态列表。
 
-`beginFrame(frameId)` 原样保存帧号，并清零 FPS、帧耗时、点/块/字节计数、LOD 计数、录制工作量和 CUDA 帧级指标；CPU/GPU resident、budget、task queue depth 和 I/O active count 等状态指标跨帧保留。`reset()` 清零全部字段并将帧号恢复为 0。帧号不校验回退、重复或严格递增。
+`beginFrame(frameId)` 原样保存帧号，并清零 FPS、CPU 帧耗时、点/块/字节计数、LOD 计数、录制工作量和 CUDA 帧级指标，同时将 GPU 帧耗时清空为 `std::nullopt`；CPU/GPU resident、budget、task queue depth 和 I/O active count 等状态指标跨帧保留。`reset()` 清零全部字段并将帧号恢复为 0。帧号不校验回退、重复或严格递增。
 
-所有公开操作由同一互斥量保护，`snapshot()` 不自动重置并返回调用时刻的一致副本。无符号整数累加采用饱和到最大值的规则；FPS、CPU/GPU frame ms、录制聚合耗时和 CUDA synchronization duration 只接受有限且非负值，非法输入返回 `false` 并保持旧值。录制聚合耗时合法输入执行累加，上溢时钳制到 double 最大值。
+所有公开操作由同一互斥量保护，`snapshot()` 不自动重置并返回调用时刻的一致副本。无符号整数累加采用饱和到最大值的规则；FPS、CPU frame ms、录制聚合耗时和 CUDA synchronization duration 只接受有限且非负值，非法输入返回 `false` 并保持旧值。`setGpuFrameMilliseconds(std::nullopt)` 成功清空 GPU 指标；传入有值 optional 时仅接受有限且非负值，非法值返回 `false` 并保持旧值。录制聚合耗时合法输入执行累加，上溢时钳制到 double 最大值。
+
 ### 21.4 CSV 与 Markdown
 
 性能明细 CSV 由调用方组装固定的 `PerformanceCsvRow` 后交给 `PerformanceCsvWriter` 写出。Writer 不直接依赖 `MetricsRegistry` 或 `FrameStatistics`，不持有动态字符串指标注册表，也不扩展 DG-006 公共字段。

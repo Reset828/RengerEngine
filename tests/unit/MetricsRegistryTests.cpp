@@ -20,7 +20,7 @@ void assertSnapshotIsZero(const MetricsSnapshot& snapshot) {
     assert(snapshot.frameId == 0U);
     assert(snapshot.performance.framesPerSecond == 0.0);
     assert(snapshot.performance.cpuFrameMilliseconds == 0.0);
-    assert(snapshot.performance.gpuFrameMilliseconds == 0.0);
+    assert(!snapshot.performance.gpuFrameMilliseconds.has_value());
     assert(snapshot.geometry.visiblePoints == 0U);
     assert(snapshot.geometry.submittedPoints == 0U);
     assert(snapshot.geometry.visibleChunks == 0U);
@@ -80,7 +80,8 @@ void testInitialSnapshotAndUpdates() {
     assert(snapshot.frameId == 42U);
     assertNear(snapshot.performance.framesPerSecond, 60.0);
     assertNear(snapshot.performance.cpuFrameMilliseconds, 10.5);
-    assertNear(snapshot.performance.gpuFrameMilliseconds, 4.25);
+    assert(snapshot.performance.gpuFrameMilliseconds.has_value());
+    assertNear(*snapshot.performance.gpuFrameMilliseconds, 4.25);
     assert(snapshot.geometry.visiblePoints == 15U);
     assert(snapshot.geometry.submittedPoints == 20U);
     assert(snapshot.geometry.visibleChunks == 3U);
@@ -185,6 +186,18 @@ void testDoubleValidationAndSaturation() {
     assertNear(registry.snapshot().compute.synchronizationMilliseconds, 2.0);
 }
 
+void testGpuMetricOptionalValidation() {
+    MetricsRegistry registry;
+    assert(registry.setGpuFrameMilliseconds(3.0));
+    assert(!registry.setGpuFrameMilliseconds(-1.0));
+    assert(!registry.setGpuFrameMilliseconds(std::numeric_limits<double>::quiet_NaN()));
+    assert(!registry.setGpuFrameMilliseconds(std::numeric_limits<double>::infinity()));
+    assert(!registry.setGpuFrameMilliseconds(-std::numeric_limits<double>::infinity()));
+    assert(registry.snapshot().performance.gpuFrameMilliseconds.has_value());
+    assertNear(*registry.snapshot().performance.gpuFrameMilliseconds, 3.0);
+    assert(registry.setGpuFrameMilliseconds(std::nullopt));
+    assert(!registry.snapshot().performance.gpuFrameMilliseconds.has_value());
+}
 void testSnapshotIsValueCopy() {
     MetricsRegistry registry;
     registry.addVisiblePoints(10U);
@@ -263,6 +276,7 @@ int main() {
     testReset();
     testIntegerSaturation();
     testDoubleValidationAndSaturation();
+    testGpuMetricOptionalValidation();
     testSnapshotIsValueCopy();
     testConcurrentOperationsAreSafe();
     return 0;

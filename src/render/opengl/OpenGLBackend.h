@@ -3,6 +3,7 @@
 #include "GlChunkResource.h"
 #include "GlDrawOperations.h"
 #include "GlShaderProgram.h"
+#include "GlTimerQueryPool.h"
 #include "OpenGLCapabilities.h"
 #include "render/common/RenderBackendFactory.h"
 #include "diagnostics/ILogSink.h"
@@ -46,7 +47,8 @@ public:
       std::shared_ptr<const IGlChunkUploadOperations> chunkOperations = {},
       std::shared_ptr<const IGlDrawOperations> drawOperations = {},
       std::shared_ptr<const IGlShaderOperations> shaderOperations = {},
-      std::shared_ptr<dzc::diagnostics::ILogSink> logSink = {});
+      std::shared_ptr<dzc::diagnostics::ILogSink> logSink = {},
+      std::shared_ptr<const IGlTimerQueryOperations> timerQueryOperations = {});
 
   ~OpenGLBackend() noexcept override;
 
@@ -83,6 +85,9 @@ public:
   const std::optional<OpenGLCapabilitySnapshot> &capabilities() const noexcept {
     return m_capabilities;
   }
+  const std::optional<double> &latestGpuFrameMilliseconds() const noexcept {
+    return m_latestGpuFrameMilliseconds;
+  }
 
 private:
   struct ChunkIdHash final {
@@ -116,12 +121,14 @@ private:
   GlBuffer m_frameBuffer;
   GlBuffer m_chunkDataBuffer;
   GlShaderProgram m_shaderProgram;
+  GlTimerQueryPool m_timerQueryPool;
   std::uint64_t m_drawCount{0U};
   std::uint64_t m_submittedPointCount{0U};
   std::unordered_map<dzc::ChunkId, GlChunkResource, ChunkIdHash> m_chunks;
   std::optional<dzc::RenderFrame> m_currentFrame;
   dzc::RenderSize m_renderSize{};
   std::optional<OpenGLCapabilitySnapshot> m_capabilities;
+  std::optional<double> m_latestGpuFrameMilliseconds;
   std::optional<dzc::Error> m_lastError;
   std::thread::id m_ownerThread;
   bool m_renderSuspended{false};
