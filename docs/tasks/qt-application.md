@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-004 已完成；QT-005 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-005 已完成；QT-006 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -30,7 +30,7 @@
 - [x] **QT-002 实现命令行配置解析**
 - [x] **QT-003 实现 QSettings/INI 控制器**
 - [x] **QT-004 创建 MainWindow 布局**
-- [ ] **QT-005 实现 EngineUiAdapter**
+- [x] **QT-005 实现 EngineUiAdapter**
 - [ ] **QT-006 实现文件加载与取消 UI**
 - [ ] **QT-007 实现渲染参数 UI**
 - [ ] **QT-008 实现状态与日志显示**
@@ -106,6 +106,17 @@
 - **验收检查**：文件、颜色、参数和输入均产生预期命令。
 - **测试要求**：Fake Engine/command sink 转换测试。
 - **追踪**：FR-DATA-002、FR-CAM-001、ADR-004
+
+### QT-005 实现 EngineUiAdapter
+
+- **状态**：已完成（2026-09-03）
+- **目标**：在 Qt App 层把 Qt 值类型和输入事件转换为后端无关的 `EngineCommand`，并通过 App 内部通信端口访问 Engine Snapshot/Event。
+- **实际文件**：`include/dzc/InputEvent.h`、`include/dzc/EngineCommand.h`、`src/engine/EngineCommand.cpp`、`src/engine/Engine.cpp`、`src/app/EngineUiAdapter.h`、`src/app/EngineUiAdapter.cpp`、`src/app/CMakeLists.txt`、`tests/unit/EngineUiAdapterTests.cpp`、`tests/unit/EngineCommandTests.cpp`、`tests/unit/EnginePublicApiTests.cpp`、`tests/unit/CMakeLists.txt`。
+- **公共协议**：新增纯值 `SubmitInputCommand { InputEvent event; }` 并加入 `EngineCommand` variant；`InputEvent` 定义六类事件、稳定鼠标按钮编码（左键 `0`、右键 `2`）和修饰键位（Shift/Ctrl/Alt/Meta = `1/2/4/8`）。Engine 校验归一化坐标、有限滚轮值、按钮、键/焦点/ResetRequest 结构和修饰位。
+- **Adapter 接口**：`IEngineUiPort` 仅在 App 内部提供 `enqueueCommand`、`getSnapshot`、`pollEvents`；`EngineUiAdapter` 使用 QObject + Pimpl，支持 UTF-8 数据集路径、QColor RGBA、点大小/着色/颜色/CUDA/ResetView 命令，以及 PointerMove、PointerButton、Wheel、Key、Focus、ResetRequest 六类输入。像素坐标按视口左上角原点归一化到 `[0,1]`，Qt 键使用有限 USB HID 映射表。
+- **错误与生命周期边界**：空路径、无效颜色、非法点大小、非正视口、非有限或越界坐标、未定义鼠标按钮、未映射 Qt 键和非法滚轮值同步失败且不入队；队列满或 Engine 状态错误直接返回。Adapter 不创建定时器、不驱动帧循环、不拥有 Engine Controller；Engine 当前只消费 `SubmitInputCommand`，不改变相机状态，Controller 注入留待后续任务。
+- **测试**：新增 `dzc_engine_ui_adapter_tests`（标签 `unit;app;qt;qt005`），覆盖 Qt 转换、输入六类事件、稳定编码、错误不入队、命令顺序、Snapshot/Event 读取和提交失败；EngineCommand/PublicApi 测试覆盖 variant、合法性、消费和相机状态不变。
+- **验证**：`build-qt005` 使用 Qt 5.15.19、OpenGL ON、Vulkan OFF、CUDA OFF、Tests ON 配置并成功构建 `dzc_app`、`dzc_engine_ui_adapter_tests`、`dzc_engine_command_tests`、`dzc_engine_public_api_tests`；专项回归 `dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller` 为 5/5 通过。测试运行仅使用仓库根目录 `dll/` 中已有 Qt DLL 的临时副本，结束时清理构建目录临时 DLL；未从 Qt 安装目录、其他构建目录或 PATH 复制。
 
 ### QT-006 实现文件加载与取消 UI
 
@@ -195,9 +206,9 @@
 
 - 完成日期：2026-09-03
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target、QT-002 App 内部命令行配置解析器及 QT-003 `SettingsController`/INI 配置基础设施与测试；QT-004 至 QT-012 保持未开始。
-- 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成。
-- 测试命令与结果：`build-qt003` 按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_settings_controller_tests` 与 `dzc_app` 目标构建成功；`dzc_target_boundary` 通过。`dzc_settings_controller` 未运行：仓库根目录 `dll` 缺少 Qt5Core 及相关 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。完整构建仍受既有 PCL/Boost 头文件环境问题影响。
+- 关键变更：完成 QT-001 至 QT-004，并完成 QT-005 `EngineUiAdapter`、公共 `SubmitInputCommand` 输入协议和 Fake Port 测试；QT-006 至 QT-012 保持未完成。
+- 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
+- 测试命令与结果：QT-005 使用 `build-qt005`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；构建受影响目标成功，`ctest --test-dir build-qt005 -C Debug -R 'dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 5/5 通过。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束

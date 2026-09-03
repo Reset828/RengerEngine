@@ -556,3 +556,26 @@ target_link_libraries(dzc_settings_controller_tests PRIVATE
 add_test(NAME dzc_settings_controller COMMAND dzc_settings_controller_tests)
 set_tests_properties(dzc_settings_controller PROPERTIES
     LABELS "unit;app;qt;qt003")
+
+find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Core Gui)
+
+add_executable(dzc_engine_ui_adapter_tests
+    EngineUiAdapterTests.cpp
+    ${PROJECT_SOURCE_DIR}/src/app/EngineUiAdapter.cpp
+)
+
+target_compile_features(dzc_engine_ui_adapter_tests PRIVATE cxx_std_17)
+target_include_directories(dzc_engine_ui_adapter_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/app
+)
+target_link_libraries(dzc_engine_ui_adapter_tests PRIVATE
+    dzc_engine_core
+    dzc_engine_api
+    Qt5::Core
+    Qt5::Gui
+)
+
+add_test(NAME dzc_engine_ui_adapter COMMAND dzc_engine_ui_adapter_tests)
+set_tests_properties(dzc_engine_ui_adapter PROPERTIES
+    LABELS "unit;app;qt;qt005")

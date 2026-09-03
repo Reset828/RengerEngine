@@ -4,6 +4,17 @@
 
 namespace dzc {
 
+namespace input {
+
+inline constexpr std::uint32_t kPointerLeftButtonCode = 0U;
+inline constexpr std::uint32_t kPointerRightButtonCode = 2U;
+inline constexpr std::uint32_t kModifierShift = 1U;
+inline constexpr std::uint32_t kModifierControl = 2U;
+inline constexpr std::uint32_t kModifierAlt = 4U;
+inline constexpr std::uint32_t kModifierMeta = 8U;
+
+} // namespace input
+
 enum class InputEventType : std::uint8_t {
     PointerMove,
     PointerButton,

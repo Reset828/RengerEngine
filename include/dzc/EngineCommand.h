@@ -2,6 +2,7 @@
 
 #include "dzc/EngineConfig.h"
 #include "dzc/EngineTypes.h"
+#include "dzc/InputEvent.h"
 
 #include <string>
 #include <variant>
@@ -48,6 +49,10 @@ struct ResizeCommand final {
 
 struct ShutdownCommand final {};
 
+struct SubmitInputCommand final {
+    InputEvent event;
+};
+
 using EngineCommand = std::variant<
     LoadDatasetCommand,
     CancelDatasetLoadCommand,
@@ -59,7 +64,8 @@ using EngineCommand = std::variant<
     SetCudaModeCommand,
     ResetViewCommand,
     ResizeCommand,
-    ShutdownCommand>;
+    ShutdownCommand,
+    SubmitInputCommand>;
 
 // Returns whether the command satisfies the constraints defined by EC-001.
 bool isValidEngineCommand(const EngineCommand& command) noexcept;

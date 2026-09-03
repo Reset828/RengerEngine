@@ -4,6 +4,7 @@ add_executable(dzc_app
     main.cpp
     CommandLineOptions.cpp
     SettingsController.cpp
+    EngineUiAdapter.cpp
     MainWindow.cpp
 )
 

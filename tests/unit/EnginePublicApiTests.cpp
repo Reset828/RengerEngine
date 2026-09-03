@@ -44,6 +44,7 @@ void testDefaultSnapshotAndInvalidCalls() {
     assertInvalidState(engine.render());
     assertInvalidState(engine.resize(dzc::RenderSize{640U, 480U, 1.0F}));
     assertInvalidState(engine.enqueueCommand(dzc::ResetViewCommand{}));
+    assertInvalidState(engine.enqueueCommand(dzc::SubmitInputCommand{{}}));
 }
 
 void testInitializationAndRunningLifecycle() {
@@ -114,9 +115,11 @@ void testCommandValidationAndQueuePolicy() {
 void testCommandConsumptionAndCoalescing() {
     dzc::Engine engine;
     dzc::EngineConfig config;
-    config.commandQueueCapacity = 4U;
+    config.commandQueueCapacity = 8U;
     assertSuccess(engine.init(config));
     assertSuccess(engine.enqueueCommand(dzc::SetPointSizeCommand{2.0F}));
+    assertSuccess(engine.enqueueCommand(dzc::SubmitInputCommand{{
+        dzc::InputEventType::PointerMove, 0U, 0.5, 0.5, false, 0U}}));
     assertSuccess(engine.enqueueCommand(dzc::SetShadingModeCommand{dzc::ShadingMode::Height}));
     assertSuccess(engine.enqueueCommand(dzc::SetPointSizeCommand{7.0F}));
     assertSuccess(engine.enqueueCommand(

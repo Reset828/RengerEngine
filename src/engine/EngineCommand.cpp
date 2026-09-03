@@ -99,8 +99,50 @@ bool isValidCommand(const LoadDatasetCommand& command) noexcept {
     return !command.path.empty() && isValidUtf8(command.path);
 }
 
+constexpr std::uint32_t kInputModifierMask = input::kModifierShift | input::kModifierControl |
+    input::kModifierAlt | input::kModifierMeta;
+
+bool isNormalizedPointerPosition(const InputEvent& event) noexcept {
+    return std::isfinite(event.valueX) && std::isfinite(event.valueY) &&
+           event.valueX >= 0.0 && event.valueX <= 1.0 && event.valueY >= 0.0 &&
+           event.valueY <= 1.0;
+}
+
+bool hasValidModifiers(const InputEvent& event) noexcept {
+    return (event.modifiers & ~kInputModifierMask) == 0U;
+}
+
+bool isValidInputEvent(const InputEvent& event) noexcept {
+    switch (event.type) {
+    case InputEventType::PointerMove:
+        return event.code == 0U && !event.pressed && isNormalizedPointerPosition(event) &&
+               hasValidModifiers(event);
+    case InputEventType::PointerButton:
+        return isNormalizedPointerPosition(event) && hasValidModifiers(event) &&
+               (!event.pressed || event.code == input::kPointerLeftButtonCode ||
+                event.code == input::kPointerRightButtonCode);
+    case InputEventType::Wheel:
+        return event.code == 0U && event.valueX == 0.0 && !event.pressed &&
+               std::isfinite(event.valueY) && hasValidModifiers(event);
+    case InputEventType::Key:
+        return event.code != 0U && event.valueX == 0.0 && event.valueY == 0.0 &&
+               hasValidModifiers(event);
+    case InputEventType::Focus:
+        return event.code == 0U && event.valueX == 0.0 && event.valueY == 0.0 &&
+               event.modifiers == 0U;
+    case InputEventType::ResetRequest:
+        return event.code == 0U && event.valueX == 0.0 && event.valueY == 0.0 &&
+               !event.pressed && event.modifiers == 0U;
+    }
+    return false;
+}
+
 bool isValidCommand(const SetPointSizeCommand& command) noexcept {
     return std::isfinite(command.pixels) && command.pixels >= 1.0F && command.pixels <= 64.0F;
+}
+
+bool isValidCommand(const SubmitInputCommand& command) noexcept {
+    return isValidInputEvent(command.event);
 }
 
 template <typename Command>

@@ -388,6 +388,7 @@ struct SetCudaModeCommand final { OptionalFeatureMode mode{OptionalFeatureMode::
 struct ResetViewCommand final {};
 struct ResizeCommand final { RenderSize size; };
 struct ShutdownCommand final {};
+struct SubmitInputCommand final { InputEvent event; };
 
 using EngineCommand = std::variant<
     LoadDatasetCommand,
@@ -400,7 +401,8 @@ using EngineCommand = std::variant<
     SetCudaModeCommand,
     ResetViewCommand,
     ResizeCommand,
-    ShutdownCommand>;
+    ShutdownCommand,
+    SubmitInputCommand>;
 ```
 
 约束：
@@ -408,8 +410,17 @@ using EngineCommand = std::variant<
 - `LoadDatasetCommand` 的路径必须是非空 UTF-8 字符串；
 - 点大小在进入场景前检查有限数并限制到实现支持范围，建议初始范围 `[1, 64]` 像素；范围可通过配置调整，不作为相机行为；
 - 连续参数命令按“最后一个值生效”合并；
-- 加载、取消、卸载、输入和关闭命令不得跨语义重排；TS-003 当前实现中输入命令等待 CA-003 提供公共 `InputEvent` 后接入，并按屏障处理；
+- 加载、取消、卸载、输入和关闭命令不得跨语义重排；`SubmitInputCommand` 是队列屏障，保持 FIFO，不参与参数命令合并；
 - `ResetViewCommand` 只调用未来注入的相机控制器入口，当前不定义结果行为。
+- `SubmitInputCommand` 由 Engine 校验并消费；QT-005 阶段不注入或调用 `ICameraController`，因此输入命令当前不改变相机状态。
+
+### 6.1.1 QT-005 EngineUiAdapter 与输入边界
+
+`EngineUiAdapter` 属于 App 私有实现，使用 QObject + Pimpl；Qt 类型只出现在 App 头/源文件，不进入 `include/dzc`。App 内部 `IEngineUiPort` 不依赖 Qt，仅暴露 `enqueueCommand(EngineCommand)`、`getSnapshot()` 和 `pollEvents()`，生产实现桥接现有 `Engine`，测试注入 Fake Port。端口不负责 Engine 的 `init/update/render/resize/shutdown`，也不创建定时器或驱动帧循环。
+
+Qt 输入转换遵循固定协议：widget 本地像素坐标以视口左上角为原点，按宽高归一化为 `[0,1]`；左键编码 `0`、右键编码 `2`，其他鼠标按钮拒绝；修饰位为 Shift/Ctrl/Alt/Meta = `1/2/4/8`；键盘只接受有限的 Qt Key → USB HID 映射，未覆盖键拒绝。`PointerMove`、`PointerButton`、`Wheel`、`Key`、`Focus` 和 `ResetRequest` 都封装为 `SubmitInputCommand`。
+
+空路径、无效颜色、非有限或越界参数、非正视口、非法滚轮值和未支持输入同步返回参数错误，且不得调用命令端口；端口返回的队列满、关闭或 Engine 状态错误原样返回。Snapshot 通过不可变 `std::shared_ptr<const EngineSnapshot>` 获取，Event 通过显式批量轮询获取。
 
 ### 6.2 EngineEvent
 
@@ -530,7 +541,7 @@ struct EngineSnapshot final {
 `BoundedQueue<T>` 使用 `std::mutex`、`std::condition_variable` 和固定容量环形存储，默认容量为 1024。公共接口为 `tryPush(T)`、`tryPop()`、`tryPopBatch(maxCount)` 和 `close()`；队列不可复制、不可移动，元素要求可移动构造。容量必须大于零，零容量构造抛出 `std::invalid_argument`。Command 是多生产者单消费者，Event 是多生产者、UI 单消费者。
 
 `tryPush`、`tryPop` 和 `tryPopBatch` 均为立即返回操作：队列满时入队失败，队列空时出队返回空值，批量出队按 FIFO 最多返回当前已有的 `maxCount` 个元素，`maxCount == 0` 返回空批次。队列关闭后拒绝新入队，但保留已接受元素供消费者排空；`close()` 幂等，析构函数自动调用。互斥量保护所有公开操作；条件变量仅发送状态通知，不向调用方提供阻塞等待接口。
-TS-003 的 `CommandCoalescer` 为命令队列提供同等的固定容量、FIFO、立即返回和关闭排空语义，但不修改 `BoundedQueue<T>` 的既有接口。它在一把互斥量内扫描最后一个屏障之后的命令段：点大小、着色、固定颜色、CUDA 模式和 Resize 的同类命令保留首次位置并更新为最后值；加载、取消、卸载、背景色、重置视图和 Shutdown 为不可合并屏障。队列已满时，若当前段存在同类可合并命令，仍可原位更新；否则立即返回失败，不阻塞、不淘汰其他命令。`ShutdownCommand` 仅是可消费消息，不自动调用队列 `close()`。`SubmitInputCommand` 待 CA-003 的 `InputEvent` 公共类型落地后接入，并必须作为屏障。
+TS-003 的 `CommandCoalescer` 为命令队列提供同等的固定容量、FIFO、立即返回和关闭排空语义，但不修改 `BoundedQueue<T>` 的既有接口。它在一把互斥量内扫描最后一个屏障之后的命令段：点大小、着色、固定颜色、CUDA 模式和 Resize 的同类命令保留首次位置并更新为最后值；加载、取消、卸载、背景色、重置视图和 Shutdown 为不可合并屏障。队列已满时，若当前段存在同类可合并命令，仍可原位更新；否则立即返回失败，不阻塞、不淘汰其他命令。`ShutdownCommand` 仅是可消费消息，不自动调用队列 `close()`。`SubmitInputCommand` 已接入，并作为屏障保持 FIFO；输入事件由 Engine 消费但当前不转发 Camera Controller。
 
 | 队列情况 | 处理方式 |
 |---|---|

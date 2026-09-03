@@ -501,6 +501,8 @@ private:
                     sceneChanged = true;
                 } else if constexpr (std::is_same_v<Command, SetCudaModeCommand>) {
                     m_requestedCudaMode = value.mode;
+                } else if constexpr (std::is_same_v<Command, SubmitInputCommand>) {
+                    static_cast<void>(value);
                 }
             },
             command);
