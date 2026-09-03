@@ -2,9 +2,13 @@
 
 > 文件：`docs/tasks/cuda-opengl-interop.md`  
 > 所属阶段：Phase 1（可选能力）  
-> 模块状态：未开始  
+> 模块状态：暂缓（本阶段跳过）
 > 前置模块：[opengl-renderer](./opengl-renderer.md)、[task-system](./task-system.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
+
+## 本阶段暂缓说明
+
+按主人要求，本阶段暂缓/跳过本模块的全部 CUDA 实现与验收，不视为完成。保持所有任务和模块级验收未勾选，不执行 CUDA Target、设备匹配、Interop、Kernel、同步或相关验收测试；统一使用 `DZC_ENABLE_CUDA=OFF` 构建和验证。待 Qt/Phase 1 当前工作完成后，由主人明确重新启动 CUDA 任务。
 
 ## 1. 模块目标
 

@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：未开始  
+> 模块状态：进行中（QT-001 已完成；QT-002 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -26,7 +26,7 @@
 
 ## 4. 子任务 Checklist
 
-- [ ] **QT-001 配置 Qt 5.15.19 App Target**
+- [x] **QT-001 配置 Qt 5.15.19 App Target**
 - [ ] **QT-002 实现命令行配置解析**
 - [ ] **QT-003 实现 QSettings/INI 控制器**
 - [ ] **QT-004 创建 MainWindow 布局**
@@ -43,7 +43,7 @@
 
 ### QT-001 配置 Qt 5.15.19 App Target
 
-- **状态**：未开始
+- **状态**：已完成（2026-09-03）
 - **目标**：建立 dzc_app 并链接所需 Qt 模块。
 - **前置任务**：project-foundation/PF-003
 - **预计文件**：`src/app/CMakeLists.txt`、`src/app/main.cpp`
@@ -52,6 +52,13 @@
 - **测试要求**：CMake 依赖边界和 GUI 冒烟测试。
 - **追踪**：FR-UI-001、NFR-PORT-001
 
+### QT-001 实施记录
+
+- **实际文件**：`src/app/CMakeLists.txt`、`src/app/main.cpp`、`tests/ui/CMakeLists.txt`、`tests/ui/QtApplicationSmokeTests.cpp`，以及顶层 `CMakeLists.txt` 和 `src/CMakeLists.txt` 的 Target 注册/依赖调整。
+- **Qt 版本与 Target**：通过 `find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Widgets)` 发现 Qt 5.15.19；`dzc_app` 已从接口占位 Target 转为私有链接 `Qt5::Widgets` 的可执行程序。
+- **应用行为**：`main.cpp` 仅创建 `QApplication`、标题为 `Dzc-RenderEngine` 的标准空 `QMainWindow`，显示后进入事件循环；未设置固定尺寸，未实现 QT-002 及后续 UI/Engine/渲染宿主功能。
+- **冒烟测试**：新增独立 `dzc_qt_application_smoke`，使用 `QT_QPA_PLATFORM=offscreen` 验证 `QApplication`、`QMainWindow` 显示和事件循环自动退出，标签为 `ui;qt;qt001`；测试不链接 `dzc_app`。
+- **边界与 CUDA**：Qt 依赖只加入 App/测试 Target，公共 Engine API 未修改；本阶段 CUDA 全部暂缓，构建/验证使用 `DZC_ENABLE_CUDA=OFF`。
 ### QT-002 实现命令行配置解析
 
 - **状态**：未开始
@@ -182,12 +189,12 @@
 
 ## 7. 交接记录
 
-- 完成日期：
-- 完成人：
-- 关键变更：
-- 未解决问题：
-- 测试命令与结果：
-- 关联提交：
+- 完成日期：2026-09-03
+- 完成人：Codex（按主人确认方案实施）
+- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target 与独立 offscreen 冒烟测试；QT-002 至 QT-012 保持未开始。
+- 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成。
+- 测试命令与结果：`build-qt001` 已按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_app` 与 `dzc_qt_application_smoke` 构建成功；`dzc_target_boundary` 通过。冒烟测试未运行：仓库根目录 `dll` 缺少 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。
+- 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束
 

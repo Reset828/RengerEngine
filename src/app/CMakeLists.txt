@@ -1,5 +1,8 @@
-dzc_add_interface_target(dzc_app)
+find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Widgets)
 
-# Qt5 Widgets discovery and linking are intentionally deferred until the
-# concrete application implementation. This is the only target allowed to
-# link Qt Widgets.
+add_executable(dzc_app
+    main.cpp
+)
+
+target_compile_features(dzc_app PRIVATE cxx_std_17)
+target_link_libraries(dzc_app PRIVATE Qt5::Widgets)

@@ -88,22 +88,22 @@ target_link_libraries(dzc_engine_core PUBLIC
 )
 
 # Composition Root links only the capabilities selected by the build options.
-target_link_libraries(dzc_app INTERFACE
+target_link_libraries(dzc_app PRIVATE
     dzc_engine_core
     dzc_platform
     dzc_render_api
     dzc_compute_api
 )
 if(DZC_ENABLE_OPENGL)
-    target_link_libraries(dzc_app INTERFACE dzc_render_opengl)
+    target_link_libraries(dzc_app PRIVATE dzc_render_opengl)
     if(DZC_ENABLE_CUDA)
-        target_link_libraries(dzc_app INTERFACE dzc_interop_gl)
+        target_link_libraries(dzc_app PRIVATE dzc_interop_gl)
     endif()
 endif()
 if(DZC_ENABLE_VULKAN)
-    target_link_libraries(dzc_app INTERFACE dzc_render_vulkan)
+    target_link_libraries(dzc_app PRIVATE dzc_render_vulkan)
     if(DZC_ENABLE_CUDA)
-        target_link_libraries(dzc_app INTERFACE dzc_interop_vk)
+        target_link_libraries(dzc_app PRIVATE dzc_interop_vk)
     endif()
 endif()
 
