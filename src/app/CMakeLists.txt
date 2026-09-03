@@ -4,6 +4,7 @@ add_executable(dzc_app
     main.cpp
     CommandLineOptions.cpp
     SettingsController.cpp
+    MainWindow.cpp
 )
 
 target_compile_features(dzc_app PRIVATE cxx_std_17)

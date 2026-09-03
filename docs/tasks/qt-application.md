@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-003 已完成；QT-004 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-004 已完成；QT-005 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -29,7 +29,7 @@
 - [x] **QT-001 配置 Qt 5.15.19 App Target**
 - [x] **QT-002 实现命令行配置解析**
 - [x] **QT-003 实现 QSettings/INI 控制器**
-- [ ] **QT-004 创建 MainWindow 布局**
+- [x] **QT-004 创建 MainWindow 布局**
 - [ ] **QT-005 实现 EngineUiAdapter**
 - [ ] **QT-006 实现文件加载与取消 UI**
 - [ ] **QT-007 实现渲染参数 UI**
@@ -86,15 +86,16 @@
 - **追踪**：DDD-015、21.1
 ### QT-004 创建 MainWindow 布局
 
-- **状态**：未开始
+- **状态**：已完成（2026-09-03）
 - **目标**：实现菜单、视图区域、参数 Dock、日志 Dock 和状态栏。
 - **前置任务**：QT-001
-- **预计文件**：`src/app/MainWindow.h`、`src/app/MainWindow.cpp`、`src/app/MainWindow.ui`、`tests/ui/MainWindowSmokeTests.cpp`
-- **实现要求**：UI 只显示/发送数据；不解析文件或持有 GPU 对象。
-- **验收检查**：主要控件存在，窗口可显示和关闭。
-- **测试要求**：Qt offscreen 冒烟测试。
+- **实际文件**：`src/app/MainWindow.h`、`src/app/MainWindow.cpp`、`src/app/main.cpp`、`tests/ui/MainWindowSmokeTests.cpp`、`tests/ui/CMakeLists.txt`。
+- **实现行为**：使用 C++ + Pimpl 创建 `QMainWindow`，标题固定为 `Dzc-RenderEngine`；以普通 `QWidget` 作为 `renderViewPlaceholder` 中央视图，创建 `datasetDock`、`renderParametersDock` 和 `logDock` 三个初始可见 Dock。数据集 Dock 提供打开/取消、状态、进度和点数静态占位；参数 Dock 提供 Point Size、Shading Mode、Fixed Color、Background Color、CUDA 和 Camera Parameters 静态字段；日志 Dock 使用只读文本占位，状态栏显示 `Ready`。
+- **菜单与动作**：创建 `File`、`View`、`Help` 菜单，以及稳定命名的 `openDatasetAction`、`exitAction`、`resetViewAction`、`aboutAction` 和三个 Dock toggle action；QT-004 阶段不连接文件 I/O、退出、Engine 或 ResetView 业务行为。
+- **范围边界**：不创建 `QOpenGLWidget`、Vulkan `QWindow`、Engine、PCL 或 CUDA 资源；不接入命令行、SettingsController 或启动流程；公共 Engine API 未修改。
+- **验收测试**：独立 `dzc_main_window_smoke` 使用 `QT_QPA_PLATFORM=offscreen` 检查窗口标题、中央占位、三 Dock、菜单、动作、可见性和事件循环自动退出，标签为 `ui;qt;qt004`。
+- **验证结果**：使用 Qt 5.15.19、OpenGL ON、Vulkan OFF、CUDA OFF、Tests ON 配置 `build-qt004`；`dzc_main_window_smoke` 和 `dzc_app` 构建成功，CTest `dzc_main_window_smoke` 通过；`dzc_target_boundary` 通过。旧 QT-001 至 QT-003 测试在本目录未重新构建，不能记为本次回归通过。
 - **追踪**：FR-UI-001/003/004/005
-
 ### QT-005 实现 EngineUiAdapter
 
 - **状态**：未开始

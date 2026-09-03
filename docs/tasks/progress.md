@@ -48,7 +48,7 @@
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
 - [x] [OpenGL Renderer](./opengl-renderer.md) — 状态：已完成（2026-09-02；GL-001 至 GL-012 与四项模块级验收均已完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：暂缓（本阶段跳过；可选能力，任务未完成）
-- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-003 已完成；QT-004 至 QT-012 未完成）
+- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-004 已完成；QT-005 至 QT-012 未完成）
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
 
 ### 5.1 Phase 1 阶段门禁
@@ -136,7 +136,7 @@
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
-| 2026-09-03 | QT-002 完成 | 实现 App 内部 `CommandLineOptions`，严格解析 backend/cuda/log-level/cache-directory/CPU-GPU budget；覆盖默认值、完整参数、UTF-8 路径、边界/非法值、重复/未知/位置参数和 usage 诊断。`dzc_app` 与 `dzc_command_line_options_tests` 构建成功，`dzc_command_line_options`、`dzc_target_boundary` 及既有 `dzc_result`/`dzc_engine_config`/`dzc_log_types` 回归测试通过；未接入 main.cpp/Engine，Qt 模块继续进行中；CUDA 继续暂缓，Phase 1 门禁不变。 |
+| 2026-09-03 | QT-004 完成 | 新增 C++ + Pimpl `MainWindow`，包含普通中央视图占位、数据集/渲染参数/日志三个 Dock、File/View/Help 菜单、稳定命名 QAction、静态状态栏和只读日志占位；新增 `dzc_main_window_smoke`（`ui;qt;qt004`，offscreen）。`build-qt004` 下 `dzc_app` 与 smoke 构建成功，QT-004 smoke 和 `dzc_target_boundary` 通过；QT-001 至 QT-003 本目录未重新构建，未记录为本次回归通过。Qt 模块仍进行中，QT-005 至 QT-012 未完成；CUDA 继续暂缓并保持 `DZC_ENABLE_CUDA=OFF`，Phase 1 门禁不变。 |`r`n| 2026-09-03 | QT-002 完成 | 实现 App 内部 `CommandLineOptions`，严格解析 backend/cuda/log-level/cache-directory/CPU-GPU budget；覆盖默认值、完整参数、UTF-8 路径、边界/非法值、重复/未知/位置参数和 usage 诊断。`dzc_app` 与 `dzc_command_line_options_tests` 构建成功，`dzc_command_line_options`、`dzc_target_boundary` 及既有 `dzc_result`/`dzc_engine_config`/`dzc_log_types` 回归测试通过；未接入 main.cpp/Engine，Qt 模块继续进行中；CUDA 继续暂缓，Phase 1 门禁不变。 |
 | 2026-09-03 | QT-001 完成 / CUDA 暂缓 | 配置 Qt 5.15.19 Widgets `dzc_app` 可执行 Target，创建标准空 `QMainWindow`，新增 `QT_QPA_PLATFORM=offscreen` 的 `dzc_qt_application_smoke`（`ui;qt;qt001`）；`build-qt001` 配置与两个 Target 构建成功，`dzc_target_boundary` 通过；因仓库根目录 `dll` 缺少 Qt 运行时 DLL，按 `agent.md` 规则未运行 smoke CTest。QT-002 至 QT-012 和 Qt 模块级验收保持未完成。CUDA-OpenGL 与 CUDA-Vulkan 本阶段按主人要求暂缓，保持任务未勾选、统一 `DZC_ENABLE_CUDA=OFF`，不提前勾选 AC-P1-011、AC-P1-012；Phase 1 总体门禁不变。 |
 | 2026-09-02 | GL-012 完成 / OpenGL Renderer 完成 | 新增注入式 Fake 集成测试，覆盖 `GridBucket → GridChunkBuilder → CpuResident Chunk → UploadBatch → OpenGLBackend`、三条 VBO 与 VAO 属性、FrameData UBO/ChunkData SSBO、四种着色、resize/DPR、逐 Chunk 绘制统计、三帧延迟 GPU 计时、显式释放、shutdown 和错误 Shader 初始化回滚；GL-012 专项通过，真实 Context 用例按 77 明确 Skipped，完整 `opengl` 标签回归 22/22 无失败且 10 项 Skipped。GL-001 至 GL-012 与四项模块级验收均完成；Phase 1 阶段门禁保持未完成。 |
 | 2026-09-02 | GL-011 完成 | 已实现固定 3 帧延迟的 `GlTimerQueryPool`，接入 `OpenGLBackend` 初始化、逐帧解析/begin/end、零尺寸暂停和 shutdown 生命周期，并以 `std::optional<double>` 统一 Backend、`MetricsRegistry` 与 `EngineSnapshot` 的 GPU 时间未就绪语义；Fake/相关回归 13 项全部通过、4 项真实 Context 用例明确 Skipped，完整 graphics 回归 19 项全部通过、9 项真实 Context 用例明确 Skipped。GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |

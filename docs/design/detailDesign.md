@@ -1463,6 +1463,11 @@ CA-006 才实现 Controller 和 Golden/行为测试；本节现有公共接口�
 
 Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持有的是 `std::unique_ptr<Engine>` 或非拥有引用；Engine 本身不得继承 `QObject`。
 
+### 20.1.1 QT-004 MainWindow 布局边界
+
+QT-004 在 `src/app` 内以 C++ + Pimpl 实现 `MainWindow : QMainWindow`。窗口标题固定为 `Dzc-RenderEngine`，中央区域仅使用 object name 为 `renderViewPlaceholder` 的普通 `QWidget` 占位，不创建 `QOpenGLWidget`、Vulkan `QWindow`、Engine、PCL 或 CUDA 资源。窗口包含 `datasetDock`、`renderParametersDock` 和 `logDock` 三个初始可见 Dock：数据集区域提供打开/取消、状态、进度和点数静态占位；渲染参数区域提供 Point Size、Shading Mode、Fixed Color、Background Color、CUDA 和 Camera Parameters 静态字段；日志区域使用只读文本占位，状态栏显示静态 `Ready`。
+
+创建 `File`、`View`、`Help` 菜单，以及稳定命名的 `openDatasetAction`、`exitAction`、`resetViewAction`、`aboutAction` 和三个 Dock toggle action。QT-004 只建立 UI 结构，不连接文件 I/O、退出、Engine 命令、ResetView、配置或日志行为；这些职责由后续 QT-005 至 QT-012 处理。`tests/ui/MainWindowSmokeTests.cpp` 通过 `QT_QPA_PLATFORM=offscreen` 验证窗口结构、Dock/菜单/动作存在、初始可见和事件循环退出。Qt 类型只存在于 App/UI 测试目标，不进入公共 Engine API。
 ### 20.2 Phase 1 帧驱动
 
 - `initializeGL`：创建并初始化 Engine；

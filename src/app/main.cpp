@@ -1,12 +1,11 @@
-#include <QApplication>
-#include <QMainWindow>
+﻿#include "MainWindow.h"
 
-int main(int argc, char* argv[])
-{
+#include <QApplication>
+
+int main(int argc, char* argv[]) {
     QApplication application(argc, argv);
 
-    QMainWindow window;
-    window.setWindowTitle(QStringLiteral("Dzc-RenderEngine"));
+    dzc::MainWindow window;
     window.show();
 
     return application.exec();
