@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 已完成；QT-002 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-002 已完成；QT-003 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -27,7 +27,7 @@
 ## 4. 子任务 Checklist
 
 - [x] **QT-001 配置 Qt 5.15.19 App Target**
-- [ ] **QT-002 实现命令行配置解析**
+- [x] **QT-002 实现命令行配置解析**
 - [ ] **QT-003 实现 QSettings/INI 控制器**
 - [ ] **QT-004 创建 MainWindow 布局**
 - [ ] **QT-005 实现 EngineUiAdapter**
@@ -56,18 +56,20 @@
 
 - **实际文件**：`src/app/CMakeLists.txt`、`src/app/main.cpp`、`tests/ui/CMakeLists.txt`、`tests/ui/QtApplicationSmokeTests.cpp`，以及顶层 `CMakeLists.txt` 和 `src/CMakeLists.txt` 的 Target 注册/依赖调整。
 - **Qt 版本与 Target**：通过 `find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Widgets)` 发现 Qt 5.15.19；`dzc_app` 已从接口占位 Target 转为私有链接 `Qt5::Widgets` 的可执行程序。
-- **应用行为**：`main.cpp` 仅创建 `QApplication`、标题为 `Dzc-RenderEngine` 的标准空 `QMainWindow`，显示后进入事件循环；未设置固定尺寸，未实现 QT-002 及后续 UI/Engine/渲染宿主功能。
+- **应用行为**：`main.cpp` 仅创建 `QApplication`、标题为 `Dzc-RenderEngine` 的标准空 `QMainWindow`，显示后进入事件循环；未设置固定尺寸；QT-002 解析器作为独立 App 内部组件实现，但尚未接入 `main.cpp`，后续 UI/Engine/渲染宿主功能未实现。
 - **冒烟测试**：新增独立 `dzc_qt_application_smoke`，使用 `QT_QPA_PLATFORM=offscreen` 验证 `QApplication`、`QMainWindow` 显示和事件循环自动退出，标签为 `ui;qt;qt001`；测试不链接 `dzc_app`。
 - **边界与 CUDA**：Qt 依赖只加入 App/测试 Target，公共 Engine API 未修改；本阶段 CUDA 全部暂缓，构建/验证使用 `DZC_ENABLE_CUDA=OFF`。
 ### QT-002 实现命令行配置解析
 
-- **状态**：未开始
+- **状态**：已完成（2026-09-03）
 - **目标**：解析 backend/cuda/log/cache/budget 等参数。
 - **前置任务**：QT-001, project-foundation/PF-006
-- **预计文件**：`src/app/CommandLineOptions.h`、`src/app/CommandLineOptions.cpp`、`tests/unit/CommandLineOptionsTests.cpp`
-- **实现要求**：命令行优先；非法值显示用法；显式后端失败不静默切换。
-- **验收检查**：默认值和覆盖值生成正确 EngineConfig。
-- **测试要求**：所有参数、非法值和重复参数测试。
+- **实际文件**：`src/app/CommandLineOptions.h`、`src/app/CommandLineOptions.cpp`、`tests/unit/CommandLineOptionsTests.cpp`、`src/app/CMakeLists.txt`、`tests/unit/CMakeLists.txt`。
+- **实现行为**：提供 App 内部 `CommandLineOptions` 解析器，使用 `--name=value` 语法支持 `backend`、`cuda`、`log-level`、`cache-directory`、CPU/GPU 十进制字节预算；严格匹配小写枚举值，预算 0 保留自动计算语义，缓存目录仅保存 UTF-8 路径。
+- **错误策略**：非法值、缺少值、缺少等号、未知选项、位置参数和重复参数均返回 `ErrorDomain::Configuration` / `InvalidValue(1)`，错误中包含具体原因和完整 usage；显式 backend 值不静默回退。解析器不向 stderr 输出。
+- **日志边界**：`EngineConfig` 当前没有日志级别字段，因此日志级别保存在 App 内部 `Parsed` 结果中；未修改公共 Engine API。
+- **范围边界**：本任务仅实现解析器和单元测试，未接入 `main.cpp`、Engine、QSettings/INI 或后续 UI；QT-003 至 QT-012 保持未开始。
+- **验收测试**：`dzc_command_line_options` 覆盖默认值、全部支持参数、合法枚举、UTF-8 路径、预算边界/非法值、重复参数、未知参数、位置参数和 usage 错误诊断；`build-qt002` 配置、`dzc_app`、`dzc_qt_application_smoke` 与 `dzc_command_line_options_tests` 构建成功，`dzc_command_line_options`、`dzc_target_boundary` 以及既有 `dzc_result`、`dzc_engine_config`、`dzc_log_types` 回归测试通过；Qt smoke 未运行：仓库根目录 `dll/` 缺少 Qt 运行时 DLL，按 `agent.md` 停止，未从其他位置复制。
 - **追踪**：FR-COM-001、DDD-004
 
 ### QT-003 实现 QSettings/INI 控制器
@@ -191,9 +193,9 @@
 
 - 完成日期：2026-09-03
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target 与独立 offscreen 冒烟测试；QT-002 至 QT-012 保持未开始。
+- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target、QT-002 App 内部命令行配置解析器及独立单元测试；QT-003 至 QT-012 保持未开始。
 - 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成。
-- 测试命令与结果：`build-qt001` 已按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_app` 与 `dzc_qt_application_smoke` 构建成功；`dzc_target_boundary` 通过。冒烟测试未运行：仓库根目录 `dll` 缺少 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。
+- 测试命令与结果：`build-qt002` 已按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_app` 与 `dzc_qt_application_smoke` 构建成功；`dzc_target_boundary` 通过。冒烟测试未运行：仓库根目录 `dll` 缺少 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束
