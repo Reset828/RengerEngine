@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-002 已完成；QT-003 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-003 已完成；QT-004 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -28,7 +28,7 @@
 
 - [x] **QT-001 配置 Qt 5.15.19 App Target**
 - [x] **QT-002 实现命令行配置解析**
-- [ ] **QT-003 实现 QSettings/INI 控制器**
+- [x] **QT-003 实现 QSettings/INI 控制器**
 - [ ] **QT-004 创建 MainWindow 布局**
 - [ ] **QT-005 实现 EngineUiAdapter**
 - [ ] **QT-006 实现文件加载与取消 UI**
@@ -74,15 +74,16 @@
 
 ### QT-003 实现 QSettings/INI 控制器
 
-- **状态**：未开始
-- **目标**：保存 UI 设置并转换成标准配置。
+- **状态**：已完成（2026-09-03）
+- **目标**：建立 App 内部配置模型、显式 INI 读写和命令行覆盖基础设施。
 - **前置任务**：QT-002
-- **预计文件**：`src/app/SettingsController.h`、`src/app/SettingsController.cpp`、`tests/unit/SettingsControllerTests.cpp`
-- **实现要求**：Engine 不依赖 QSettings；命令行覆盖设置。
-- **验收检查**：往返保存后配置一致，损坏值回退默认并警告。
-- **测试要求**：临时 INI 往返和优先级测试。
+- **实际文件**：`src/app/ApplicationConfig.h`、`src/app/SettingsController.h`、`src/app/SettingsController.cpp`、`src/app/CommandLineOptions.h`、`src/app/CommandLineOptions.cpp`、`tests/unit/SettingsControllerTests.cpp`、`src/app/CMakeLists.txt`、`tests/unit/CMakeLists.txt`。
+- **实现行为**：`AppConfig` 仅存在于 `src/app`，组合 `EngineConfig` 和 App 内部 `diagnostics::LogLevel`；`AppConfigOverrides` 用 optional 表示命令行显式出现字段。`SettingsController` 使用显式 `QSettings(iniPath, QSettings::IniFormat)`，持久化 `engine/backend`、`engine/cuda`、`engine/logLevel`、`cache/directory`、`memory/gpuCacheBytes` 和 `memory/cpuCacheBytes`。
+- **默认值与损坏值**：缺失文件/键使用既有 EngineConfig 默认值和日志 `info`；空 `cache/directory` 合法；枚举或 uint64 十进制预算损坏时逐字段回退默认并在返回的 `warnings` 中说明原因，不写 stderr 或全局日志；`cache.enabled`、线程数和队列容量不持久化。
+- **错误与优先级**：INI 读错误返回 `ErrorDomain::FileIo`/1，写入或 `sync()` 错误返回 `FileIo`/3，并携带路径、QSettings 状态和上下文；命令行显式字段按“命令行 > INI > 默认值”覆盖，非法命令行仍返回 `Configuration`/1，不返回部分合并结果。
+- **范围边界**：本任务仅实现配置控制器和单元测试，未接入 `main.cpp`、Engine、MainWindow 或 UI；Qt/QSettings 依赖只存在于 App 和配置测试目标，未修改公共 Engine API。
+- **验收测试**：注册 `dzc_settings_controller`（`unit;app;qt;qt003`），覆盖默认值、INI 往返、UTF-8 路径、枚举/预算、空路径、损坏值 warning、FileIo 错误和命令行优先级。`build-qt003` 配置成功，`dzc_settings_controller_tests` 与 `dzc_app` 目标构建成功；`dzc_target_boundary` 通过。由于仓库根目录 `dll/` 缺少 Qt5Core 及相关 Qt 运行时 DLL，按 `agent.md` 未运行 Qt CTest，不能伪造通过。
 - **追踪**：DDD-015、21.1
-
 ### QT-004 创建 MainWindow 布局
 
 - **状态**：未开始
@@ -193,9 +194,9 @@
 
 - 完成日期：2026-09-03
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target、QT-002 App 内部命令行配置解析器及独立单元测试；QT-003 至 QT-012 保持未开始。
+- 关键变更：完成 QT-001 最小 Qt 5.15.19 Widgets App Target、QT-002 App 内部命令行配置解析器及 QT-003 `SettingsController`/INI 配置基础设施与测试；QT-004 至 QT-012 保持未开始。
 - 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成。
-- 测试命令与结果：`build-qt002` 已按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_app` 与 `dzc_qt_application_smoke` 构建成功；`dzc_target_boundary` 通过。冒烟测试未运行：仓库根目录 `dll` 缺少 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。
+- 测试命令与结果：`build-qt003` 按 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON 配置成功；`dzc_settings_controller_tests` 与 `dzc_app` 目标构建成功；`dzc_target_boundary` 通过。`dzc_settings_controller` 未运行：仓库根目录 `dll` 缺少 Qt5Core 及相关 Qt 运行时 DLL，按 `agent.md` 规则停止，不能从 Qt 安装目录、其他构建目录或 PATH 复制规避。完整构建仍受既有 PCL/Boost 头文件环境问题影响。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束

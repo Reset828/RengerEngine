@@ -1489,7 +1489,7 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 
 ### 21.1 配置优先级
 
-优先级从高到低：命令行、QSettings/INI、内置默认值。QT-002 已固定支持 `--backend=opengl|vulkan`、`--cuda=on|off|auto`、`--log-level=trace|debug|info|warn|error`、`--cache-directory=<UTF-8 path>`、`--gpu-memory-budget=<decimal bytes>` 和 `--cpu-cache-budget=<decimal bytes>`；参数必须使用 `--name=value` 形式，枚举值严格匹配小写，预算为无符号十进制 `uint64` 字节且 0 表示自动计算，缓存目录只保存 UTF-8 路径。重复参数、未知选项、位置参数、缺少等号或空值均返回 `ErrorDomain::Configuration` / `InvalidValue(1)` 并附带 usage；不在 QT-002 中增加线程或队列参数。
+优先级从高到低：命令行、QSettings/INI、内置默认值。QT-002 固定支持 `--backend=opengl|vulkan`、`--cuda=on|off|auto`、`--log-level=trace|debug|info|warn|error`、`--cache-directory=<UTF-8 path>`、`--gpu-memory-budget=<decimal bytes>` 和 `--cpu-cache-budget=<decimal bytes>`；参数必须使用 `--name=value` 形式，枚举值严格匹配小写，预算为无符号十进制 `uint64` 字节且 0 表示自动计算，缓存目录只保存 UTF-8 路径。重复参数、未知选项、位置参数、缺少等号或空值均返回 `ErrorDomain::Configuration` / `InvalidValue(1)` 并附带 usage；不增加线程或队列参数。
 
 默认值：
 
@@ -1498,10 +1498,20 @@ Qt 类只存在于 `dzc_app`。`EngineUiAdapter` 可以使用信号槽，但持�
 - log level：info；
 - command/event capacity：1024；
 - I/O 最大并发：2；
-- 线程、CPU/GPU 预算：0，表示自动计算。
+- 线程、CPU/GPU 预算：0，表示自动计算；
+- `cache.enabled`：true，且不由 QT-003 持久化。
 
-显式 backend 不可用时启动失败，不静默切换。命令行非法值返回 Configuration 错误并显示用法。`EngineConfig` 当前不包含日志级别，App 内部解析结果保存该值，不扩展公共 API。QSettings 只由 UI 读取，再转换为 `EngineConfig`；Engine 不包含 QSettings。
+QT-003 在 `src/app` 内部定义 `AppConfig`（`EngineConfig` 加 App 内部 `diagnostics::LogLevel`）和 presence-aware `AppConfigOverrides`，不扩展公共 `EngineConfig`。`SettingsController` 只使用调用方提供的显式路径和 `QSettings(iniPath, QSettings::IniFormat)`，不使用 Windows 注册表、平台默认存储、目录创建或其他文件系统副作用。持久化键固定为：
 
+- `engine/backend`：`opengl` 或 `vulkan`；
+- `engine/cuda`：`off`、`on` 或 `auto`；
+- `engine/logLevel`：小写 `trace`、`debug`、`info`、`warn` 或 `error`；
+- `cache/directory`：UTF-8 路径，显式空字符串合法；
+- `memory/gpuCacheBytes`、`memory/cpuCacheBytes`：十进制 `uint64` 字节，0 保留自动计算语义。
+
+缺失文件或键使用默认值且不生成 warning。单个枚举或预算键损坏时仅该字段回退默认，并通过 `SettingsLoadResult::warnings` 返回包含键名和原因的诊断；不向 stderr 或全局 Logger 输出。INI 读取/格式状态错误返回 `ErrorDomain::FileIo`/1，写入或 `QSettings::sync()` 状态错误返回 `ErrorDomain::FileIo`/3，错误包含路径、QSettings 状态和操作上下文。`loadWithCommandLine()` 先加载 INI，再只应用显式命令行覆盖，并保留 INI warnings。命令行非法时返回 `Configuration`/1，不返回部分合并结果。
+
+显式 backend 不可用时启动失败，不静默切换。Qt/QSettings 只存在于 `dzc_app` 和 App 配置测试目标；Engine、Render、Compute、Data 及公共头文件不得依赖 Qt 或 QSettings。
 ### 21.2 日志格式与轮转
 
 日志为 UTF-8 文本，每行：
