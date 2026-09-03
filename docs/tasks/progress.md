@@ -46,7 +46,7 @@
 
 - [ ] [Point Cloud I/O](./point-cloud-io.md) — 状态：进行中（IO-001 至 IO-009 已完成；模块级验收未完成）
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
-- [ ] [OpenGL Renderer](./opengl-renderer.md) — 状态：进行中（GL-001 至 GL-011 已完成；GL-012 未完成；模块级验收未完成）
+- [x] [OpenGL Renderer](./opengl-renderer.md) — 状态：已完成（2026-09-02；GL-001 至 GL-012 与四项模块级验收均已完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：未开始（可选能力）
 - [ ] [Qt Application](./qt-application.md) — 状态：未开始
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
@@ -125,16 +125,17 @@
 | 阶段 | 唯一模块数 | 完成 | 进行中 | 阻塞 | 未开始 |
 |---|---:|---:|---:|---:|---:|
 | 公共基础 | 6 | 4 | 2 | 0 | 0 |
-| Phase 1 专属 | 5 | 0 | 0 | 0 | 5 |
+| Phase 1 专属 | 5 | 1 | 2 | 0 | 2 |
 | Phase 2 专属 | 5 | 0 | 0 | 0 | 5 |
 | 跨阶段/最终验收 | 2 | 0 | 0 | 0 | 2 |
-| **合计** | **18** | **4** | **2** | **0** | **12** |
+| **合计** | **18** | **5** | **4** | **0** | **9** |
 
-> 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera 为进行中，CA-001 至 CA-007 已完成，Engine/Qt 集成和正式性能验收仍待完成。
+> 统计规则：跨阶段模块 `integration-testing` 和 `packaging` 只在“跨阶段/最终验收”计一次；Camera、Point Cloud I/O 与 Grid Chunking 为进行中；OpenGL Renderer 已完成；Phase 1 阶段门禁仍未完成。
 
 ## 10. 变更记录
 
 | 日期 | 变更 | 说明 |
+| 2026-09-02 | GL-012 完成 / OpenGL Renderer 完成 | 新增注入式 Fake 集成测试，覆盖 `GridBucket → GridChunkBuilder → CpuResident Chunk → UploadBatch → OpenGLBackend`、三条 VBO 与 VAO 属性、FrameData UBO/ChunkData SSBO、四种着色、resize/DPR、逐 Chunk 绘制统计、三帧延迟 GPU 计时、显式释放、shutdown 和错误 Shader 初始化回滚；GL-012 专项通过，真实 Context 用例按 77 明确 Skipped，完整 `opengl` 标签回归 22/22 无失败且 10 项 Skipped。GL-001 至 GL-012 与四项模块级验收均完成；Phase 1 阶段门禁保持未完成。 |
 | 2026-09-02 | GL-011 完成 | 已实现固定 3 帧延迟的 `GlTimerQueryPool`，接入 `OpenGLBackend` 初始化、逐帧解析/begin/end、零尺寸暂停和 shutdown 生命周期，并以 `std::optional<double>` 统一 Backend、`MetricsRegistry` 与 `EngineSnapshot` 的 GPU 时间未就绪语义；Fake/相关回归 13 项全部通过、4 项真实 Context 用例明确 Skipped，完整 graphics 回归 19 项全部通过、9 项真实 Context 用例明确 Skipped。GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |
 | 2026-08-27 | GL-010 完成 | 已实现逻辑 RenderSize 到物理 viewport 的 DPR/round 转换、viewport 操作表、零尺寸暂停与恢复、resize 失败状态保持、帧尺寸同步及投影矩阵原样上传；新增 OpenGL Resize Fake/真实 Context Skipped 测试。GL-011、GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |
 | 2026-08-26 | GL-009 完成 | 已实现 `RenderFrame` 高度/Intensity 范围字段、四种 OpenGL 着色模式、pointSize 后续帧更新、退化范围 0.5 归一化、缺失属性 fixedColor 回退和一次性 Warn Sink；新增 per-draw uniform 操作和 Fake Shading 测试。OpenGL-only GL-009 Fake 测试通过，真实 Context 测试返回 77 并明确 Skipped；GL-010 至 GL-012 和 OpenGL Renderer 模块级验收仍未完成。 |

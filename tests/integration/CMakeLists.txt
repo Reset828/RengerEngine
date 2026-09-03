@@ -94,3 +94,29 @@ target_link_libraries(dzc_grid_visibility_tests PRIVATE
 )
 
 add_test(NAME dzc_grid_visibility COMMAND dzc_grid_visibility_tests)
+if(DZC_ENABLE_OPENGL)
+    add_executable(dzc_opengl_render_pipeline_tests
+        OpenGLRenderPipelineTests.cpp
+    )
+
+    target_compile_features(dzc_opengl_render_pipeline_tests PRIVATE cxx_std_17)
+    target_include_directories(dzc_opengl_render_pipeline_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/src/render/opengl
+    )
+    target_link_libraries(dzc_opengl_render_pipeline_tests PRIVATE
+        dzc_render_opengl
+        dzc_data_core
+    )
+
+    add_test(NAME dzc_opengl_render_pipeline
+        COMMAND dzc_opengl_render_pipeline_tests)
+    set_tests_properties(dzc_opengl_render_pipeline PROPERTIES
+        LABELS "integration;graphics;opengl;gl012")
+
+    add_test(NAME dzc_opengl_render_pipeline_real_context
+        COMMAND dzc_opengl_render_pipeline_tests --real-context)
+    set_tests_properties(dzc_opengl_render_pipeline_real_context PROPERTIES
+        LABELS "integration;graphics;opengl;gl012;skipped"
+        SKIP_RETURN_CODE 77)
+endif()
