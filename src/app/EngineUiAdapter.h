@@ -70,6 +70,9 @@ public:
     // Submits the view-reset command.
     Result<void> resetView();
 
+    // Submits a cancellation command for an active dataset load.
+    Result<void> cancelDatasetLoad(DatasetId datasetId);
+
     // Converts a widget-local pixel position and submits a pointer-move input.
     Result<void> submitPointerMove(
         const QPointF& position,

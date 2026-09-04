@@ -31,7 +31,7 @@
 - [x] **QT-003 实现 QSettings/INI 控制器**
 - [x] **QT-004 创建 MainWindow 布局**
 - [x] **QT-005 实现 EngineUiAdapter**
-- [ ] **QT-006 实现文件加载与取消 UI**
+- [x] **QT-006 实现文件加载与取消 UI**
 - [ ] **QT-007 实现渲染参数 UI**
 - [ ] **QT-008 实现状态与日志显示**
 - [ ] **QT-009 实现 OpenGLRenderWidget 宿主**
@@ -120,13 +120,15 @@
 
 ### QT-006 实现文件加载与取消 UI
 
-- **状态**：未开始
+- **状态**：已完成（2026-09-04）
 - **目标**：接入文件对话框、进度、取消和错误显示。
 - **前置任务**：QT-005
-- **预计文件**：`src/app/MainWindow.cpp`、`tests/ui/DatasetLoadUiTests.cpp`
-- **实现要求**：只允许需求支持的 PCD/PLY 过滤；加载异步，UI 不冻结。
+- **实际文件**：`src/app/MainWindow.h`、`src/app/MainWindow.cpp`、`src/app/EngineUiAdapter.h`、`src/app/EngineUiAdapter.cpp`、`tests/ui/DatasetLoadUiTests.cpp`、`tests/ui/CMakeLists.txt`。
+- **实现行为**：文件对话框过滤器仅提供 PCD/PLY；加载只入队 `LoadDatasetCommand`，由 `EngineSnapshot`/`EngineEvent` 驱动进度、点数、完成、取消和失败状态；取消仅使用 Snapshot 发布的有效 `DatasetId` 入队 `CancelDatasetLoadCommand`。UI 不执行文件读取、解析、分块或上传。
+- **错误与重试**：失败摘要显示用户错误消息，诊断信息写入只读日志；取消、完成或失败后恢复重新加载能力，并忽略已结算 Dataset 的过期 Snapshot。
 - **验收检查**：进度更新、取消按钮和后续重新加载可用。
 - **测试要求**：Fake Snapshot/Event 驱动 UI 测试。
+- **验证结果**：`build-qt006` Debug 构建成功；`dzc_dataset_load_ui`、`dzc_main_window_smoke`、`dzc_qt_application_smoke`、`dzc_engine_ui_adapter`、`dzc_engine_command`、`dzc_engine_public_api`、`dzc_command_line_options`、`dzc_settings_controller` 共 8/8 通过。
 - **追踪**：FR-DATA-002/003/004、NFR-PERF-003
 
 ### QT-007 实现渲染参数 UI
@@ -204,11 +206,11 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-09-03
+- 完成日期：2026-09-04
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 至 QT-004，并完成 QT-005 `EngineUiAdapter`、公共 `SubmitInputCommand` 输入协议和 Fake Port 测试；QT-006 至 QT-012 保持未完成。
+- 关键变更：完成 QT-001 至 QT-005，并完成 QT-006 文件加载与取消 UI、Fake Snapshot/Event 测试；QT-007 至 QT-012 保持未完成。
 - 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
-- 测试命令与结果：QT-005 使用 `build-qt005`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；构建受影响目标成功，`ctest --test-dir build-qt005 -C Debug -R 'dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 5/5 通过。
+- 测试命令与结果：QT-006 使用 `build-qt006`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；Debug 构建成功，`ctest --test-dir build-qt006 -C Debug -R 'dzc_dataset_load_ui|dzc_main_window_smoke|dzc_qt_application_smoke|dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 8/8 通过。测试运行使用仓库根目录 `dll/` 的 Qt DLL 临时副本，任务结束时清理。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束

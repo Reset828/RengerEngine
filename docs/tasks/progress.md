@@ -48,7 +48,7 @@
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
 - [x] [OpenGL Renderer](./opengl-renderer.md) — 状态：已完成（2026-09-02；GL-001 至 GL-012 与四项模块级验收均已完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：暂缓（本阶段跳过；可选能力，任务未完成）
-- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-005 已完成；QT-006 至 QT-012 未完成）
+- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-006 已完成；QT-007 至 QT-012 未完成）
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
 
 ### 5.1 Phase 1 阶段门禁
@@ -136,6 +136,7 @@
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-09-04 | QT-006 完成 | 完成 Qt PCD/PLY 文件选择、Load/Cancel 命令提交、Snapshot/Event 驱动的进度与状态显示、错误摘要/诊断日志和失败/取消后的重新加载；新增 `dzc_dataset_load_ui` Fake Port 测试，并覆盖过期 DatasetId Snapshot 不得覆盖新加载。`build-qt006` Debug 构建成功，QT-006 及 QT-004/QT-005 相关 8 项 CTest 全部通过；Qt Application 模块仍进行中，QT-007 至 QT-012 和 Phase 1 门禁保持未完成。 |
 | 2026-09-03 | QT-005 完成 | 新增 App 内部 `EngineUiAdapter`（QObject + Pimpl）和 `IEngineUiPort`，支持 UTF-8 路径、QColor RGBA、渲染参数、ResetView、六类 `InputEvent`、稳定鼠标/修饰键/USB HID 键编码、像素坐标归一化，以及 Snapshot/Event 显式读取；公共 `SubmitInputCommand` 加入 Engine variant 和合法性校验，Engine 当前只消费输入命令不改变相机状态。`dzc_engine_ui_adapter`、`dzc_engine_command`、`dzc_engine_public_api`、`dzc_command_line_options`、`dzc_settings_controller` 专项回归 5/5 通过；Qt Application 模块和 Phase 1 门禁保持未完成。 |
 | 2026-09-03 | QT-004 完成 | 新增 C++ + Pimpl `MainWindow`，包含普通中央视图占位、数据集/渲染参数/日志三个 Dock、File/View/Help 菜单、稳定命名 QAction、静态状态栏和只读日志占位；新增 `dzc_main_window_smoke`（`ui;qt;qt004`，offscreen）。`build-qt004` 下 `dzc_app` 与 smoke 构建成功，QT-004 smoke 和 `dzc_target_boundary` 通过；QT-001 至 QT-003 本目录未重新构建，未记录为本次回归通过。Qt 模块仍进行中，QT-005 至 QT-012 未完成；CUDA 继续暂缓并保持 `DZC_ENABLE_CUDA=OFF`，Phase 1 门禁不变。
 | 2026-09-03 | QT-002 完成 | 实现 App 内部 `CommandLineOptions`，严格解析 backend/cuda/log-level/cache-directory/CPU-GPU budget；覆盖默认值、完整参数、UTF-8 路径、边界/非法值、重复/未知/位置参数和 usage 诊断。`dzc_app` 与 `dzc_command_line_options_tests` 构建成功，`dzc_command_line_options`、`dzc_target_boundary` 及既有 `dzc_result`/`dzc_engine_config`/`dzc_log_types` 回归测试通过；未接入 main.cpp/Engine，Qt 模块继续进行中；CUDA 继续暂缓，Phase 1 门禁不变。 |

@@ -246,6 +246,10 @@ Result<void> EngineUiAdapter::resetView() {
     return m_impl->port->enqueueCommand(EngineCommand{ResetViewCommand{}});
 }
 
+Result<void> EngineUiAdapter::cancelDatasetLoad(DatasetId datasetId) {
+    return m_impl->port->enqueueCommand(EngineCommand{CancelDatasetLoadCommand{datasetId}});
+}
+
 Result<void> EngineUiAdapter::submitPointerMove(
     const QPointF& position,
     const QSize& viewport,

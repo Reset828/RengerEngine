@@ -1989,3 +1989,9 @@ CA-005 至 CA-007 已确定并实现 OrbitCameraController 的抽象输入、轨
 ## 31. 结论
 
 本详细设计将 Dzc-RenderEngine 的两阶段架构落实为可编码的 C++17 接口、状态机、线程与队列语义、点云数据布局、网格/八叉树算法、`.dzcpc` V1、OpenGL/Vulkan 资源与同步、CUDA 零拷贝互操作、Qt 边界、诊断、错误、关闭和测试方案。Phase 1 先验证公共模型与 OpenGL 管线；Phase 2 在保持 UI/Engine 契约的基础上增加 Vulkan 多线程录制、LOD 流式调度和预算管理。Camera 具体行为及最终性能基准仍明确保持待确定，等待用户后续输入。
+
+#### 20.4.1 QT-006 文件加载与取消 UI
+
+QT-006 的 `MainWindow` 通过外部注入的可选 `EngineUiAdapter` 使用 Engine；窗口不拥有或驱动 Engine，也不在 UI 线程执行文件读取、解析、分块或上传。生产文件入口使用 `QFileDialog`，过滤器仅包含 PCD/PLY；测试通过路径提交入口注入 Fake Port，不操作真实文件对话框。
+
+文件加载命令只负责入队，加载状态和进度由宿主显式调用 `MainWindow::refreshEngineState()` 读取 `EngineSnapshot` 与轮询 `EngineEvent` 更新。取消使用 Snapshot 发布的有效 `DatasetId` 生成 `CancelDatasetLoadCommand`；DatasetId 尚未发布期间取消按钮禁用，取消、完成或失败后恢复重新加载能力。失败摘要显示 `Error::userMessage`，诊断信息追加到现有只读日志控件；独立日志模型留给 QT-008。该方案不引入 Qt 类型到公共 Engine API，也不执行 Camera Controller 转发。
