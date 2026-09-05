@@ -2,7 +2,11 @@
 
 #include "CommandLineOptions.h"
 
+#include <QColor>
 #include <QSettings>
+
+#include <array>
+#include <cmath>
 
 #include <cstdint>
 #include <limits>
@@ -47,6 +51,102 @@ const char* appLogLevelName(diagnostics::LogLevel value) noexcept {
         return "error";
     }
     return "info";
+}
+
+const char* shadingName(ShadingMode value) noexcept {
+    switch (value) {
+    case ShadingMode::OriginalColor:
+        return "original";
+    case ShadingMode::FixedColor:
+        return "fixed";
+    case ShadingMode::Height:
+        return "height";
+    case ShadingMode::Intensity:
+        return "intensity";
+    }
+    return "original";
+}
+
+std::optional<ShadingMode> parseShading(std::string_view value) {
+    if (value == "original") {
+        return ShadingMode::OriginalColor;
+    }
+    if (value == "fixed") {
+        return ShadingMode::FixedColor;
+    }
+    if (value == "height") {
+        return ShadingMode::Height;
+    }
+    if (value == "intensity") {
+        return ShadingMode::Intensity;
+    }
+    return std::nullopt;
+}
+
+std::optional<ColorRgba> parseColor(const QString& value) {
+    if (value.size() != 9 || !value.startsWith(QStringLiteral("#"))) {
+        return std::nullopt;
+    }
+    const QColor color(value);
+    if (!color.isValid()) {
+        return std::nullopt;
+    }
+    return ColorRgba{
+        static_cast<float>(color.redF()),
+        static_cast<float>(color.greenF()),
+        static_cast<float>(color.blueF()),
+        static_cast<float>(color.alphaF())};
+}
+QString colorName(const ColorRgba& value) {
+    QColor color;
+    color.setRgbF(value.red, value.green, value.blue, value.alpha);
+    return color.name(QColor::HexArgb).toUpper();
+}
+
+void addInvalidWarning(
+    SettingsLoadResult& result,
+    const char* key,
+    const QString& value,
+    std::string_view expected);
+std::string toUtf8(const QString& value);
+
+void loadRenderSettings(QSettings& settings, SettingsLoadResult& result) {
+    if (settings.contains("render/pointSize")) {
+        const QString value = settings.value("render/pointSize").toString();
+        bool ok = false;
+        const double parsed = value.toDouble(&ok);
+        if (!ok || !std::isfinite(parsed) || parsed < 1.0 || parsed > 64.0) {
+            addInvalidWarning(result, "render/pointSize", value, "a finite value in [1, 64]");
+        } else {
+            result.config.pointSize = static_cast<float>(parsed);
+        }
+    }
+
+    if (settings.contains("render/shadingMode")) {
+        const QString value = settings.value("render/shadingMode").toString();
+        const auto parsed = parseShading(toUtf8(value));
+        if (!parsed.has_value()) {
+            addInvalidWarning(result, "render/shadingMode", value, "original, fixed, height, or intensity");
+        } else {
+            result.config.shadingMode = *parsed;
+        }
+    }
+
+    const std::array<std::pair<const char*, ColorRgba*>, 2> colors{{
+        {"render/fixedColor", &result.config.fixedColor},
+        {"render/backgroundColor", &result.config.backgroundColor}}};
+    for (const auto& entry : colors) {
+        if (!settings.contains(entry.first)) {
+            continue;
+        }
+        const QString value = settings.value(entry.first).toString();
+        const auto parsed = parseColor(value);
+        if (!parsed.has_value()) {
+            addInvalidWarning(result, entry.first, value, "an RGBA color in #AARRGGBB format");
+        } else {
+            *entry.second = *parsed;
+        }
+    }
 }
 
 std::optional<RenderBackendType> parseBackend(std::string_view value) {
@@ -244,7 +344,26 @@ Result<SettingsLoadResult> SettingsController::load(const QString& iniPath) {
         "memory/cpuCacheBytes",
         result.config.engineConfig.memory.cpuCacheBytes);
 
+    loadRenderSettings(settings, result);
+
     return Result<SettingsLoadResult>::success(std::move(result));
+}
+
+QString SettingsController::standardPath() {
+    const QSettings settings(
+        QSettings::IniFormat,
+        QSettings::UserScope,
+        QStringLiteral("Dzc"),
+        QStringLiteral("Dzc-RenderEngine"));
+    return settings.fileName();
+}
+
+Result<SettingsLoadResult> SettingsController::loadStandard() {
+    return load(standardPath());
+}
+
+Result<void> SettingsController::saveStandard(const AppConfig& config) {
+    return save(standardPath(), config);
 }
 
 Result<void> SettingsController::save(const QString& iniPath, const AppConfig& config) {
@@ -257,6 +376,10 @@ Result<void> SettingsController::save(const QString& iniPath, const AppConfig& c
     settings.setValue("engine/backend", QString::fromLatin1(backendName(config.engineConfig.backend)));
     settings.setValue("engine/cuda", QString::fromLatin1(cudaName(config.engineConfig.cudaMode)));
     settings.setValue("engine/logLevel", QString::fromLatin1(appLogLevelName(config.logLevel)));
+    settings.setValue("render/pointSize", QString::number(static_cast<double>(config.pointSize), 'g', 9));
+    settings.setValue("render/shadingMode", QString::fromLatin1(shadingName(config.shadingMode)));
+    settings.setValue("render/fixedColor", colorName(config.fixedColor));
+    settings.setValue("render/backgroundColor", colorName(config.backgroundColor));
     const QString cacheDirectory = config.engineConfig.cache.directory.empty()
         ? QString()
         : QString::fromUtf8(

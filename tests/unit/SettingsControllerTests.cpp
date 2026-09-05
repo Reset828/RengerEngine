@@ -26,6 +26,10 @@ dzc::AppConfig makeConfig() {
     config.engineConfig.backend = dzc::RenderBackendType::Vulkan;
     config.engineConfig.cudaMode = dzc::OptionalFeatureMode::Off;
     config.logLevel = dzc::diagnostics::LogLevel::Debug;
+    config.pointSize = 13.5F;
+    config.shadingMode = dzc::ShadingMode::Intensity;
+    config.fixedColor = dzc::ColorRgba{0.1F, 0.2F, 0.3F, 0.4F};
+    config.backgroundColor = dzc::ColorRgba{0.8F, 0.7F, 0.6F, 0.5F};
     config.engineConfig.cache.directory = "C:/数据/cache";
     config.engineConfig.memory.gpuCacheBytes = 123456U;
     config.engineConfig.memory.cpuCacheBytes = 987654U;
@@ -36,6 +40,10 @@ void assertConfigEqual(const dzc::AppConfig& actual, const dzc::AppConfig& expec
     assert(actual.engineConfig.backend == expected.engineConfig.backend);
     assert(actual.engineConfig.cudaMode == expected.engineConfig.cudaMode);
     assert(actual.logLevel == expected.logLevel);
+    assert(actual.pointSize == expected.pointSize);
+    assert(actual.shadingMode == expected.shadingMode);
+    assert(actual.fixedColor == expected.fixedColor);
+    assert(actual.backgroundColor == expected.backgroundColor);
     assert(actual.engineConfig.cache.directory == expected.engineConfig.cache.directory);
     assert(actual.engineConfig.memory.gpuCacheBytes == expected.engineConfig.memory.gpuCacheBytes);
     assert(actual.engineConfig.memory.cpuCacheBytes == expected.engineConfig.memory.cpuCacheBytes);
@@ -76,6 +84,10 @@ void testRoundTrip() {
     assert(settings.value("engine/backend").toString() == "vulkan");
     assert(settings.value("engine/cuda").toString() == "off");
     assert(settings.value("engine/logLevel").toString() == "debug");
+    assert(settings.value("render/pointSize").toString() == "13.5");
+    assert(settings.value("render/shadingMode").toString() == "intensity");
+    assert(settings.value("render/fixedColor").toString() == "#661A334D");
+    assert(settings.value("render/backgroundColor").toString() == "#80CCB299");
     assert(settings.value("memory/gpuCacheBytes").toString() == "123456");
     assert(settings.value("memory/cpuCacheBytes").toString() == "987654");
 }
@@ -105,6 +117,9 @@ void testInvalidValuesFallbackWithWarnings() {
     settings.setValue("engine/backend", "metal");
     settings.setValue("engine/cuda", "sometimes");
     settings.setValue("engine/logLevel", "NOTICE");
+    settings.setValue("render/pointSize", "65");
+    settings.setValue("render/shadingMode", "invalid");
+    settings.setValue("render/fixedColor", "invalid");
     settings.setValue("memory/gpuCacheBytes", "-1");
     settings.setValue("memory/cpuCacheBytes", "18446744073709551616");
     settings.sync();
@@ -117,7 +132,7 @@ void testInvalidValuesFallbackWithWarnings() {
     assert(result.value().config.logLevel == dzc::diagnostics::LogLevel::Info);
     assert(result.value().config.engineConfig.memory.gpuCacheBytes == 0U);
     assert(result.value().config.engineConfig.memory.cpuCacheBytes == 0U);
-    assert(result.value().warnings.size() == 5U);
+    assert(result.value().warnings.size() == 8U);
 }
 
 void testCommandLineOverridesOnlyExplicitValues() {

@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+list(APPEND CMAKE_PREFIX_PATH "D:/vcpkg/vcpkg/installed/x64-windows")
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DzcOptions.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindOrFetchGlad.cmake)
 

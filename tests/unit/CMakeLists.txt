@@ -536,7 +536,7 @@ add_test(NAME dzc_command_line_options COMMAND dzc_command_line_options_tests)
 set_tests_properties(dzc_command_line_options PROPERTIES
     LABELS "unit;app;qt;qt002")
 
-find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Core)
+find_package(Qt5 5.15.19 CONFIG REQUIRED COMPONENTS Core Gui)
 
 add_executable(dzc_settings_controller_tests
     SettingsControllerTests.cpp
@@ -551,6 +551,7 @@ target_include_directories(dzc_settings_controller_tests PRIVATE
 target_link_libraries(dzc_settings_controller_tests PRIVATE
     dzc_engine_api
     Qt5::Core
+    Qt5::Gui
 )
 
 add_test(NAME dzc_settings_controller COMMAND dzc_settings_controller_tests)

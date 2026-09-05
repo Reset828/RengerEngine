@@ -8,6 +8,8 @@
 #include <QPushButton>
 #include <QAction>
 #include <QVariant>
+#include <QSettings>
+#include <QTemporaryDir>
 
 #include <cassert>
 #include <memory>

@@ -29,6 +29,8 @@ struct DatasetSummary final {
     std::uint64_t chunkCount{0};
     std::uint64_t visibleChunkCount{0};
     double progress{0.0};
+    std::optional<bool> hasRgb;
+    std::optional<bool> hasIntensity;
 };
 
 struct PerformanceSnapshot final {
@@ -52,6 +54,7 @@ struct EngineSnapshot final {
     RenderBackendType backend{RenderBackendType::OpenGL};
     bool cudaAvailable{false};
     bool cudaEnabled{false};
+    OptionalFeatureMode cudaMode{OptionalFeatureMode::Auto};
     DatasetSummary dataset;
     PerformanceSnapshot performance;
     MemorySnapshot memory;

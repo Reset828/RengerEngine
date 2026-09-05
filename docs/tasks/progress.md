@@ -13,6 +13,8 @@
 - 状态文字使用：`未开始`、`进行中`、`阻塞`、`完成`。Checklist 只有“完成”时才勾选。
 - 实施必须遵循先完成 Phase 1 OpenGL 验证，再进入 Phase 2 Vulkan 核心迁移；公共基础中不依赖后端的工作可以先行。
 - 任何需要改变公共接口、模块依赖、已确认格式/参数或需求行为的实现，必须先更新需求与设计文档并取得确认。
+- **主人本地验证门禁**：后续任务由主人使用 VS2026/CMake 负责配置、构建和测试；AI 不执行编译或测试。代码实现后记录为“已实现，待主人验证”，只有主人明确确认通过后才可标记“已完成”并开始下一项任务。
+- **交接责任**：后续交接不得填写未经主人确认的当前构建/测试通过结果；历史任务中已有的真实测试记录保留为历史记录，不代表后续任务仍由 AI 执行验证。
 
 ## 2. 模块完成定义
 
@@ -48,7 +50,7 @@
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
 - [x] [OpenGL Renderer](./opengl-renderer.md) — 状态：已完成（2026-09-02；GL-001 至 GL-012 与四项模块级验收均已完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：暂缓（本阶段跳过；可选能力，任务未完成）
-- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-006 已完成；QT-007 至 QT-012 未完成）
+- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-007 已完成；QT-008 已实现待验证；QT-009 至 QT-012 未完成）
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
 
 ### 5.1 Phase 1 阶段门禁
@@ -136,6 +138,10 @@
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-09-04 | 验证流程调整 | 自本记录起，所有后续任务由主人使用 VS2026/CMake 自行编译测试；AI 只交付代码和交接说明。QT-007 代码实现记录保留，当前等待主人验证，确认前不进入 QT-008。 |
+| 2026-09-04 | QT-007 完成 | 完成 Render Parameters Dock 的点大小、四种着色、RGBA 固定/背景色、CUDA Off/On/Auto 控件；通过 `EngineUiAdapter` 提交命令，Snapshot 同步参数与 `hasRgb`/`hasIntensity` 能力，标准 QSettings 恢复及失败回滚。`build-qt007` 配置和 `dzc_app`、QT-007/相关回归目标构建成功；非 Qt 的 Engine/配置 Release 回归 3/3 通过。Qt UI/Settings 运行因仓库根目录 `dll/` 缺少 `icuin66.dll`、`icuuc66.dll`、`zstd.dll`，按规则未补 DLL，未宣称通过；QT-008 至 QT-012、模块级验收和 Phase 1 门禁仍未完成。 |
+| 2026-09-05 | QT-008 实现待主人验证 | 新增 Status Dock、StatusPresenter、LogPanelModel 和 Fake Port UI 测试；保留显式 refreshEngineState 刷新和现有加载/参数行为。QT-008 尚未勾选，等待主人使用 VS2026/CMake 验证。 |
+| 2026-09-05 | QT-007 主人验证通过 | 主人已使用 VS2026/CMake 完成 QT-007 自行编译测试并明确确认通过；QT-007 现标记为已完成，可以进入 QT-008。Qt Application 模块级验收、QT-008 至 QT-012 和 Phase 1 门禁仍未完成。 |
 | 2026-09-04 | QT-006 完成 | 完成 Qt PCD/PLY 文件选择、Load/Cancel 命令提交、Snapshot/Event 驱动的进度与状态显示、错误摘要/诊断日志和失败/取消后的重新加载；新增 `dzc_dataset_load_ui` Fake Port 测试，并覆盖过期 DatasetId Snapshot 不得覆盖新加载。`build-qt006` Debug 构建成功，QT-006 及 QT-004/QT-005 相关 8 项 CTest 全部通过；Qt Application 模块仍进行中，QT-007 至 QT-012 和 Phase 1 门禁保持未完成。 |
 | 2026-09-03 | QT-005 完成 | 新增 App 内部 `EngineUiAdapter`（QObject + Pimpl）和 `IEngineUiPort`，支持 UTF-8 路径、QColor RGBA、渲染参数、ResetView、六类 `InputEvent`、稳定鼠标/修饰键/USB HID 键编码、像素坐标归一化，以及 Snapshot/Event 显式读取；公共 `SubmitInputCommand` 加入 Engine variant 和合法性校验，Engine 当前只消费输入命令不改变相机状态。`dzc_engine_ui_adapter`、`dzc_engine_command`、`dzc_engine_public_api`、`dzc_command_line_options`、`dzc_settings_controller` 专项回归 5/5 通过；Qt Application 模块和 Phase 1 门禁保持未完成。 |
 | 2026-09-03 | QT-004 完成 | 新增 C++ + Pimpl `MainWindow`，包含普通中央视图占位、数据集/渲染参数/日志三个 Dock、File/View/Help 菜单、稳定命名 QAction、静态状态栏和只读日志占位；新增 `dzc_main_window_smoke`（`ui;qt;qt004`，offscreen）。`build-qt004` 下 `dzc_app` 与 smoke 构建成功，QT-004 smoke 和 `dzc_target_boundary` 通过；QT-001 至 QT-003 本目录未重新构建，未记录为本次回归通过。Qt 模块仍进行中，QT-005 至 QT-012 未完成；CUDA 继续暂缓并保持 `DZC_ENABLE_CUDA=OFF`，Phase 1 门禁不变。

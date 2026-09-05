@@ -1,5 +1,9 @@
 #pragma once
 
+#include "dzc/EngineConfig.h"
+#include "dzc/EngineTypes.h"
+
+#include <QColor>
 #include <QMainWindow>
 #include <QString>
 
@@ -31,8 +35,23 @@ public:
     // Submits a selected dataset path without opening a file dialog.
     void submitDatasetPath(const QString& path);
 
-    // Reads the latest Snapshot and pending Events and refreshes the dataset UI.
+    // Refreshes status, dataset, parameters and logs from one Snapshot/Event poll.
     void refreshEngineState();
+
+    // Submits a point-size change through the Engine adapter.
+    void submitPointSize(float pixels);
+
+    // Submits a shading-mode change through the Engine adapter.
+    void submitShadingMode(ShadingMode mode);
+
+    // Submits a fixed-color change through the Engine adapter.
+    void submitFixedColor(const QColor& color);
+
+    // Submits a background-color change through the Engine adapter.
+    void submitBackgroundColor(const QColor& color);
+
+    // Submits a CUDA-mode change through the Engine adapter.
+    void submitCudaMode(OptionalFeatureMode mode);
 
 private:
     void openDatasetDialog();

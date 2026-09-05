@@ -156,6 +156,7 @@ public:
         }
 
         m_config = config;
+        m_requestedCudaMode = config.cudaMode;
         m_commandQueue = std::move(commandQueue);
         m_eventQueue = std::move(eventQueue);
         m_renderBackend = std::move(renderBackend);
@@ -528,6 +529,7 @@ private:
         next->backend = m_config.backend;
         next->cudaAvailable = false;
         next->cudaEnabled = false;
+        next->cudaMode = m_requestedCudaMode;
         next->dataset = m_datasetSession.snapshotSummary();
         next->pointSize = sceneFrame.parameters.pointSize;
         next->shadingMode = sceneFrame.parameters.shadingMode;

@@ -3,6 +3,7 @@
 #include "../diagnostics/LogTypes.h"
 
 #include <dzc/EngineConfig.h>
+#include <dzc/EngineTypes.h>
 
 #include <cstdint>
 #include <optional>
@@ -14,6 +15,10 @@ namespace dzc {
 struct AppConfig final {
     EngineConfig engineConfig;
     diagnostics::LogLevel logLevel{diagnostics::LogLevel::Info};
+    float pointSize{1.0F};
+    ShadingMode shadingMode{ShadingMode::OriginalColor};
+    ColorRgba fixedColor;
+    ColorRgba backgroundColor;
 };
 
 struct AppConfigOverrides final {

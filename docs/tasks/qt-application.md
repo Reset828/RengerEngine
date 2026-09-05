@@ -2,9 +2,16 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-005 已完成；QT-006 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-007 已完成；QT-008 已实现，待主人验证；QT-009 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
+
+## 0. 后续任务验证责任
+
+- 本模块后续任务由主人使用 VS2026/CMake 负责配置、构建和测试；AI 不执行 CMake configure、构建、CTest、单元测试、UI 测试或集成测试。
+- AI 完成功能后只能记录“已实现，待主人验证”，不能因代码修改或静态检查通过而勾选任务。
+- 主人明确确认编译测试通过后，才更新任务为“已完成”并允许进入下一个 QT 功能；失败时由主人提供日志，AI 修复后继续等待主人重新验证。
+- QT-001 至 QT-007 的实现与主人验证记录已完成；QT-008 已实现，待主人按本地验证门禁确认；QT-009 至 QT-012 仍未开始。
 
 ## 1. 模块目标
 
@@ -32,7 +39,7 @@
 - [x] **QT-004 创建 MainWindow 布局**
 - [x] **QT-005 实现 EngineUiAdapter**
 - [x] **QT-006 实现文件加载与取消 UI**
-- [ ] **QT-007 实现渲染参数 UI**
+- [x] **QT-007 实现渲染参数 UI**
 - [ ] **QT-008 实现状态与日志显示**
 - [ ] **QT-009 实现 OpenGLRenderWidget 宿主**
 - [ ] **QT-010 实现 VulkanRenderWindow 宿主骨架**
@@ -133,24 +140,39 @@
 
 ### QT-007 实现渲染参数 UI
 
-- **状态**：未开始
+- **状态**：已完成（实现日期：2026-09-04；主人验证通过：2026-09-05）
 - **目标**：接入点大小、着色、固定色、背景色和 CUDA 模式。
 - **前置任务**：QT-005
-- **预计文件**：`src/app/MainWindow.cpp`、`tests/ui/RenderParametersUiTests.cpp`
-- **实现要求**：控件变化只 enqueue 命令；属性不可用状态由 Snapshot 提示。
-- **验收检查**：各控件产生正确命令且可从设置恢复。
-- **测试要求**：UI 信号和配置恢复测试。
+- **实际文件**：`include/dzc/EngineSnapshot.h`、`src/engine/Engine.cpp`、`src/app/ApplicationConfig.h`、`src/app/MainWindow.h`、`src/app/MainWindow.cpp`、`src/app/SettingsController.h`、`src/app/SettingsController.cpp`、`tests/ui/RenderParametersUiTests.cpp`、`tests/ui/CMakeLists.txt`、`tests/unit/CMakeLists.txt`、`tests/unit/SettingsControllerTests.cpp`。
+- **实现行为**：Render Parameters Dock 提供点大小 `[1,64]`、四种着色、RGBA 固定色/背景色按钮和 CUDA `Off/On/Auto` 三态控件；控件入口统一经 `EngineUiAdapter` 提交命令，入队失败回滚控件并将摘要写入状态栏、诊断写入只读日志。无 Adapter 时只恢复控件显示，不创建或启动 Engine。
+- **Snapshot 与能力**：`DatasetSummary` 增加 `std::optional<bool> hasRgb/hasIntensity`，未知能力保持着色项可选，明确不支持时禁用对应项；`EngineSnapshot` 增加 `cudaMode`，同步点大小、着色、颜色、CUDA 选择和 CUDA 可用性提示，使用 `QSignalBlocker` 避免 Snapshot 刷新重复提交。
+- **设置协议**：标准 QSettings 使用组织 `Dzc`、应用 `Dzc-RenderEngine`；键为 `render/pointSize`、`render/shadingMode`、`render/fixedColor`、`render/backgroundColor` 和既有 `engine/cuda`。着色字符串为 `original/fixed/height/intensity`，颜色为严格 `#AARRGGBB`，非法或缺失值回退到默认值；有效命令入队后立即保存，设置写入失败不撤销已入队命令。
+- **边界**：未引入真实点云读取/解析、PCL、Engine 创建、帧驱动、OpenGL/Vulkan/CUDA 资源或 Qt 类型到公共 Engine API；数据集能力在无 Reader 元数据时保持未知。
+- **测试要求**：Fake `IEngineUiPort` UI/设置测试，不访问真实点云、不创建 Engine 后台线程。
+- **验证结果**：历史记录保留：首次 Qt UI/Settings 运行曾因测试环境 DLL 依赖缺失而在加载阶段停止。最终验收：主人于 2026-09-05 使用 VS2026/CMake 自行完成 QT-007 编译测试，并明确确认通过。未补写主人未提供的具体命令、筛选器或运行时细节。
 - **追踪**：FR-REN-002/003/004、FR-CUDA-001
 
 ### QT-008 实现状态与日志显示
 
-- **状态**：未开始
+- **状态**：已实现，待主人验证（实现日期：2026-09-05）
 - **目标**：显示后端、FPS、点/块、驻留、加载状态和日志。
 - **前置任务**：QT-005, diagnostics/DG-004
 - **预计文件**：`src/app/StatusPresenter.h`、`src/app/StatusPresenter.cpp`、`src/app/LogPanelModel.h`、`src/app/LogPanelModel.cpp`、`tests/ui/StatusUiTests.cpp`
 - **实现要求**：持续状态读 Snapshot，离散错误读 Event；不复制点云。
 - **验收检查**：状态字段格式正确，日志严重级别可区分。
 - **测试要求**：Snapshot/Event 输入的 UI 模型测试。
+- **追踪**：FR-UI-004/005、FR-STAT-001
+
+### QT-008 实现状态与日志显示
+
+- **状态**：已实现，待主人验证（实现日期：2026-09-05）
+- **目标**：显示后端、FPS、点/块、驻留、加载状态和日志。
+- **实际文件**：`src/app/StatusPresenter.h/.cpp`、`src/app/LogPanelModel.h/.cpp`、`src/app/MainWindow.cpp`、`tests/ui/StatusUiTests.cpp`、`src/app/CMakeLists.txt`、`tests/ui/CMakeLists.txt`。
+- **实现行为**：新增 `Status Dock`，以稳定命名的 QLabel 展示 Backend、FPS、Dataset State、Load Progress、点/块统计、CPU/GPU 驻留与预算、CUDA 能力/模式/启用状态及当前错误摘要；`StatusPresenter` 只读取不可变 Snapshot 并格式化值，空 Snapshot 使用稳定默认显示。
+- **日志行为**：新增 Pimpl `LogPanelModel`，消费 Message/Error/FeatureDegraded Event，按严重级别添加 `[Info]`、`[Warning]`、`[RecoverableError]`、`[FatalError]` 前缀，保留最近 1000 条；数据集生命周期 Event 不写入日志，避免逐帧 Snapshot 重复记录。
+- **刷新与边界**：`MainWindow::refreshEngineState()` 显式读取一次 Snapshot 并轮询 Event；保留状态栏短消息和 QT-006 加载逻辑，不新增定时器、Engine 线程、点云副本、PCL/GPU 资源或公共 Engine API。
+- **测试**：新增 `dzc_status_ui`（标签 `ui;app;qt;qt008`），覆盖默认/完整 Snapshot 格式、错误摘要、严重级别、FIFO 上限和 MainWindow 集成；仅使用 Fake Port。
+- **验证**：代码已实现，待主人使用 VS2026/CMake 自行配置、编译和运行测试；AI 未执行 CMake、编译、CTest、UI 测试或 DLL 整理。
 - **追踪**：FR-UI-004/005、FR-STAT-001
 
 ### QT-009 实现 OpenGLRenderWidget 宿主
@@ -206,11 +228,11 @@
 
 ## 7. 交接记录
 
-- 完成日期：2026-09-04
+- 实现日期：2026-09-04；主人验证通过：2026-09-05
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 至 QT-005，并完成 QT-006 文件加载与取消 UI、Fake Snapshot/Event 测试；QT-007 至 QT-012 保持未完成。
-- 未解决问题：Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
-- 测试命令与结果：QT-006 使用 `build-qt006`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；Debug 构建成功，`ctest --test-dir build-qt006 -C Debug -R 'dzc_dataset_load_ui|dzc_main_window_smoke|dzc_qt_application_smoke|dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 8/8 通过。测试运行使用仓库根目录 `dll/` 的 Qt DLL 临时副本，任务结束时清理。
+- 关键变更：完成 QT-001 至 QT-005、QT-006 文件加载与取消 UI，以及 QT-007 渲染参数 UI、Snapshot 能力同步、QSettings 恢复和 Fake Port 测试；QT-008 已实现，待主人验证；QT-009 至 QT-012 保持未完成。
+- 当前交接：QT-007 已完成，主人已确认 VS2026/CMake 编译测试通过；QT-008 已实现，待主人验证；主人确认通过后再进入 QT-009。Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
+- 测试命令与结果：QT-006 使用 `build-qt006`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；Debug 构建成功，`ctest --test-dir build-qt006 -C Debug -R 'dzc_dataset_load_ui|dzc_main_window_smoke|dzc_qt_application_smoke|dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 8/8 通过。QT-007 使用 `build-qt007` 同配置并成功构建 `dzc_app`、`dzc_render_parameters_ui`、QT-006/QT-004 smoke、QT-005 适配器和相关 Engine 目标；`dzc_engine_command_tests`、`dzc_engine_public_api_tests`、`dzc_command_line_options_tests` 的 Release 可执行文件为 3/3 通过。Qt UI/Settings 测试未运行成功：仓库根目录 `dll/` 仅有 `Qt5Core.dll`、`Qt5Gui.dll`、`Qt5Widgets.dll`，其中 `Qt5Core.dll` 依赖缺失 `icuin66.dll`、`icuuc66.dll`、`zstd.dll`，因此测试在 DLL 加载阶段返回 `0xC0000135`；按验收规则未从 Qt 安装目录、PATH 或其他构建目录补 DLL。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 
 ## 8. 变更约束

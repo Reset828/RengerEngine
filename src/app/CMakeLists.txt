@@ -6,6 +6,8 @@ add_executable(dzc_app
     SettingsController.cpp
     EngineUiAdapter.cpp
     MainWindow.cpp
+    StatusPresenter.cpp
+    LogPanelModel.cpp
 )
 
 target_compile_features(dzc_app PRIVATE cxx_std_17)

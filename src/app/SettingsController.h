@@ -13,8 +13,17 @@ public:
     // Loads AppConfig from an explicit UTF-16/UTF-8-compatible INI path.
     static Result<SettingsLoadResult> load(const QString& iniPath);
 
+    // Returns the standard per-user INI path for Dzc-RenderEngine.
+    static QString standardPath();
+
+    // Loads AppConfig from the standard per-user INI path.
+    static Result<SettingsLoadResult> loadStandard();
+
     // Saves the supported AppConfig fields to an explicit INI path.
     static Result<void> save(const QString& iniPath, const AppConfig& config);
+
+    // Saves AppConfig to the standard per-user INI path.
+    static Result<void> saveStandard(const AppConfig& config);
 
     // Loads settings and applies only explicitly supplied command-line options.
     static Result<SettingsLoadResult> loadWithCommandLine(
