@@ -31,6 +31,26 @@ public:
         events.clear();
         return result;
     }
+    dzc::Result<void> init(
+        const dzc::EngineConfig&,
+        std::unique_ptr<dzc::IRenderBackend>,
+        std::unique_ptr<dzc::IComputeBackend>) override {
+        return dzc::Result<void>::success();
+    }
+
+    dzc::Result<void> update(const dzc::FrameInput&) override {
+        return dzc::Result<void>::success();
+    }
+
+    dzc::Result<void> render() override {
+        return dzc::Result<void>::success();
+    }
+
+    dzc::Result<void> resize(const dzc::RenderSize&) override {
+        return dzc::Result<void>::success();
+    }
+
+    void shutdown() noexcept override {}
     std::vector<dzc::EngineCommand> commands;
     std::shared_ptr<const dzc::EngineSnapshot> snapshot;
     std::vector<dzc::EngineEvent> events;

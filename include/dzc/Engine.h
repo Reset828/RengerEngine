@@ -13,6 +13,9 @@
 
 namespace dzc {
 
+class IRenderBackend;
+class IComputeBackend;
+
 class Engine final {
 public:
     Engine();
@@ -24,6 +27,11 @@ public:
     Engine& operator=(Engine&&) noexcept;
 
     Result<void> init(const EngineConfig& config);
+    // Initializes the Engine with application-composed backend instances.
+    Result<void> init(
+        const EngineConfig& config,
+        std::unique_ptr<IRenderBackend> renderBackend,
+        std::unique_ptr<IComputeBackend> computeBackend);
     Result<void> enqueueCommand(EngineCommand command);
     Result<void> update(const FrameInput& input);
     Result<void> render();

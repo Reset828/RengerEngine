@@ -416,7 +416,7 @@ using EngineCommand = std::variant<
 
 ### 6.1.1 QT-005 EngineUiAdapter 与输入边界
 
-`EngineUiAdapter` 属于 App 私有实现，使用 QObject + Pimpl；Qt 类型只出现在 App 头/源文件，不进入 `include/dzc`。App 内部 `IEngineUiPort` 不依赖 Qt，仅暴露 `enqueueCommand(EngineCommand)`、`getSnapshot()` 和 `pollEvents()`，生产实现桥接现有 `Engine`，测试注入 Fake Port。端口不负责 Engine 的 `init/update/render/resize/shutdown`，也不创建定时器或驱动帧循环。
+`EngineUiAdapter` 属于 App 私有实现，使用 QObject + Pimpl；Qt 类型只出现在 App 头/源文件，不进入 `include/dzc`。App 内部 `IEngineUiPort` 不依赖 Qt，仅暴露 `enqueueCommand(EngineCommand)`、`getSnapshot()` 和 `pollEvents()`，生产实现桥接现有 `Engine`，测试注入 Fake Port。QT-009 起端口同时转发生命周期入口 `init/update/render/resize/shutdown`，但不创建定时器或驱动独立帧循环；帧调用由 OpenGL 宿主在有效 GL Context 线程中显式发起。
 
 Qt 输入转换遵循固定协议：widget 本地像素坐标以视口左上角为原点，按宽高归一化为 `[0,1]`；左键编码 `0`、右键编码 `2`，其他鼠标按钮拒绝；修饰位为 Shift/Ctrl/Alt/Meta = `1/2/4/8`；键盘只接受有限的 Qt Key → USB HID 映射，未覆盖键拒绝。`PointerMove`、`PointerButton`、`Wheel`、`Key`、`Focus` 和 `ResetRequest` 都封装为 `SubmitInputCommand`。
 
@@ -1486,6 +1486,12 @@ QT-004 在 `src/app` 内以 C++ + Pimpl 实现 `MainWindow : QMainWindow`。窗�
 - `paintGL`：计算 delta，调用 `update` 和 `render`，随后读取 Snapshot；
 - 活动显示时由 Qt update 调度下一帧，窗口不可见或最小化时降低/停止连续刷新；
 - 文件选择和参数信号只入队，不在槽函数执行 I/O。
+
+### 20.2.1 QT-009 OpenGLRenderWidget 宿主边界
+
+应用组合根外部拥有 `Engine` 和 `EngineUiAdapter`；`MainWindow` 只拥有作为 Qt 子对象的 `OpenGLRenderWidget`，Widget 不拥有 Engine。组合根注入 `EngineConfig` 和 App 内部的 Qt Context Bridge/OpenGLBackend 工厂。默认 Context 为 OpenGL 4.5 Core；`initializeGL` 在当前 Context 中加载 GLAD、创建后端并初始化 Engine，`resizeGL` 转发物理像素尺寸，`paintGL` 仅计算有限非负的 `deltaSeconds` 并转发 `FrameInput`、`update` 和 `render`。QT-009 不生成 `RenderFrame`，也不实现真实点云绘制链路。
+
+初始化或帧错误只记录一次并停止后续刷新；Widget 隐藏或窗口最小化时停止连续 `update()`，恢复后请求一次刷新。析构时在 Context 仍有效的情况下先调用 Engine shutdown，确保后端资源释放线程正确。
 
 ### 20.3 Phase 2 帧驱动
 

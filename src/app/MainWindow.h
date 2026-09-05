@@ -12,6 +12,7 @@
 namespace dzc {
 
 class EngineUiAdapter;
+class OpenGLRenderWidget;
 
 class MainWindow final : public QMainWindow {
 public:
@@ -20,6 +21,9 @@ public:
 
     // Creates the application window over an externally owned Engine adapter.
     explicit MainWindow(EngineUiAdapter* adapter, QWidget* parent = nullptr);
+
+    // Creates the application window with an externally-owned OpenGL host.
+    MainWindow(EngineUiAdapter* adapter, OpenGLRenderWidget* renderWidget, QWidget* parent = nullptr);
 
     // Releases the private UI implementation.
     ~MainWindow() override;

@@ -1,9 +1,13 @@
 #include "MainWindow.h"
 
 #include "EngineUiAdapter.h"
+#if defined(DZC_HAS_OPENGL_RENDER_WIDGET)
+#include "OpenGLRenderWidget.h"
+#endif
 #include "SettingsController.h"
 #include "LogPanelModel.h"
 #include "StatusPresenter.h"
+
 
 #include <QAction>
 #include <QColorDialog>
@@ -302,6 +306,9 @@ MainWindow::MainWindow(QWidget* parent)
     : MainWindow(nullptr, parent) {}
 
 MainWindow::MainWindow(EngineUiAdapter* adapter, QWidget* parent)
+    : MainWindow(adapter, nullptr, parent) {}
+
+MainWindow::MainWindow(EngineUiAdapter* adapter, OpenGLRenderWidget* renderWidget, QWidget* parent)
     : QMainWindow(parent),
       m_impl(std::make_unique<Impl>()) {
     m_impl->adapter = adapter;
@@ -309,14 +316,26 @@ MainWindow::MainWindow(EngineUiAdapter* adapter, QWidget* parent)
     setObjectName(QStringLiteral("mainWindow"));
     setWindowTitle(QStringLiteral("Dzc-RenderEngine"));
 
-    m_impl->renderViewPlaceholder = new QWidget(this);
-    m_impl->renderViewPlaceholder->setObjectName(QStringLiteral("renderViewPlaceholder"));
-    auto* viewLayout = new QVBoxLayout(m_impl->renderViewPlaceholder);
-    auto* viewLabel = new QLabel(QStringLiteral("Render view placeholder"), m_impl->renderViewPlaceholder);
-    viewLabel->setObjectName(QStringLiteral("renderViewPlaceholderLabel"));
-    viewLabel->setAlignment(Qt::AlignCenter);
-    viewLayout->addWidget(viewLabel);
-    setCentralWidget(m_impl->renderViewPlaceholder);
+#if defined(DZC_HAS_OPENGL_RENDER_WIDGET)
+    if (renderWidget != nullptr) {
+        renderWidget->setParent(this);
+        m_impl->renderViewPlaceholder = renderWidget;
+        setCentralWidget(renderWidget);
+        renderWidget->setRefreshCallback([this] { refreshEngineState(); });
+    } else {
+#else
+    Q_UNUSED(renderWidget);
+    {
+#endif
+        m_impl->renderViewPlaceholder = new QWidget(this);
+        m_impl->renderViewPlaceholder->setObjectName(QStringLiteral("renderViewPlaceholder"));
+        auto* viewLayout = new QVBoxLayout(m_impl->renderViewPlaceholder);
+        auto* viewLabel = new QLabel(QStringLiteral("Render view placeholder"), m_impl->renderViewPlaceholder);
+        viewLabel->setObjectName(QStringLiteral("renderViewPlaceholderLabel"));
+        viewLabel->setAlignment(Qt::AlignCenter);
+        viewLayout->addWidget(viewLabel);
+        setCentralWidget(m_impl->renderViewPlaceholder);
+    }
 
     m_impl->datasetDock = new QDockWidget(QStringLiteral("Dataset"), this);
     m_impl->datasetDock->setObjectName(QStringLiteral("datasetDock"));

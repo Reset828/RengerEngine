@@ -1,4 +1,6 @@
 #include "EngineUiAdapter.h"
+#include "compute/common/ComputeBackendFactory.h"
+#include "render/common/RenderBackendFactory.h"
 
 #include <QByteArray>
 
@@ -170,6 +172,29 @@ public:
         return m_engine.pollEvents();
     }
 
+    Result<void> init(
+        const EngineConfig& config,
+        std::unique_ptr<IRenderBackend> renderBackend,
+        std::unique_ptr<IComputeBackend> computeBackend) override {
+        return m_engine.init(config, std::move(renderBackend), std::move(computeBackend));
+    }
+
+    Result<void> update(const FrameInput& input) override {
+        return m_engine.update(input);
+    }
+
+    Result<void> render() override {
+        return m_engine.render();
+    }
+
+    Result<void> resize(const RenderSize& size) override {
+        return m_engine.resize(size);
+    }
+
+    void shutdown() noexcept override {
+        m_engine.shutdown();
+    }
+
 private:
     Engine& m_engine;
 };
@@ -196,6 +221,29 @@ EngineUiAdapter::EngineUiAdapter(Engine& engine, QObject* parent)
       m_impl(std::make_unique<Impl>(std::make_unique<EngineUiPort>(engine))) {}
 
 EngineUiAdapter::~EngineUiAdapter() = default;
+
+Result<void> EngineUiAdapter::init(
+    const EngineConfig& config,
+    std::unique_ptr<IRenderBackend> renderBackend,
+    std::unique_ptr<IComputeBackend> computeBackend) {
+    return m_impl->port->init(config, std::move(renderBackend), std::move(computeBackend));
+}
+
+Result<void> EngineUiAdapter::update(const FrameInput& input) {
+    return m_impl->port->update(input);
+}
+
+Result<void> EngineUiAdapter::render() {
+    return m_impl->port->render();
+}
+
+Result<void> EngineUiAdapter::resize(const RenderSize& size) {
+    return m_impl->port->resize(size);
+}
+
+void EngineUiAdapter::shutdown() noexcept {
+    m_impl->port->shutdown();
+}
 
 Result<void> EngineUiAdapter::loadDataset(const QString& path) {
     if (path.isEmpty()) {

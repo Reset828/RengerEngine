@@ -2,7 +2,7 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-007 已完成；QT-008 已实现，待主人验证；QT-009 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-009 已完成；QT-010 至 QT-012 未完成）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
@@ -11,7 +11,7 @@
 - 本模块后续任务由主人使用 VS2026/CMake 负责配置、构建和测试；AI 不执行 CMake configure、构建、CTest、单元测试、UI 测试或集成测试。
 - AI 完成功能后只能记录“已实现，待主人验证”，不能因代码修改或静态检查通过而勾选任务。
 - 主人明确确认编译测试通过后，才更新任务为“已完成”并允许进入下一个 QT 功能；失败时由主人提供日志，AI 修复后继续等待主人重新验证。
-- QT-001 至 QT-007 的实现与主人验证记录已完成；QT-008 已实现，待主人按本地验证门禁确认；QT-009 至 QT-012 仍未开始。
+- QT-001 至 QT-009 的实现与主人验证记录已完成；QT-010 至 QT-012 仍未开始。
 
 ## 1. 模块目标
 
@@ -40,8 +40,8 @@
 - [x] **QT-005 实现 EngineUiAdapter**
 - [x] **QT-006 实现文件加载与取消 UI**
 - [x] **QT-007 实现渲染参数 UI**
-- [ ] **QT-008 实现状态与日志显示**
-- [ ] **QT-009 实现 OpenGLRenderWidget 宿主**
+- [x] **QT-008 实现状态与日志显示**
+- [x] **QT-009 实现 OpenGLRenderWidget 宿主**
 - [ ] **QT-010 实现 VulkanRenderWindow 宿主骨架**
 - [ ] **QT-011 实现 View Reset 入口但不定义行为**
 - [ ] **QT-012 完成 UI 响应集成测试**
@@ -154,7 +154,7 @@
 
 ### QT-008 实现状态与日志显示
 
-- **状态**：已实现，待主人验证（实现日期：2026-09-05）
+- **状态**：已完成（2026-09-05）
 - **目标**：显示后端、FPS、点/块、驻留、加载状态和日志。
 - **前置任务**：QT-005, diagnostics/DG-004
 - **预计文件**：`src/app/StatusPresenter.h`、`src/app/StatusPresenter.cpp`、`src/app/LogPanelModel.h`、`src/app/LogPanelModel.cpp`、`tests/ui/StatusUiTests.cpp`
@@ -165,22 +165,25 @@
 
 ### QT-008 实现状态与日志显示
 
-- **状态**：已实现，待主人验证（实现日期：2026-09-05）
+- **状态**：已完成（2026-09-05）
 - **目标**：显示后端、FPS、点/块、驻留、加载状态和日志。
 - **实际文件**：`src/app/StatusPresenter.h/.cpp`、`src/app/LogPanelModel.h/.cpp`、`src/app/MainWindow.cpp`、`tests/ui/StatusUiTests.cpp`、`src/app/CMakeLists.txt`、`tests/ui/CMakeLists.txt`。
 - **实现行为**：新增 `Status Dock`，以稳定命名的 QLabel 展示 Backend、FPS、Dataset State、Load Progress、点/块统计、CPU/GPU 驻留与预算、CUDA 能力/模式/启用状态及当前错误摘要；`StatusPresenter` 只读取不可变 Snapshot 并格式化值，空 Snapshot 使用稳定默认显示。
 - **日志行为**：新增 Pimpl `LogPanelModel`，消费 Message/Error/FeatureDegraded Event，按严重级别添加 `[Info]`、`[Warning]`、`[RecoverableError]`、`[FatalError]` 前缀，保留最近 1000 条；数据集生命周期 Event 不写入日志，避免逐帧 Snapshot 重复记录。
 - **刷新与边界**：`MainWindow::refreshEngineState()` 显式读取一次 Snapshot 并轮询 Event；保留状态栏短消息和 QT-006 加载逻辑，不新增定时器、Engine 线程、点云副本、PCL/GPU 资源或公共 Engine API。
 - **测试**：新增 `dzc_status_ui`（标签 `ui;app;qt;qt008`），覆盖默认/完整 Snapshot 格式、错误摘要、严重级别、FIFO 上限和 MainWindow 集成；仅使用 Fake Port。
-- **验证**：代码已实现，待主人使用 VS2026/CMake 自行配置、编译和运行测试；AI 未执行 CMake、编译、CTest、UI 测试或 DLL 整理。
+- **验证**：主人于 2026-09-05 明确确认 QT-008 编译和测试通过；本次不补写具体构建命令、测试筛选器或 DLL 操作细节。AI 未执行本次 QT-009 之外的构建或测试。
 - **追踪**：FR-UI-004/005、FR-STAT-001
 
 ### QT-009 实现 OpenGLRenderWidget 宿主
 
-- **状态**：未开始
+- **状态**：已完成（2026-09-05）
 - **目标**：在 initializeGL/resizeGL/paintGL 驱动 Phase 1 Engine。
 - **前置任务**：QT-005, opengl-renderer/GL-007
-- **预计文件**：`src/app/OpenGLRenderWidget.h`、`src/app/OpenGLRenderWidget.cpp`、`tests/ui/OpenGLRenderWidgetTests.cpp`
+- **实际文件**：`include/dzc/Engine.h`、`include/dzc/FrameInput.h`、`src/engine/Engine.cpp`、`src/app/EngineUiAdapter.h/.cpp`、`src/app/OpenGLRenderWidget.h/.cpp`、`src/app/MainWindow.h/.cpp`、`src/app/main.cpp`、`src/app/CMakeLists.txt`、`tests/ui/OpenGLRenderWidgetTests.cpp`、`tests/ui/CMakeLists.txt`
+- **实现行为**：应用组合根外部拥有 Engine 和 EngineUiAdapter，MainWindow 的实际路径注入不拥有 Engine 的 OpenGLRenderWidget；默认 QSurfaceFormat 为 OpenGL 4.5 Core。Widget 在有效 Context 下建立 Qt Context Bridge、加载 GLAD、创建 OpenGLBackend 并转发 Engine init/resize/update/render/shutdown；FrameInput 仅增加 deltaSeconds 与 RenderSize，不生成 RenderFrame 或执行真实点云绘制。
+- **刷新与错误边界**：初始化和帧错误只记录一次并停止后续帧调度；隐藏或最小化时停止连续刷新，恢复可见后请求一次刷新；Engine shutdown 在 Context 仍有效时执行。Widget 不创建 Engine、Reader、PCL、GPU 对象或后台线程，不新增定时器。
+- **测试**：新增 `dzc_opengl_render_widget`（标签 `ui;app;qt;qt009`），使用 Fake Port/Backend 覆盖 GL 生命周期、线程、尺寸、delta、隐藏恢复和 MainWindow 注入路径；无图形环境按测试规则返回 Skipped。
 - **实现要求**：GL 生命周期调用线程正确；最小化/隐藏时降低刷新。
 - **验收检查**：窗口显示、resize、关闭无 Context 资源错误。
 - **测试要求**：Qt+OpenGL 集成测试；无图形环境 Skipped。
@@ -228,10 +231,10 @@
 
 ## 7. 交接记录
 
-- 实现日期：2026-09-04；主人验证通过：2026-09-05
+- 实现日期：2026-09-05；主人验证通过：QT-008、QT-009（均为 2026-09-05）
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 至 QT-005、QT-006 文件加载与取消 UI，以及 QT-007 渲染参数 UI、Snapshot 能力同步、QSettings 恢复和 Fake Port 测试；QT-008 已实现，待主人验证；QT-009 至 QT-012 保持未完成。
-- 当前交接：QT-007 已完成，主人已确认 VS2026/CMake 编译测试通过；QT-008 已实现，待主人验证；主人确认通过后再进入 QT-009。Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
+- 关键变更：完成 QT-001 至 QT-009；QT-009 已完成 OpenGLRenderWidget 宿主、Engine 后端依赖注入和 MainWindow 实际应用装配；QT-010 至 QT-012 保持未完成。
+- 当前交接：主人已明确确认 QT-008、QT-009 编译和测试通过，两个任务均已标记完成并勾选。Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
 - 测试命令与结果：QT-006 使用 `build-qt006`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；Debug 构建成功，`ctest --test-dir build-qt006 -C Debug -R 'dzc_dataset_load_ui|dzc_main_window_smoke|dzc_qt_application_smoke|dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 8/8 通过。QT-007 使用 `build-qt007` 同配置并成功构建 `dzc_app`、`dzc_render_parameters_ui`、QT-006/QT-004 smoke、QT-005 适配器和相关 Engine 目标；`dzc_engine_command_tests`、`dzc_engine_public_api_tests`、`dzc_command_line_options_tests` 的 Release 可执行文件为 3/3 通过。Qt UI/Settings 测试未运行成功：仓库根目录 `dll/` 仅有 `Qt5Core.dll`、`Qt5Gui.dll`、`Qt5Widgets.dll`，其中 `Qt5Core.dll` 依赖缺失 `icuin66.dll`、`icuuc66.dll`、`zstd.dll`，因此测试在 DLL 加载阶段返回 `0xC0000135`；按验收规则未从 Qt 安装目录、PATH 或其他构建目录补 DLL。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 

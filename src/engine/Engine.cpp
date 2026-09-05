@@ -91,12 +91,23 @@ public:
           m_lifecycleTrace(std::make_shared<EngineLifecycleTrace>()),
           m_coordinator(makeCoordinatorStages()) {}
 
-    Result<void> init(const EngineConfig& config) {
+    Result<void> init(
+        const EngineConfig& config,
+        std::unique_ptr<IRenderBackend> injectedRenderBackend = {},
+        std::unique_ptr<IComputeBackend> injectedComputeBackend = {}) {
         if (m_stateMachine.state() != EngineState::Created) {
             return Result<void>::failure(invalidStateError("Engine::init"));
         }
         if (!config.hasValidQueueCapacities()) {
             return Result<void>::failure(invalidConfigurationError());
+        }
+        if ((injectedRenderBackend == nullptr) != (injectedComputeBackend == nullptr)) {
+            return Result<void>::failure(Error{
+                ErrorDomain::Configuration,
+                kInvalidConfiguration,
+                "Incomplete engine backend dependencies",
+                "Render and compute backend dependencies must be supplied together.",
+                "Engine::init"});
         }
 
         const Result<void> initializing = m_stateMachine.transition(EngineStateTrigger::Init);
@@ -106,14 +117,18 @@ public:
 
         std::unique_ptr<tasks::CommandCoalescer> commandQueue;
         std::unique_ptr<EngineEventQueue> eventQueue;
-        std::unique_ptr<IRenderBackend> renderBackend;
-        std::unique_ptr<IComputeBackend> computeBackend;
+        std::unique_ptr<IRenderBackend> renderBackend = std::move(injectedRenderBackend);
+        std::unique_ptr<IComputeBackend> computeBackend = std::move(injectedComputeBackend);
+        bool renderBackendInitialized = false;
         auto rollback = [&]() noexcept {
             if (computeBackend != nullptr) {
                 computeBackend.reset();
                 recordLifecycle(EngineLifecycleRecord::ComputeBackendReleased);
             }
             if (renderBackend != nullptr) {
+                if (renderBackendInitialized) {
+                    renderBackend->shutdown();
+                }
                 renderBackend.reset();
                 recordLifecycle(EngineLifecycleRecord::RenderBackendReleased);
             }
@@ -139,12 +154,25 @@ public:
             recordLifecycle(EngineLifecycleRecord::EventQueueCreated);
 
             throwIfInitializationFailureInjected(EngineInitializationStage::RenderBackend);
-            renderBackend = std::make_unique<FakeRenderBackend>();
+            if (renderBackend == nullptr) {
+                renderBackend = std::make_unique<FakeRenderBackend>();
+            }
             recordLifecycle(EngineLifecycleRecord::RenderBackendCreated);
 
             throwIfInitializationFailureInjected(EngineInitializationStage::ComputeBackend);
-            computeBackend = std::make_unique<FakeComputeBackend>();
+            if (computeBackend == nullptr) {
+                computeBackend = std::make_unique<FakeComputeBackend>();
+            }
             recordLifecycle(EngineLifecycleRecord::ComputeBackendCreated);
+
+            const Result<void> renderInitialized = renderBackend->init(RenderBackendConfig{
+                RenderSize{1U, 1U, 1.0F}});
+            renderBackendInitialized = renderInitialized.hasValue();
+            if (!renderInitialized.hasValue()) {
+                rollback();
+                recordLifecycle(EngineLifecycleRecord::InitializationFailed);
+                return finishInitializationFailure(renderInitialized.error().diagnosticMessage.c_str());
+            }
         } catch (const std::exception& exception) {
             rollback();
             recordLifecycle(EngineLifecycleRecord::InitializationFailed);
@@ -217,10 +245,17 @@ public:
         SceneParameters parameters = m_scene.frameInput().parameters;
         parameters.renderSize = size;
         const Result<void> result = m_scene.applyParameters(parameters);
-        if (result.hasValue()) {
-            publishSnapshot(m_stateMachine.state());
+        if (!result.hasValue()) {
+            return result;
         }
-        return result;
+        if (m_renderBackend != nullptr) {
+            const Result<void> backendResult = m_renderBackend->resize(size);
+            if (!backendResult.hasValue()) {
+                return backendResult;
+            }
+        }
+        publishSnapshot(m_stateMachine.state());
+        return Result<void>::success();
     }
 
     std::shared_ptr<const EngineSnapshot> snapshot() const {
@@ -272,6 +307,7 @@ public:
             recordLifecycle(EngineLifecycleRecord::ComputeBackendReleased);
         }
         if (m_renderBackend != nullptr) {
+            m_renderBackend->shutdown();
             m_renderBackend.reset();
             recordLifecycle(EngineLifecycleRecord::RenderBackendReleased);
         }
@@ -586,6 +622,16 @@ Result<void> Engine::init(const EngineConfig& config) {
         return Result<void>::failure(invalidStateError("Engine::init"));
     }
     return m_impl->init(config);
+}
+
+Result<void> Engine::init(
+    const EngineConfig& config,
+    std::unique_ptr<IRenderBackend> renderBackend,
+    std::unique_ptr<IComputeBackend> computeBackend) {
+    if (m_impl == nullptr) {
+        return Result<void>::failure(invalidStateError("Engine::init"));
+    }
+    return m_impl->init(config, std::move(renderBackend), std::move(computeBackend));
 }
 
 Result<void> Engine::enqueueCommand(EngineCommand command) {
