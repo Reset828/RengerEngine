@@ -2,16 +2,17 @@
 
 > 文件：`docs/tasks/qt-application.md`  
 > 所属阶段：Phase 1/Phase 2 公共 UI  
-> 模块状态：进行中（QT-001 至 QT-009 已完成；QT-010 至 QT-012 未完成）
+> 模块状态：进行中（QT-001 至 QT-009 已完成；QT-010 延后至 Vulkan 迁移；QT-011 已实现，待主人验证；QT-012 未开始）
 > 前置模块：[engine-core](./engine-core.md)、[camera-abstraction](./camera-abstraction.md)、[diagnostics](./diagnostics.md)  
 > 输入基线：[需求文档](../requirements/spec.md)、[概要设计](../design/architectureDesign.md)、[详细设计](../design/detailDesign.md)、[项目规范](../../agent.md)
 
 ## 0. 后续任务验证责任
 
-- 本模块后续任务由主人使用 VS2026/CMake 负责配置、构建和测试；AI 不执行 CMake configure、构建、CTest、单元测试、UI 测试或集成测试。
-- AI 完成功能后只能记录“已实现，待主人验证”，不能因代码修改或静态检查通过而勾选任务。
-- 主人明确确认编译测试通过后，才更新任务为“已完成”并允许进入下一个 QT 功能；失败时由主人提供日志，AI 修复后继续等待主人重新验证。
-- QT-001 至 QT-009 的实现与主人验证记录已完成；QT-010 至 QT-012 仍未开始。
+- 从 QT-011 本次调整起，以及 QT-012 及之后的所有新任务，默认不新增专门的自动化测试文件；此规则不追溯删除或修改 QT-001 至 QT-010 已存在的历史测试文件。
+- 后续任务由主人使用 VS2026/CMake 负责配置、构建并手工运行程序验证；AI 不执行 CMake configure、构建、CTest、单元测试、UI 测试或集成测试。
+- AI 每次交付必须说明具体交互步骤、每一步预期可见变化、失败或异常反馈，以及当前不会发生的行为和原因。
+- AI 完成功能后只能记录“已实现，待主人验证”，不能因代码修改或静态检查通过而勾选任务；主人明确确认手工验证通过后，才更新任务为“已完成”。
+- QT-001 至 QT-009 的实现与主人验证记录已完成；QT-010 延后；QT-011 已实现、待主人验证；QT-012 未开始。
 
 ## 1. 模块目标
 
@@ -42,8 +43,8 @@
 - [x] **QT-007 实现渲染参数 UI**
 - [x] **QT-008 实现状态与日志显示**
 - [x] **QT-009 实现 OpenGLRenderWidget 宿主**
-- [ ] **QT-010 实现 VulkanRenderWindow 宿主骨架**
-- [ ] **QT-011 实现 View Reset 入口但不定义行为**
+- [ ] **QT-010 实现 VulkanRenderWindow 宿主骨架（延后至 Vulkan 迁移阶段）**
+- [ ] **QT-011 实现 View Reset 入口但不定义行为（已实现，待主人验证）**
 - [ ] **QT-012 完成 UI 响应集成测试**
 
 ## 5. 子任务说明
@@ -191,7 +192,8 @@
 
 ### QT-010 实现 VulkanRenderWindow 宿主骨架
 
-- **状态**：未开始
+- **状态**：延后至 Vulkan 迁移阶段（当前不实现、不验收）
+- **延期说明**：当前 Qt Widgets/OpenGL 路径不创建 QWindow 宿主；仅在后续 Vulkan 迁移开始时恢复本任务。
 - **目标**：创建普通 QWindow、QWidget 容器和线程安全窗口事件。
 - **前置任务**：QT-005
 - **预计文件**：`src/app/VulkanRenderWindow.h`、`src/app/VulkanRenderWindow.cpp`、`src/app/RenderWindowContainer.h`、`src/app/RenderWindowContainer.cpp`、`tests/ui/VulkanWindowHostTests.cpp`
@@ -202,13 +204,16 @@
 
 ### QT-011 实现 View Reset 入口但不定义行为
 
-- **状态**：未开始
+- **状态**：已实现，待主人验证（2026-09-06）
 - **目标**：菜单/按钮只发送 ResetViewCommand。
 - **前置任务**：QT-005, camera-abstraction/CA-004
-- **预计文件**：`src/app/MainWindow.cpp`、`tests/ui/ViewResetUiTests.cpp`
-- **实现要求**：不得在 UI 中计算相机位置或固定快捷键。
-- **验收检查**：触发入口只产生一次 ResetViewCommand。
-- **测试要求**：UI 命令测试。
+- **实际文件**：`src/app/MainWindow.cpp`
+- **实现行为**：保留既有 `View > Reset View` 菜单入口；每次触发仅调用一次 `EngineUiAdapter::resetView()`。适配器不可用时状态栏显示 `Engine unavailable`；入队失败时状态栏显示错误摘要并追加可恢复错误日志；不计算或修改相机状态。
+- **实现要求**：不得在 UI 中计算相机位置或固定快捷键，不新增按钮、快捷键、Vulkan 依赖或 UI 层相机行为。
+- **主人手工验收**：1. 启动 `dzc_app`。2. 打开顶部 `View` 菜单。3. 点击 `Reset View`。4. 确认程序不崩溃且窗口仍可继续操作。5. 重复点击，确认每次都能正常处理。
+- **预期变化**：每次点击只通过 `EngineUiAdapter` 请求一次既有 `ResetViewCommand`；正常成功时不额外显示提示。精确命令次数由代码契约保证，普通用户界面不显示命令计数。
+- **当前不会发生的行为**：Engine 尚未接入 Camera Controller，因此当前画面可能没有可见变化；这是预期行为，不代表菜单请求失败。
+- **异常反馈**：适配器不可用时状态栏显示 `Engine unavailable`；命令入队失败时状态栏显示失败摘要，日志中出现可恢复错误。
 - **追踪**：FR-CAM-003、DDD-016
 
 ### QT-012 完成 UI 响应集成测试
@@ -226,15 +231,15 @@
 
 - [ ] Qt 依赖仅存在于 dzc_app
 - [ ] 加载、取消、参数、状态和日志 UI 均通过 Fake Engine 测试
-- [ ] OpenGL Widget 生命周期正确，Vulkan QWindow 宿主边界已建立
+- [ ] OpenGL Widget 生命周期正确；Vulkan QWindow 宿主仅在后续 Vulkan 迁移阶段验收
 - [ ] UI 不访问 PCL 或任何图形/CUDA 句柄
 
 ## 7. 交接记录
 
-- 实现日期：2026-09-05；主人验证通过：QT-008、QT-009（均为 2026-09-05）
+- 实现日期：2026-09-06；主人验证通过：QT-008、QT-009（均为 2026-09-05）；QT-011 已实现，待主人验证
 - 完成人：Codex（按主人确认方案实施）
-- 关键变更：完成 QT-001 至 QT-009；QT-009 已完成 OpenGLRenderWidget 宿主、Engine 后端依赖注入和 MainWindow 实际应用装配；QT-010 至 QT-012 保持未完成。
-- 当前交接：主人已明确确认 QT-008、QT-009 编译和测试通过，两个任务均已标记完成并勾选。Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
+- 关键变更：完成 QT-001 至 QT-009；QT-010 延后至后续 Vulkan 迁移阶段，当前不实现、不验收；QT-011 已连接既有 View 菜单到 ResetViewCommand，待主人手工运行程序验证；QT-012 保持未完成。
+- 当前交接：主人已明确确认 QT-008、QT-009 编译和测试通过，两个任务均已标记完成并勾选。QT-011 已实现，等待主人手工运行 `dzc_app` 验证；QT-010 仅在后续 Vulkan 迁移阶段恢复。Qt Application 模块其余任务和模块级验收尚未完成；Engine 尚未注入 Camera Controller，输入命令当前只消费不改变相机状态。
 - 测试命令与结果：QT-006 使用 `build-qt006`，配置 Qt 5.15.19、OpenGL ON、Vulkan/CUDA OFF、Tests ON；Debug 构建成功，`ctest --test-dir build-qt006 -C Debug -R 'dzc_dataset_load_ui|dzc_main_window_smoke|dzc_qt_application_smoke|dzc_engine_ui_adapter|dzc_engine_command|dzc_engine_public_api|dzc_command_line_options|dzc_settings_controller' --output-on-failure` 为 8/8 通过。QT-007 使用 `build-qt007` 同配置并成功构建 `dzc_app`、`dzc_render_parameters_ui`、QT-006/QT-004 smoke、QT-005 适配器和相关 Engine 目标；`dzc_engine_command_tests`、`dzc_engine_public_api_tests`、`dzc_command_line_options_tests` 的 Release 可执行文件为 3/3 通过。Qt UI/Settings 测试未运行成功：仓库根目录 `dll/` 仅有 `Qt5Core.dll`、`Qt5Gui.dll`、`Qt5Widgets.dll`，其中 `Qt5Core.dll` 依赖缺失 `icuin66.dll`、`icuuc66.dll`、`zstd.dll`，因此测试在 DLL 加载阶段返回 `0xC0000135`；按验收规则未从 Qt 安装目录、PATH 或其他构建目录补 DLL。
 - 关联提交：无（按要求不创建或修改 Git commit）。
 

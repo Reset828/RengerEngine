@@ -415,6 +415,17 @@ MainWindow::MainWindow(EngineUiAdapter* adapter, OpenGLRenderWidget* renderWidge
 
     connect(m_impl->openDatasetButton, &QPushButton::clicked, this, [this] { openDatasetDialog(); });
     connect(m_impl->openDatasetAction, &QAction::triggered, this, [this] { openDatasetDialog(); });
+    connect(m_impl->resetViewAction, &QAction::triggered, this, [this] {
+        if (m_impl->adapter == nullptr) {
+            statusBar()->showMessage(QStringLiteral("Engine unavailable"));
+            return;
+        }
+        const Result<void> result = m_impl->adapter->resetView();
+        if (!result.hasValue()) {
+            statusBar()->showMessage(QStringLiteral("Reset view failed: ") + errorSummary(result.error()));
+            m_impl->appendLog(ErrorEvent{EventSeverity::RecoverableError, result.error(), {}});
+        }
+    });
     connect(m_impl->cancelLoadingButton, &QPushButton::clicked, this, [this] { cancelDatasetLoading(); });
     connect(m_impl->pointSizeControl, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         submitPointSize(static_cast<float>(value));

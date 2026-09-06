@@ -50,7 +50,7 @@
 - [ ] [Grid Chunking](./grid-chunking.md) — 状态：进行中（GC-001 至 GC-009 已完成；模块级验收未完成）
 - [x] [OpenGL Renderer](./opengl-renderer.md) — 状态：已完成（2026-09-02；GL-001 至 GL-012 与四项模块级验收均已完成）
 - [ ] [CUDA-OpenGL Interop](./cuda-opengl-interop.md) — 状态：暂缓（本阶段跳过；可选能力，任务未完成）
-- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-009 已完成；QT-010 至 QT-012 未完成）
+- [ ] [Qt Application](./qt-application.md) — 状态：进行中（QT-001 至 QT-009 已完成；QT-010 延后至 Vulkan 迁移；QT-011 已实现，待主人手工运行程序验证；QT-012 未开始）
 - [ ] [Integration Testing and Acceptance](./integration-testing.md) 的 Phase 1 任务 — 状态：未开始
 
 ### 5.1 Phase 1 阶段门禁
@@ -138,6 +138,7 @@
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-09-06 | QT-010 延后 / QT-011 实现待主人手工验证 | QT-010 明确延后至后续 Vulkan 迁移阶段，当前不实现、不验收且不影响当前 Qt Widgets/OpenGL 路径。QT-011 保留 `View > Reset View` 菜单，触发时仅通过 `EngineUiAdapter::resetView()` 请求一次既有 `ResetViewCommand`；适配器不可用时显示 `Engine unavailable`，入队失败显示状态栏错误摘要并记录可恢复日志。主人启动 `dzc_app` 后从 `View` 菜单重复点击 `Reset View`，确认程序不崩溃且持续可操作；当前 Engine 未接入 Camera Controller，画面可能没有可见变化。长期规则同时确立：从 QT-011 本次调整及 QT-012 之后的新任务起，默认不新增专门测试文件，由主人手工运行程序验证，AI 每次交付提供交互步骤、预期结果、异常反馈和当前不会发生的行为。AI 未执行编译或测试，QT-011 保持“已实现，待主人验证”。 |
 | 2026-09-04 | 验证流程调整 | 自本记录起，所有后续任务由主人使用 VS2026/CMake 自行编译测试；AI 只交付代码和交接说明。QT-007 代码实现记录保留，当前等待主人验证，确认前不进入 QT-008。 |
 | 2026-09-04 | QT-007 完成 | 完成 Render Parameters Dock 的点大小、四种着色、RGBA 固定/背景色、CUDA Off/On/Auto 控件；通过 `EngineUiAdapter` 提交命令，Snapshot 同步参数与 `hasRgb`/`hasIntensity` 能力，标准 QSettings 恢复及失败回滚。`build-qt007` 配置和 `dzc_app`、QT-007/相关回归目标构建成功；非 Qt 的 Engine/配置 Release 回归 3/3 通过。Qt UI/Settings 运行因仓库根目录 `dll/` 缺少 `icuin66.dll`、`icuuc66.dll`、`zstd.dll`，按规则未补 DLL，未宣称通过；QT-008 至 QT-012、模块级验收和 Phase 1 门禁仍未完成。 |
 | 2026-09-05 | QT-009 实现待主人验证 | 新增 OpenGLRenderWidget、Qt Context Bridge、Engine 后端依赖注入和 MainWindow 实际应用装配；覆盖 GL 生命周期、线程、尺寸、delta、隐藏恢复和无图形环境 Skipped 约定。QT-009 尚未勾选，等待主人使用 VS2026/CMake 验证。 |
